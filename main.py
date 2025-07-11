@@ -2,12 +2,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
+# Gets the csv file name inside db folder
 file_path = "./db"
 file = os.listdir(file_path)
 
-if file[0].endswith(".csv"):
-    print("Verified")
-else: 
-    raise ValueError("It isn't a csv file")
+# Verify if it's an csv file
+if not file[0].endswith(".csv"):
+    raise ValueError("It isn't a CSV file")
 
 df = f"./db/{file[0]}"
