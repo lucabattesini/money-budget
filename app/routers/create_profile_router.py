@@ -5,3 +5,7 @@ router = APIRouter(
     tags=["create-profile"],
     responses={404: {"description": "Not found"}}
 )
+
+@router.post("/")
+async def create_budget_profile():
+    return
