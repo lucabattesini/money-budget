@@ -7,5 +7,5 @@ router = APIRouter(
 )
 
 @router.post("/")
-async def create_budget_profile():
+async def create_budget_profile(profile: Profile, investment_alignment: TableStructure):
     return
