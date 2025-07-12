@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import create_profile_router
+from app.routers import create_profile_router
 
 app = FastAPI()
 
