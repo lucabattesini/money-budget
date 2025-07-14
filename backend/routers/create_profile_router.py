@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.schemas.profile_schema import UserProfile, UserInvestmentsProfile
+from backend.schemas.profile_schema import UserProfile, UserInvestmentsProfile
 
 router = APIRouter(
     prefix="/create-profile",

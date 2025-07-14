@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import create_profile_router
+from backend.routers import create_profile_router
 
 app = FastAPI()
 
