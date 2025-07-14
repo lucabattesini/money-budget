@@ -10,5 +10,5 @@ export default function Home() {
                 This is my first react page!
             </p>
         </div>
-    )
+    );
 }
