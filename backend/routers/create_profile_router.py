@@ -1,5 +1,7 @@
-from fastapi import APIRouter
-from schemas.profile_schema import UserProfile, UserInvestmentsProfile
+from fastapi import APIRouter, status
+from fastapi.responses import JSONResponse
+from schemas.profile_schema import UserProfile
+from repositories.create_profile_repo import create_profile
 
 router = APIRouter(
     prefix="/create-profile",
@@ -9,4 +11,8 @@ router = APIRouter(
 
 @router.post("/")
 async def create_budget_profile(profile: UserProfile):
-    return
+    create_profile(profile.name, profile.email, profile.password)
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content={"message": "profile created"}
+    )
