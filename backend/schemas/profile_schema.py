@@ -1,11 +1,10 @@
 from pydantic import BaseModel
 
 class UserProfile(BaseModel):
-    id: str
+    name: str
     email: str
     password: str
-    name: str
-
+    
 class UserInvestmentsProfile(BaseModel):
     fixed_expenses: list
     fixed_earnings: list

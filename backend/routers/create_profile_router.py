@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from backend.schemas.profile_schema import UserProfile, UserInvestmentsProfile
+from schemas.profile_schema import UserProfile, UserInvestmentsProfile
 
 router = APIRouter(
     prefix="/create-profile",
@@ -8,5 +8,5 @@ router = APIRouter(
 )
 
 @router.post("/")
-async def create_budget_profile(profile: UserProfile, investment_alignment: UserInvestmentsProfile):
+async def create_budget_profile(profile: UserProfile):
     return
