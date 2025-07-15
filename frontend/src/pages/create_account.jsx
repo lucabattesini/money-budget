@@ -2,8 +2,7 @@ import React, {useState} from "react";
 
 export default function CreateAccount() {
 
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('')
+    const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
@@ -11,8 +10,7 @@ export default function CreateAccount() {
         e.preventDefault(); // Prevent the autoatic page reload
 
         const data = {
-            firstName,
-            lastName,
+            name,
             email,
             password,
         };
@@ -41,20 +39,12 @@ export default function CreateAccount() {
                         Fill the following inputs
                     </h2>
 
-                    <label htmlFor="name">First name</label>
+                    <label htmlFor="name">Name</label>
                     <input
                     id="name"
                     type="text"
-                    value={firstName}
-                    onChange={e => setFirstName(e.target.value)} // Atualiza o estado quando digita
-                    />
-
-                    <label htmlFor="name">Last name</label>
-                    <input
-                    id="name"
-                    type="text"
-                    value={lastName}
-                    onChange={e => setLastName(e.target.value)} // Atualiza o estado quando digita
+                    value={name}
+                    onChange={e => setName(e.target.value)} // Atualiza o estado quando digita
                     />
 
                     <label htmlFor="email">Email</label>
