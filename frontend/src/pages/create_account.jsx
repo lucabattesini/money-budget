@@ -12,7 +12,7 @@ export default function CreateAccount() {
         const data = {
             name,
             email,
-            password,
+            password
         };
 
         try {
