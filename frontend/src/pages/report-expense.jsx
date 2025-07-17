@@ -1,18 +1,18 @@
 import React from "react"
 
-export default function ReportIncome() {
+export default function ReportExpense() {
     return (
         <div className="container">
             <h1>
-                Report Incomes
+                Report Expenses
             </h1>
-            <label htmlFor="Investment">Investment</label>
+            <label htmlFor=""></label>
             <input type="number" />
 
-            <label htmlFor="Emergency found">Emergency found</label>
+            <label htmlFor=""></label>
             <input type="number" />
 
-            <label htmlFor="Checking account">Checking account</label>
+            <label htmlFor=""></label>
             <input type="number" />
 
             <button>Submit</button>
