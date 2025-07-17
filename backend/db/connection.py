@@ -1,22 +1,27 @@
-import mysql.connector
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import find_dotenv, load_dotenv
 
-# Virtual enviroment vars
+# Load irvtual enviroment vars
 dotenv_path = find_dotenv()
-
 load_dotenv(dotenv_path)
 
 user_name = os.getenv("user")
 password = os.getenv("password")
 database = os.getenv("database")
+host = os.getenv("host")
+port = os.getenv("port")
 
-# Connect to the db
-connection = mysql.connector.connect(
-    host="localhost",
-    user=user_name,
-    password=password,
-    database=database
-)
 
-cursor = connection.cursor()
+# Create  a connection in SQLAlchemy format
+DATABASE_URL = f"mysql+mysqlconnector://{user_name}:{password}@{host}:{port}/{database}"
+
+# Create the engine which conects with the db
+engine = create_engine(DATABASE_URL, echo=True)
+
+# Create the session factory
+local_session = sessionmaker(bind=engine)
+
+# Create the ORM base 
+Base = declarative_base()
