@@ -1,6 +1,5 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
-from schemas.profile_schema import UserDefaultBudget
 
 router = APIRouter(
     prefix="/update-budget",
