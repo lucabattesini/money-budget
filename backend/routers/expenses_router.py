@@ -3,11 +3,11 @@ from fastapi.responses import JSONResponse
 from schemas.tables import Transactions
 
 router = APIRouter(
-    prefix="/update-budget",
-    tags=["update-budget"],
+    prefix="/report-expense",
+    tags=["report-expense"],
     responses={404: {"description": "Not found"}}
 )
 
-@router.put("/{operation}")
-async def update_data_values(transaction: Transactions, operation):
+@router.put("/")
+async def update_data_values(transaction: Transactions):
     return
