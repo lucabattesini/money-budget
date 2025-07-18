@@ -21,7 +21,7 @@ DATABASE_URL = f"mysql+mysqlconnector://{user_name}:{password}@{host}:{port}/{da
 engine = create_engine(DATABASE_URL, echo=True)
 
 # Create the session factory
-local_session = sessionmaker(bind=engine)
+LocalSession = sessionmaker(bind=engine)
 
 # Create the ORM base 
 Base = declarative_base()
