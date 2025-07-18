@@ -1,5 +1,6 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
+from schemas.tables import Transactions
 
 router = APIRouter(
     prefix="/update-budget",
@@ -8,5 +9,5 @@ router = APIRouter(
 )
 
 @router.put("/{operation}")
-async def update_data_values(data: UserDefaultBudget, operation):
+async def update_data_values(transaction: Transactions, operation):
     return
