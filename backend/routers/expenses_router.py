@@ -9,5 +9,5 @@ router = APIRouter(
 )
 
 @router.put("/")
-async def update_data_values(transaction: Transactions):
+async def insert_transaction_router(transaction: Transactions):
     return
