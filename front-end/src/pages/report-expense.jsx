@@ -1,9 +1,21 @@
-import React from "react"
+import { Center, Stack, Button, Heading, Input} from "@chakra-ui/react";
 
 export default function ReportExpense() {
     return (
-        <div className="p-6">
-            <button className="btn btn-primary">Submit</button>
-        </div>
+        <Center>
+            <Stack
+                height="100vh"
+                gap={6}
+                width="35vh"
+                align="center"
+                justify="center"
+            >
+                <Heading>
+                    Report Expense
+                </Heading>
+                <Input placeholder="Amount" variant="outline" />
+                <Button>Submit</Button>
+            </Stack>
+        </Center>
     );
-}
+}   
