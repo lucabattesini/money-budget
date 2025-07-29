@@ -1,5 +1,4 @@
-import React from "react";
-import { Heading } from "@chakra-ui/react";
+import { Heading, Text } from "@chakra-ui/react";
 
 export default function Home() {
     return (
@@ -7,9 +6,9 @@ export default function Home() {
             <Heading>
                 Welcome page
             </Heading>
-            <p>
-                This is my first react page!
-            </p>
+            <Text>
+                Main page
+            </Text>
         </div>
     );
 }
