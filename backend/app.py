@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import create_profile_router
+from routers import categories_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -16,4 +16,4 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-app.include_router(create_profile_router.router)
+app.include_router(categories_router.router)
