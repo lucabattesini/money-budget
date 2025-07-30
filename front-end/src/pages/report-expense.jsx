@@ -13,8 +13,10 @@ export default function ReportExpense() {
                 <Heading>
                     Report Expense
                 </Heading>
-                <Input placeholder="Amount" variant="outline" />
-                
+
+                <Input type="number" placeholder="Amount" variant="outline" />
+                <Input placeholder="Description" variant="outline"/>
+
                 <Menu.Root>
                     <Menu.Trigger asChild>
                         <Button variant="outline">
