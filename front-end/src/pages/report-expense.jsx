@@ -1,6 +1,19 @@
+import React, { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Menu, Portal} from "@chakra-ui/react";
 
 export default function ReportExpense() {
+    const [categories, setCategories] = useState([]);
+
+    useEffect(() => {
+        fetch("http://127.0.0.1:8000/categories/", {
+            method: "get"
+        })
+            .then(Response => Response.json())
+            .then(data => setCategories(data))
+
+            .catch(error => console.error("Failed to search categories", error))
+    })
+
     return (
         <Center>
             <Stack
