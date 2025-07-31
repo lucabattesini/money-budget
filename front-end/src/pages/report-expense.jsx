@@ -12,7 +12,7 @@ export default function ReportExpense() {
             .then(data => setCategories(data))
 
             .catch(error => console.error("Failed to search categories", error))
-    })
+    }, [])
 
     return (
         <Center>
