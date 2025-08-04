@@ -28,7 +28,7 @@ export default function TransactionsDisplay() {
                 </Heading>
 
                 {transactions?.map((item) => (
-                    <Card.Root size="sm">
+                    <Card.Root size="sm" width={"35vh"}>
                       <Card.Header>
                         <Heading size="md"> {item.value} - {item.category}</Heading>
                       </Card.Header>
