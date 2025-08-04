@@ -1,6 +1,5 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
-from schemas.tables import Transactions
 from controllers.categories_controller import organize_categories_ctrl
 
 router = APIRouter(
