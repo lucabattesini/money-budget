@@ -14,3 +14,11 @@ def report_transaction_repo(label, value, date, category):
         db.close()
     
     return {"message": "Transaction created successfully"}
+
+
+def get_all_transactions_repo():
+    db : Session = LocalSession()
+
+    transactions = db.query(Transactions).all()
+
+    return transactions
