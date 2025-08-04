@@ -4,12 +4,14 @@ import Home from "./pages/home"
 import CreateAccount from './pages/create-account';
 import BudgetProfile from './pages/create-budget-profile';
 import ReportExpense from './pages/report-expense';
+import TransactionsDisplay from './pages/transactions-display';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
           <Route path='/' element={<Home />}/>
+          <Route path='transactions-display' element={<TransactionsDisplay/>}/>
           <Route path='budget-profile' element={<BudgetProfile/>}/>
           <Route path='create-account' element={<CreateAccount/>}/>
           <Route path='report-expense' element={<ReportExpense/>}/>
