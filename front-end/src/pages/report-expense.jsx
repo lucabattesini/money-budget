@@ -1,15 +1,18 @@
-import React, { useEffect, useState } from "react";
-import { Center, Stack, Button, Heading, Input, Menu, Portal} from "@chakra-ui/react";
+import { useEffect, useState } from "react";
+import { Center, Stack, Button, Heading, Input, Menu} from "@chakra-ui/react";
 
 export default function ReportExpense() {
+    const [amount, setAmount] = useState();
+    const [description, setDescription] = useState("");
     const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState("Select category");
 
     useEffect(() => {
         fetch("http://127.0.0.1:8000/categories/", {
             method: "get"
         })
             .then(Response => Response.json())
-            .then(data => setCategories(data))
+            .then(data => setCategories(data.data))
 
             .catch(error => console.error("Failed to search categories", error))
     }, [])
@@ -32,23 +35,19 @@ export default function ReportExpense() {
 
                 <Menu.Root>
                     <Menu.Trigger asChild>
-                        <Button variant="outline">
-                            Category
-                        </Button>
+                        <Button variant="outline"> {selectedCategory} </Button>
                     </Menu.Trigger>
-                    <Portal>
-                        <Menu.Positioner>
-                            <Menu.Content>
-                                <Menu.Item value="Self-Care">Self-care</Menu.Item>
-                                <Menu.Item value="Food">Food</Menu.Item>
-                                <Menu.Item value="Hobbies">Hobbies</Menu.Item>
-                            </Menu.Content>
-                        </Menu.Positioner>
-                    </Portal>
+                    <Menu.Content>
+                        {categories?.map((category) => (
+                            <Menu.Item key={category.id} onClick={() => setSelectedCategory(category.name)}>
+                                {category.name}
+                            </Menu.Item>
+                        ))}
+                    </Menu.Content>
                 </Menu.Root>
                 
                 <Button>Submit</Button>
             </Stack>
         </Center>
     );
-}   
+}
