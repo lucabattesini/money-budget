@@ -1,8 +1,8 @@
-from datetime import date
+from datetime import datetime
 from repositories.expenses_repo import report_transaction_repo
 
 def report_transaction_ctrl(label, value, category):
-    today = date.today()
+    today = datetime.now()
     report_transaction_repo(label, value, today, category)
     
     return {"message": "Data sent succesfully"}
