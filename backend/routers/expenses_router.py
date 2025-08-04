@@ -9,7 +9,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.put("/")
+@router.post("/")
 async def report_transaction_router(transaction: Transaction):
     report_transaction_ctrl(transaction.label, transaction.value, transaction.category)
     
