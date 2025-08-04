@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
-from schemas.tables import Transactions
+from schemas.tables_schemas import Transaction
 from controllers.expenses_controller import report_transaction_ctrl
 
 router = APIRouter(
@@ -10,7 +10,7 @@ router = APIRouter(
 )
 
 @router.put("/")
-async def report_transaction_router(transaction: Transactions):
+async def report_transaction_router(transaction: Transaction):
     report_transaction_ctrl(transaction.label, transaction.value, transaction.category)
     
     return JSONResponse(
