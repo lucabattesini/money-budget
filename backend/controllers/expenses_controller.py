@@ -1,8 +1,8 @@
-from repositories.expenses_repo import insert_transaction
 from datetime import date
+from repositories.expenses_repo import report_transaction_repo
 
-today = date.today()
-
-def format_transaction_to_insert(label, value, category):
-    insert_transaction(label, value, date, category)
-    return
+def report_transaction_ctrl(label, value, category):
+    today = date.today()
+    report_transaction_repo(label, value, today, category)
+    
+    return {"message": "Data sent succesfully"}
