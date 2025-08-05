@@ -19,9 +19,10 @@ export default function ReportExpense() {
     }, []);
 
     const handleSubmit = () => {
+        const formatedValue = value * 100
         const payload = {
             label: description,
-            value: parseInt(value),
+            value: parseInt(formatedValue),
             category: String(selectCategoryId)
         };
 
