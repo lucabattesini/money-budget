@@ -1,5 +1,6 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from schemas.tables_schemas import Transaction
 from controllers.expenses_controller import report_transaction_ctrl, get_all_transactions_ctrl
 
@@ -12,8 +13,9 @@ router = APIRouter(
 @router.get("/")
 async def get_all_transactions_router():
     transactions = get_all_transactions_ctrl()
+    json_result = jsonable_encoder(transactions)
     return JSONResponse(
-        content={"data": transactions},
+        content={"data": json_result},
         status_code=status.HTTP_200_OK
     )
 
