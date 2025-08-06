@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Menu} from "@chakra-ui/react";
+import endpoints from "../api/endpoints";
 
 export default function ReportExpense() {
     const [value, setvalue] = useState("");
@@ -9,7 +10,7 @@ export default function ReportExpense() {
     const [selectCategoryId, setSelectCategoryId] = useState("");
 
     useEffect(() => {
-        fetch("http://127.0.0.1:8000/categories/", {
+        fetch(endpoints.categories, {
             method: "get"
         })
             .then(Response => Response.json())
@@ -26,7 +27,7 @@ export default function ReportExpense() {
             category: String(selectCategoryId)
         };
 
-        fetch("http://127.0.0.1:8000/report-expense/", {
+        fetch(endpoints.expenses, {
             method: "post",
             headers: {
                 "Content-Type": "application/json"

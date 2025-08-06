@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Center, Stack, Heading, Card, Text, Flex } from "@chakra-ui/react";
+import endpoints from "../api/endpoints";
 
 export default function TransactionsDisplay() {
     const [categories, setCategories] = useState([])
     const [transactions, setTransactions] = useState([]);
 
     useEffect(() => {
-        fetch("http://127.0.0.1:8000/report-expense/", {
+        fetch(endpoints.expenses, {
             method: "get"
         })
             .then(Response => Response.json())
@@ -16,7 +17,7 @@ export default function TransactionsDisplay() {
     }, []);
 
     useEffect(() => {
-        fetch("http://127.0.0.1:8000/categories/", {
+        fetch(endpoints.categories, {
             method: "get"
         })
             .then(Response => Response.json())
