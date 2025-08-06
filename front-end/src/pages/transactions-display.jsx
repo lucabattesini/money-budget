@@ -39,20 +39,20 @@ export default function TransactionsDisplay() {
                     Transactions list
                 </Heading>
 
-                {transactions?.map((item) => {
-                    const category = categories.find((obj) => obj.id === item.id);
-                    const categoryName = category ? category.name : "Category not found";
+                {transactions.map((transaction) => {
+                    const categoryObj = categories.find((category) => String(category.id) === transaction.category);
+                    const categoryName = categoryObj ? categoryObj.name : "Category not found";
 
                     return (
-                        <Card.Root size="sm" width={"35vh"} key={item.id}>
+                        <Card.Root size="sm" width={"35vh"} key={transaction.id}>
                           <Card.Header>
                             <Flex justify="space-between">
-                                <Text>{item.value / 100}</Text>
+                                <Text>{transaction.value / 100}</Text>
                                 <Text>{categoryName}</Text>
                             </Flex>
                           </Card.Header>
                           <Card.Body color="fg.muted">
-                            {item.label}
+                            {transaction.label}
                           </Card.Body>
                         </Card.Root>
                     )
