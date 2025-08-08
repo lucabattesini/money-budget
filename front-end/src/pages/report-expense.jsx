@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Menu} from "@chakra-ui/react";
-import endpoints from "../api/endpoints";
+import { getAllCategories } from "../api/endpoints";
 
 export default function ReportExpense() {
     const [value, setvalue] = useState("");
@@ -9,16 +9,11 @@ export default function ReportExpense() {
     const [selectedCategory, setSelectedCategory] = useState("Select category");
     const [selectCategoryId, setSelectCategoryId] = useState("");
 
+    // Do it in the other fetchs
     useEffect(() => {
-        fetch(endpoints.categories, {
-            method: "get"
-        })
-            .then(Response => Response.json())
-            .then(data => setCategories(data.data))
-
-            .catch(error => console.error("Failed to search categories", error))
+        getAllCategories().then(data => setCategories(data.data))
     }, []);
-
+    
     const handleSubmit = () => {
         const formatedValue = value * 100
         const payload = {
