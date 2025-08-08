@@ -12,5 +12,30 @@ export function getAllCategories() {
             })
             .then(Response => Response.json())
 
-            .catch(error => console.error("Failed to search categories", error))
+            .catch(error => console.error("Failed to get categories", error))
 };
+
+export function insertNewTransaction(payload) {
+    return fetch(endpoints.expenses, {
+        method: "post",
+        headers: {
+                "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(res => {
+                if (!res.ok) throw new Error("Error to request");
+                return res.json
+    })
+
+    .catch(error => console.error("Failed to insert new transaction", error))
+};
+
+export function getAllTransactions() {
+    return fetch(endpoints.expenses, {
+        method: "get"
+    })
+    .then(Response => Response.json())
+
+    .catch(error => console.error("Failed to get transactions", error))
+}
