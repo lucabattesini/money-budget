@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Center, Stack, Heading, Card, Text, Flex } from "@chakra-ui/react";
-import endpoints from "../api/endpoints";
+import { endpoints } from "../api/endpoints";
 
 export default function TransactionsDisplay() {
     const [categories, setCategories] = useState([])
