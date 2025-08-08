@@ -2,6 +2,7 @@ from datetime import datetime
 from repositories.expenses_repo import report_transaction_repo, get_all_transactions_repo
 from fastapi import status
 
+# Return the created object
 def report_transaction_ctrl(label, value, category):
     today = datetime.now()
     report_transaction_repo(label, value, today, category)
