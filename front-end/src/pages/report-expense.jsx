@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Menu} from "@chakra-ui/react";
-import { getAllCategories } from "../api/endpoints";
+import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 
 export default function ReportExpense() {
     const [value, setvalue] = useState("");
@@ -21,29 +21,15 @@ export default function ReportExpense() {
             value: parseInt(formatedValue),
             category: String(selectCategoryId)
         };
-
-        fetch(endpoints.expenses, {
-            method: "post",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-        })
-            .then(res => {
-                if (!res.ok) throw new Error("Error to request");
-                return res.json
-            })
-            .then(data => {
+        
+        insertNewTransaction(payload).then(data => {
                 console.log("Successfully requested", data);
                 
                 setvalue("");
                 setDescription("");
                 setSelectedCategory("Select category");
             })
-            .catch(err => {
-                console.error("Error to request", err);
-            });
-    };
+        }
 
     return (
         <Center>
