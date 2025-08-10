@@ -1,29 +1,17 @@
 import { useState, useEffect } from "react";
 import { Center, Stack, Heading, Card, Text, Flex } from "@chakra-ui/react";
-import { endpoints } from "../api/endpoints";
+import { getAllTransactions, getAllCategories } from "../api/endpoints";
 
 export default function TransactionsDisplay() {
     const [categories, setCategories] = useState([])
     const [transactions, setTransactions] = useState([]);
 
     useEffect(() => {
-        fetch(endpoints.expenses, {
-            method: "get"
-        })
-            .then(Response => Response.json())
-            .then(data => setTransactions(data.data))
-
-            .catch(error => console.error("Failed to get transactions", error))
+            getAllTransactions().then(data => setTransactions(data.data))
     }, []);
 
     useEffect(() => {
-        fetch(endpoints.categories, {
-            method: "get"
-        })
-            .then(Response => Response.json())
-            .then(data => setCategories(data.data))
-
-            .catch(error => console.error("Failed to get categories", error))
+            getAllCategories().then(data => setCategories(data.data))
     }, [])
 
     return(
