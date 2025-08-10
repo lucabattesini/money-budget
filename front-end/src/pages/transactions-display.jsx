@@ -21,9 +21,10 @@ export default function TransactionsDisplay() {
                 gap={6}
                 width="35vh"
                 align="center"
-                justify="center"
+                justify="flex-start"
+                pt={16}
             >
-                <Heading>
+                <Heading size={"2xl"}>
                     Transactions list
                 </Heading>
 
