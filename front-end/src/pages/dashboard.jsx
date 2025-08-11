@@ -1,9 +1,20 @@
-import { Heading } from "@chakra-ui/react"
+import { Stack, Center, Heading } from "@chakra-ui/react"
 
 export default function Dashboard() {
     return(
-        <Heading>
-            Expenses dashboard
-        </Heading>
+        <Center>
+            <Stack
+                height="100vh"
+                gap={6}
+                width="35vh"
+                align="center"
+                justify="flex-start"
+                pt={16}
+            >
+                <Heading>
+                    Dashboard
+                </Heading>
+            </Stack>
+        </Center>
     )
 }
