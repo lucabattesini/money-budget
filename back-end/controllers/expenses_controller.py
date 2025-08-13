@@ -5,9 +5,9 @@ from fastapi import status
 # Return the created object
 def report_transaction_ctrl(label, value, category):
     today = datetime.now()
-    report_transaction_repo(label, value, today, category)
+    object = report_transaction_repo(label, value, today, category)
     
-    return status.HTTP_202_ACCEPTED
+    return object
 
 def get_all_transactions_ctrl():
     transactions = get_all_transactions_repo()

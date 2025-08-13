@@ -13,7 +13,7 @@ def report_transaction_repo(label, value, date, category):
     finally:
         db.close()
     
-    return {"message": "Transaction created successfully"}
+    return {"label": label, "value": value, "date": date, "category": category}
 
 
 def get_all_transactions_repo():
