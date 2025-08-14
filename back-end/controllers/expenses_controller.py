@@ -1,6 +1,5 @@
-from datetime import datetime, timedelta
-from repositories.expenses_repo import report_transaction_repo, get_all_transactions_repo
-from fastapi import status
+from datetime import datetime
+from repositories.expenses_repo import report_transaction_repo, get_all_transactions_repo, get_added_transactions_by_category_repo
 
 # Return the created object
 def report_transaction_ctrl(label, value, category):
@@ -10,17 +9,7 @@ def report_transaction_ctrl(label, value, category):
     return object
 
 def get_all_transactions_ctrl():
-    transactions = get_all_transactions_repo()
-    
-    return transactions
+    return get_all_transactions_repo()
 
-def get_transactions_by_time_ctrl(time):
-    time = int(time)
-    transactions = get_all_transactions_repo()
-    today = datetime.now()
-    filtered_transactions = [
-        r for r in transactions
-        if (today - r.date).days <= time
-    ]
-
-    return filtered_transactions
+def get_added_transactions_by_category_ctrl():
+    return get_added_transactions_by_category_repo()
