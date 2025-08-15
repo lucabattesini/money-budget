@@ -14,6 +14,15 @@ export function getAllCategories() {
             .catch(error => console.error("Failed to get categories", error))
 };
 
+export function getAddedTransactionsByCategory() {
+    return fetch(endpoints.expenses + "/added-by-category", {
+        method: "get"
+    })
+    .then(Response => Response.json())
+
+    .catch(error => console.error("Failed to get added categories", error))
+}
+
 export function insertNewTransaction(payload) {
     return fetch(endpoints.expenses, {
         method: "post",
