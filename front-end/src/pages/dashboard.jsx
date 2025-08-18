@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react"
 import { Stack, Center, Heading } from "@chakra-ui/react"
 import BarListChart from "../utils/charts"
 
@@ -13,7 +12,7 @@ export default function Dashboard() {
                 justify="flex-start"
                 pt={16}
             >
-                <Heading>
+                <Heading size={"2xl"}>
                     Dashboard
                 </Heading>
                 <BarListChart/>

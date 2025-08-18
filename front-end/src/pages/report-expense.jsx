@@ -38,9 +38,10 @@ export default function ReportExpense() {
                 gap={6}
                 width="35vh"
                 align="center"
-                justify="center"
+                justify="flex-start"
+                pt={16}
             >
-                <Heading>
+                <Heading size={"2xl"}>
                     Report Expense
                 </Heading>
 

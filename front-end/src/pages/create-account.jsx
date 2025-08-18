@@ -7,7 +7,7 @@ export default function CreateAccount() {
     const [password, setPassword] = useState('');
 
     const handleSubmit = async (e) => {
-        e.preventDefault(); // Prevent the autoatic page reload
+        e.preventDefault();
 
         const data = {
             name,

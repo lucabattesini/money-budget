@@ -33,7 +33,7 @@ export default function BarListChart() {
     const chart = useChart({
         sort: { by: "value", direction: "desc"},
         data: organizedCategories.map((item) => ({
-            name: `${item.name} `,
+            name: item.name,
             value: item.value
         })),
         series: [{name: "name", color: "teal.subtle"}],
