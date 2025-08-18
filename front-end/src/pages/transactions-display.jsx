@@ -36,7 +36,7 @@ export default function TransactionsDisplay() {
                         <Card.Root size="sm" width={"35vh"} key={transaction.id}>
                           <Card.Header>
                             <Flex justify="space-between">
-                                <Text>{transaction.value / 100}</Text>
+                                <Text>{transaction.value / 100} R$</Text>
                                 <Text>{categoryName}</Text>
                             </Flex>
                           </Card.Header>
