@@ -1,4 +1,4 @@
-import { Heading, Text, Tabs } from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 import Dashboard from "./dashboard";
 import ReportExpense from "./report-expense";
 import TransactionsDisplay from "./transactions-display";
