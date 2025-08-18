@@ -1,22 +1,12 @@
 import './styles/index.css';
 import {BrowserRouter, Routes, Route} from "react-router-dom";
 import Home from "./pages/home"
-import CreateAccount from './pages/create-account';
-import BudgetProfile from './pages/create-budget-profile';
-import ReportExpense from './pages/report-expense';
-import TransactionsDisplay from './pages/transactions-display';
-import Dashboard from './pages/dashboard';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
           <Route path='/' element={<Home />}/>
-          <Route path='transactions-display' element={<TransactionsDisplay/>}/>
-          <Route path='dashboard' element={<Dashboard/>}/>
-          <Route path='budget-profile' element={<BudgetProfile/>}/>
-          <Route path='create-account' element={<CreateAccount/>}/>
-          <Route path='report-expense' element={<ReportExpense/>}/>
       </Routes>
     </BrowserRouter>
   );
