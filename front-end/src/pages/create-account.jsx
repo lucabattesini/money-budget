@@ -11,7 +11,7 @@ export default function CreateAccount() {
                 justify="flex-start"
                 pt={16}
             >
-                <Heading>Create account</Heading>
+                <Heading size="2xl">Create account</Heading>
 
                 <Input placeholder="First name" variant="outline"/>
                 <Input placeholder="Last name" variant="outline"/>
