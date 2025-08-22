@@ -2,7 +2,8 @@ const URL_BASE = "http://127.0.0.1:8000";
 
 export const endpoints ={
     categories: `${URL_BASE}/categories`,
-    expenses: `${URL_BASE}/report-expense`
+    expenses: `${URL_BASE}/report-expense`,
+    user: `${URL_BASE}/user`
 };
 
 export function getAllCategories() {
@@ -21,7 +22,16 @@ export function getAddedTransactionsByCategory() {
     .then(Response => Response.json())
 
     .catch(error => console.error("Failed to get added categories", error))
-}
+};
+
+export function getAllTransactions() {
+    return fetch(endpoints.expenses, {
+        method: "get"
+    })
+    .then(Response => Response.json())
+
+    .catch(error => console.error("Failed to get transactions", error))
+};
 
 export function insertNewTransaction(payload) {
     return fetch(endpoints.expenses, {
@@ -32,18 +42,24 @@ export function insertNewTransaction(payload) {
         body: JSON.stringify(payload)
     })
     .then(res => {
-                if (!res.ok) throw new Error("Error to request");
-                return res.json
+        if (!res.ok) throw new Error("Error to request");
+        return res.json
     })
 
     .catch(error => console.error("Failed to insert new transaction", error))
 };
 
-export function getAllTransactions() {
-    return fetch(endpoints.expenses, {
-        method: "get"
+export function createUser(userInfo) {
+    return fetch(endpoints.user, {
+        method: "post",
+        headers: {
+            "Content-type": "application/json"
+        },
+        body: JSON.stringify(userInfo)
     })
-    .then(Response => Response.json())
-
-    .catch(error => console.error("Failed to get transactions", error))
-}
+    .then(res => {
+        if (!res.ok) throw new Error("Error to request");
+        return res.json
+    })
+    .catch(error => console.error("Failed to create user", error))
+};
