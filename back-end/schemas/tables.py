@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean
 from db.connection import Base
 
 class Transactions(Base):
@@ -21,6 +21,7 @@ class Users(Base):
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
     last_login = Column(DateTime)
+    is_active = Boolean()
 
 class Categories(Base):
     __tablename__ = "categories"
