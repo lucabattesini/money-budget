@@ -4,3 +4,8 @@ class Transaction(BaseModel):
     label: str
     value: int
     category: str
+
+class User(BaseModel):
+    name: str
+    email: str 
+    password: str
