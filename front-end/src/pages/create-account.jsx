@@ -13,8 +13,7 @@ export default function CreateAccount() {
             >
                 <Heading size="2xl">Create account</Heading>
 
-                <Input placeholder="First name" variant="outline"/>
-                <Input placeholder="Last name" variant="outline"/>
+                <Input placeholder="User name" variant="outline"/>
                 <Input placeholder="Email address" variant="outline"/>
                 <Input placeholder="Password" variant="outline"/>
 
