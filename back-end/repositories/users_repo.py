@@ -3,8 +3,9 @@ from sqlalchemy import func, extract
 from db.connection import LocalSession
 from schemas.tables import Users
 
-def create_user(name, email, password, created_at, updated_at, last_login, is_active):
-    db: Session = LocalSession()
+db: Session = LocalSession()
+
+def create_user_repo(name, email, password, created_at, updated_at, last_login, is_active):
     try:
         db.add(Users(name=name, 
                      email=email, 
@@ -29,3 +30,12 @@ def create_user(name, email, password, created_at, updated_at, last_login, is_ac
         "last_login": last_login,
         "is_active": is_active
     }
+
+def user_login_repo(email, password):
+    user = (
+        db.query(Users)
+        .filter(Users.email == email)
+        .filter(Users.password == password)
+        .all()
+    )
+    return user
