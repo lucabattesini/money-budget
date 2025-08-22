@@ -63,3 +63,18 @@ export function createUser(userInfo) {
     })
     .catch(error => console.error("Failed to create user", error))
 };
+
+export function loginUser(userInfo) {
+    return fetch(endpoints.user + "/user-login", {
+        method: "post",
+        headers: {
+            "Content-type": "application/json"
+        },
+        body: JSON.stringify(userInfo)
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Error to request");
+        return res.json
+    })
+    .catch(error => console.error("Failed to create user", error))
+};
