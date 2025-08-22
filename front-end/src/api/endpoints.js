@@ -50,7 +50,7 @@ export function insertNewTransaction(payload) {
 };
 
 export function createUser(userInfo) {
-    return fetch(endpoints.user, {
+    return fetch(endpoints.user + "/create-user", {
         method: "post",
         headers: {
             "Content-type": "application/json"
