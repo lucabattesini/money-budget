@@ -4,8 +4,9 @@ from db.connection import LocalSession
 from schemas.tables import Transactions
 from datetime import datetime
 
+db: Session = LocalSession()
+
 def report_transaction_repo(label, value, date, category):
-    db: Session = LocalSession()
     try:
         db.add(Transactions(label=label, value=value, date=date, category=category))
         db.commit()
@@ -17,7 +18,6 @@ def report_transaction_repo(label, value, date, category):
     return {"label": label, "value": value, "date": date, "category": category}
 
 def get_all_transactions_repo():
-    db : Session = LocalSession()
     transactions = db.query(Transactions).all()
 
     return transactions
@@ -27,7 +27,6 @@ def get_added_transactions_by_category_repo():
     current_month = now.strftime("%m")
     current_year = now.strftime("%Y")
 
-    db : Session = LocalSession()
     added_categoires = (
         db.query(
             Transactions.category,
