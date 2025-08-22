@@ -1,11 +1,21 @@
 import { useState, useEffect } from "react"
 import { Heading, Input, Center, Stack, Button, Text, Link } from "@chakra-ui/react";
+import { loginUser } from "../api/endpoints";
 
 export default function Login() {
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    const handleSubmit = () => {
+        const userLoginInfo = {
+            email: email,
+            password: password
+        };
+
+        loginUser(userLoginInfo).then(data => {
+            console.log("Successfully requested", data);
+        })
+    }
 
     return(
         <Center>
@@ -19,10 +29,15 @@ export default function Login() {
             >
                 <Heading size="2xl">Welcome back!</Heading>
 
-                <Input placeholder="Email address" variant="outline"/>
-                <Input placeholder="Password" variant="outline"/>
+                <Input 
+                placeholder="Email address" variant="outline"
+                value={email} onChange={(e) => setEmail(e.target.value)}/>
 
-                <Button>Log in</Button>
+                <Input 
+                placeholder="Password" variant="outline"
+                value={password} onChange={(e) => setPassword(e.target.value)}/>
+
+                <Button onClick={handleSubmit}>Log in</Button>
 
                 <Link variant="underline" href="/create-account">Don't have an account yet? Sign In now!</Link>
             </Stack>
