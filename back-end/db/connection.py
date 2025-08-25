@@ -15,7 +15,7 @@ port = os.getenv("port")
 
 
 # Create  a connection in SQLAlchemy format
-DATABASE_URL = f"mysql+mysqlconnector://{user_name}:{password}@{host}:{port}/{database}"
+DATABASE_URL = f"postgresql://{user_name}:{password}@{host}:{port}/{database}"
 
 # Create the engine which conects with the db
 engine = create_engine(DATABASE_URL, echo=True)
