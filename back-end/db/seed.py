@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from db.connection import LocalSession
+from connection import LocalSession
 from schemas.tables import Categories
 
 default_categories = [
