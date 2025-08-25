@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from connection import LocalSession
-from schemas.tables import Categories
+from ..schemas.tables import Categories
 
 default_categories = [
     "Rent", "Utilities", "Internet & Phone", "Insurance", "Debt Payments", "Taxes", "Super Market",
