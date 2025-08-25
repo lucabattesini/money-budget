@@ -4,18 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import find_dotenv, load_dotenv
 
-
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 
-FRONT_URL = os.getenv("FRONT_URL")
+FRONT_END_URL = os.getenv("FRONT_URL")
 
 app = FastAPI()
 
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=FRONT_URL,
+    allow_origins=FRONT_END_URL,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
