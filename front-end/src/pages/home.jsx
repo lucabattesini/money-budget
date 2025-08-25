@@ -5,7 +5,7 @@ import TransactionsDisplay from "./transactions-display";
 
 export default function Home() {
     return (
-      <Tabs.Root>
+      <Tabs.Root defaultValue={"dashboard"}>
         <Tabs.List>
             <Tabs.Trigger value="dashboard">Dashboard</Tabs.Trigger>
             <Tabs.Trigger value="report-expense">Report Expense</Tabs.Trigger>
