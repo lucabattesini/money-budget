@@ -1,4 +1,4 @@
-const URL_BASE = "https://money-budget.onrender.com/";
+const URL_BASE = "https://money-budget.onrender.com";
 
 export const endpoints ={
     categories: `${URL_BASE}/categories`,
