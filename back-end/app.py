@@ -1,16 +1,21 @@
 from fastapi import FastAPI
 from routers import categories_router, expenses_router, users_router
 from fastapi.middleware.cors import CORSMiddleware
+import os
+from dotenv import find_dotenv, load_dotenv
+
+
+dotenv_path = find_dotenv()
+load_dotenv(dotenv_path)
+
+FRONT_URL = os.getenv("FRONT_URL")
 
 app = FastAPI()
 
-origins = [
-    "https://money-budget-front-end.onrender.com"
-]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=FRONT_URL,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
