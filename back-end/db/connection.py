@@ -7,15 +7,8 @@ from dotenv import find_dotenv, load_dotenv
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 
-user_name = os.getenv("user")
-password = os.getenv("password")
-database = os.getenv("database")
-host = os.getenv("host")
-port = os.getenv("port")
-
-
 # Create  a connection in SQLAlchemy format
-DATABASE_URL = f"postgresql://{user_name}:{password}@{host}:{port}/{database}"
+DATABASE_URL = os.getenv("DB_URL")
 
 # Create the engine which conects with the db
 engine = create_engine(DATABASE_URL, echo=True)
