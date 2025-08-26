@@ -64,7 +64,14 @@ export default function ReportExpense() {
         }
 
         insertNewTransaction(payload).then(data => {
-                console.log("Successfully requested", data);
+                toaster.create({
+                title: "Accepted",
+                type: "success",
+                description: "Transaction saved successfully",
+                duration: 5000,
+                isClosable: true,
+                position: "top",
+                });
                 
                 setvalue("");
                 setDescription("");
