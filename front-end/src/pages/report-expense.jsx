@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Center, Stack, Button, Heading, Input, Menu} from "@chakra-ui/react";
+import { Center, Stack, Button, Heading, Input, Portal, Select} from "@chakra-ui/react";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 
 export default function ReportExpense() {
@@ -21,7 +21,22 @@ export default function ReportExpense() {
             value: parseInt(formatedValue),
             category: String(selectCategoryId)
         };
-        
+
+        if (!value || value === 0 ) {
+            console.error("The amount value need to be bigger than 0");
+            return;
+        }
+
+        if (!description) {
+            console.error("You need to give a description to the transaction");
+            return;
+        }
+
+        if (!selectCategoryId) {
+            console.error("You need to add a category to your transaction");
+            return;
+        }
+
         insertNewTransaction(payload).then(data => {
                 console.log("Successfully requested", data);
                 
@@ -50,28 +65,38 @@ export default function ReportExpense() {
                 value={value} onChange={(e) => setvalue(e.target.value)}
                 />
                 <Input
-                placeholder="Description" variant="outline"
+                placeholder="Description" variant="outline" maxLength={50}
                 value={description} onChange={(e) => setDescription(e.target.value)}
                 />
 
-                <Menu.Root>
-                    <Menu.Trigger asChild>
-                        <Button variant="outline"> {selectedCategory} </Button>
-                    </Menu.Trigger>
-                    <Menu.Content>
-                        {categories?.map((category) => (
-                            <Menu.Item key={category.id} 
-                                onClick={() => {
-                                    setSelectedCategory(category.name);
-                                    setSelectCategoryId(category.id);
-                                }}
-                            >
-                                {category.name}
-                            </Menu.Item>
-                        ))}
-                    </Menu.Content>
-                </Menu.Root>
-                
+                <Select.Root>
+                    <Select.HiddenSelect/>
+                    <Select.Control>
+                        <Select.Trigger>
+                            <Select.ValueText placeholder={selectedCategory}/>
+                        </Select.Trigger>
+                        <Select.IndicatorGroup>
+                            <Select.Indicator/>
+                        </Select.IndicatorGroup>
+                    </Select.Control>
+                    <Portal>
+                        <Select.Positioner>
+                            <Select.Content>
+                                {categories?.map((category) => (
+                                    <Select.Item item={category.name} key={category.id} 
+                                        onClick={() => {
+                                            setSelectCategoryId(category.id)
+                                            setSelectedCategory(category.name)
+                                        }}>
+                                        {category.name}
+                                        <Select.Indicator/>
+                                    </Select.Item>
+                                ))}
+                            </Select.Content>
+                        </Select.Positioner>
+                    </Portal>
+                </Select.Root>
+
                 <Button onClick={handleSubmit}>Submit</Button>
             </Stack>
         </Center>
