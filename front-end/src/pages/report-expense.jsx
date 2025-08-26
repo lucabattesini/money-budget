@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Portal, Select} from "@chakra-ui/react";
+import { toaster, Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 
 export default function ReportExpense() {
@@ -23,17 +24,42 @@ export default function ReportExpense() {
         };
 
         if (!value || value === 0 ) {
-            console.error("The amount value need to be bigger than 0");
+            toaster.create({
+            title: "Error",
+            type: "error",
+            description: "The amount value need to be bigger than 0",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+            position: "top",
+            });
+
             return;
         }
 
         if (!description) {
-            console.error("You need to give a description to the transaction");
+            toaster.create({
+            title: "Error",
+            type: "error",
+            description: "You need to give a description to the transaction",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+            position: "top",
+            });
             return;
         }
 
         if (!selectCategoryId) {
-            console.error("You need to add a category to your transaction");
+            toaster.create({
+            title: "Error",
+            type: "error",
+            description: "You need to select a category to the transaction",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+            position: "top",
+            });
             return;
         }
 
@@ -56,6 +82,8 @@ export default function ReportExpense() {
                 justify="flex-start"
                 pt={16}
             >
+                <Toaster/>
+                
                 <Heading size={"2xl"}>
                     Report Expense
                 </Heading>
