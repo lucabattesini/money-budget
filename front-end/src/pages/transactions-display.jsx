@@ -51,7 +51,7 @@ export default function TransactionsDisplay() {
                             return (
                                 <Table.Row key={transaction.id}>
                                     <Table.Cell>{transaction.label}</Table.Cell>
-                                    <Table.Cell>-{transaction.value / 100} R$</Table.Cell>
+                                    <Table.Cell>-{transaction.value / 100}&nbsp;R$</Table.Cell>
                                     <Table.Cell>{categoryName}</Table.Cell>
                                     <Table.Cell>{formatedDate.toLocaleDateString("pt-BR")}</Table.Cell>
                                 </Table.Row>
