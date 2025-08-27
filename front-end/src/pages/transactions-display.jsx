@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Center, Stack, Heading, Card, Text, Flex } from "@chakra-ui/react";
+import { Center, Stack, Heading, Box, Table } from "@chakra-ui/react";
 import { getAllTransactions, getAllCategories } from "../api/endpoints";
 import Home from "./home";
 
@@ -8,7 +8,7 @@ export default function TransactionsDisplay() {
     const [transactions, setTransactions] = useState([]);
 
     useEffect(() => {
-            getAllTransactions().then(data => setTransactions(data.data))
+            getAllTransactions().then(data => setTransactions(data.data.slice().reverse()))
     }, []);
 
     useEffect(() => {
@@ -20,7 +20,7 @@ export default function TransactionsDisplay() {
             <Stack
                 height="100vh"
                 gap={6}
-                width="35vh"
+                width="40vh"
                 align="center"
                 justify="flex-start"
                 pt={20}
@@ -33,25 +33,32 @@ export default function TransactionsDisplay() {
                     Transactions list
                 </Heading>
 
-                {transactions.map((transaction) => {
-                    const categoryObj = categories.find((category) => String(category.id) === transaction.category);
-                    const categoryName = categoryObj ? categoryObj.name : "Category not found";
-
-                    return (
-                        <Card.Root size="sm" width={"35vh"} key={transaction.id}>
-                          <Card.Header>
-                            <Flex justify="space-between">
-                                <Text>- {transaction.value / 100} R$</Text>
-                                <Text>{categoryName}</Text>
-                            </Flex>
-                          </Card.Header>
-                          <Card.Body color="fg.muted">
-                            {transaction.label}
-                          </Card.Body>
-                        </Card.Root>
-                    )
-                })}
-
+                <Table.Root>
+                    <Table.Header>
+                        <Table.Row>
+                            <Table.ColumnHeader>Description</Table.ColumnHeader>
+                            <Table.ColumnHeader>Amount</Table.ColumnHeader>
+                            <Table.ColumnHeader>Category</Table.ColumnHeader>
+                            <Table.ColumnHeader>Date</Table.ColumnHeader>
+                        </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                        {transactions.map((transaction) => {
+                            const categoryObj = categories.find((category) => String(category.id) === transaction.category);
+                            const categoryName = categoryObj ? categoryObj.name : "Category not found";
+                            const formatedDate = new Date(transaction.date)
+                            
+                            return (
+                                <Table.Row key={transaction.id}>
+                                    <Table.Cell>{transaction.label}</Table.Cell>
+                                    <Table.Cell>-{transaction.value / 100} R$</Table.Cell>
+                                    <Table.Cell>{categoryName}</Table.Cell>
+                                    <Table.Cell>{formatedDate.toLocaleDateString("pt-BR")}</Table.Cell>
+                                </Table.Row>
+                            )
+                        })}
+                    </Table.Body>
+                </Table.Root>
             </Stack>
         </Center>
     )

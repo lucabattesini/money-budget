@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Center, Stack, Button, Heading, Input, Portal, Select} from "@chakra-ui/react";
+import { Center, Stack, Button, Heading, Input, Portal, Select, Box} from "@chakra-ui/react";
 import { toaster, Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import Home from "./home";
