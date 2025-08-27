@@ -20,7 +20,7 @@ export default function TransactionsDisplay() {
             <Stack
                 height="100vh"
                 gap={6}
-                width="40vh"
+                width="70vh"
                 align="center"
                 justify="flex-start"
                 pt={20}
