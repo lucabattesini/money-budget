@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Center, Stack, Heading, Card, Text, Flex } from "@chakra-ui/react";
 import { getAllTransactions, getAllCategories } from "../api/endpoints";
+import Home from "./home";
 
 export default function TransactionsDisplay() {
     const [categories, setCategories] = useState([])
@@ -22,8 +23,12 @@ export default function TransactionsDisplay() {
                 width="35vh"
                 align="center"
                 justify="flex-start"
-                pt={16}
+                pt={20}
             >
+                <Box position="absolute" right={6} top={6}>
+                    <Home/>
+                </Box>
+
                 <Heading size={"2xl"}>
                     Transactions list
                 </Heading>

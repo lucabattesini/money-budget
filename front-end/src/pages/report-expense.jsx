@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Portal, Select} from "@chakra-ui/react";
 import { toaster, Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
+import Home from "./home";
 
 export default function ReportExpense() {
     const [value, setvalue] = useState("");
@@ -87,8 +88,12 @@ export default function ReportExpense() {
                 width="35vh"
                 align="center"
                 justify="flex-start"
-                pt={16}
+                pt={20}
             >
+                <Box position="absolute" right={6} top={6}>
+                    <Home/>
+                </Box>
+                
                 <Toaster/>
                 
                 <Heading size={"2xl"}>
