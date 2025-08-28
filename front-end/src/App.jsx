@@ -1,6 +1,5 @@
 import './styles/index.css';
-import {BrowserRouter, Routes, Route} from "react-router-dom";
-import Home from "./pages/home"
+import { HashRouter, Routes, Route} from "react-router-dom";
 import Login from './pages/login';
 import CreateAccount from './pages/create-account';
 import Dashboard from './pages/dashboard';
@@ -10,7 +9,7 @@ import Investments from './pages/investments';
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
           <Route path='/' element={ <Dashboard/> }/>
           <Route path='/report-expense' element={ <ReportExpense/> }/>
@@ -19,7 +18,7 @@ function App() {
           <Route path='/login' element={ <Login/> }/>
           <Route path='/create-account' element={ <CreateAccount/> }/>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
