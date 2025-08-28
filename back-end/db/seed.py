@@ -6,7 +6,7 @@ default_categories = [
     "Rent", "Utilities", "Internet & Phone", "Insurance", "Debt Payments", "Taxes", "Super Market",
     "Food", "Transportation", "Health & Pharmacy", "Personal Care", "Entertainment", "Shopping", "Subscriptions",
     "Fitness & Sports", "Hobbies", "Travel", "Education", "Home Maintenance", "Pets", "Gifts & Donations",
-    "Special Events", "Emergencies"
+    "Special Events", "Emergencies", "Emergency Founds", "Investments"
 ]
 
 def seed_categories():
