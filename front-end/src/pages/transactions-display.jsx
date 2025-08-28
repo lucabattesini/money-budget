@@ -20,7 +20,7 @@ export default function TransactionsDisplay() {
             <Stack
                 height="100vh"
                 gap={6}
-                width="70vh"
+                width="35vh"
                 align="center"
                 justify="flex-start"
                 pt={20}
@@ -38,7 +38,7 @@ export default function TransactionsDisplay() {
                         <Table.Row>
                             <Table.ColumnHeader>Description</Table.ColumnHeader>
                             <Table.ColumnHeader>Amount</Table.ColumnHeader>
-                            <Table.ColumnHeader>Category</Table.ColumnHeader>
+                            <Table.ColumnHeader display={{ base: "none", md: "table-cell" }}>Category</Table.ColumnHeader>
                             <Table.ColumnHeader>Date</Table.ColumnHeader>
                         </Table.Row>
                     </Table.Header>
@@ -52,7 +52,7 @@ export default function TransactionsDisplay() {
                                 <Table.Row key={transaction.id}>
                                     <Table.Cell>{transaction.label}</Table.Cell>
                                     <Table.Cell>-{transaction.value / 100}&nbsp;R$</Table.Cell>
-                                    <Table.Cell>{categoryName}</Table.Cell>
+                                    <Table.Cell display={{ base: "none", md: "table-cell" }}>{categoryName}</Table.Cell>
                                     <Table.Cell>{formatedDate.toLocaleDateString("pt-BR")}</Table.Cell>
                                 </Table.Row>
                             )

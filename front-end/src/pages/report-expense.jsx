@@ -105,7 +105,7 @@ export default function ReportExpense() {
                 value={value} onChange={(e) => setvalue(e.target.value)}
                 />
                 <Input
-                placeholder="Description" variant="outline" maxLength={50}
+                placeholder="Description" variant="outline" maxLength={25}
                 value={description} onChange={(e) => setDescription(e.target.value)}
                 />
 
