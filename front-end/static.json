@@ -1,0 +1,8 @@
+{
+  "routes": [
+    {
+      "match": "/*",
+      "serve": "/index.html"
+    }
+  ]
+}
