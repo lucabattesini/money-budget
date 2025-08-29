@@ -4,7 +4,6 @@ import { toaster, Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import Home from "./home";
 
-// tirar letra "e"
 // tirar seta para baixo
 
 export default function ReportExpense() {
@@ -14,7 +13,6 @@ export default function ReportExpense() {
     const [selectedCategory, setSelectedCategory] = useState("Select category");
     const [selectCategoryId, setSelectCategoryId] = useState("");
 
-    // Do it in the other fetchs
     useEffect(() => {
         getAllCategories().then(data => setCategories(data.data))
     }, []);

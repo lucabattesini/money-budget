@@ -3,7 +3,7 @@ import { Button, Link, Drawer, Portal, CloseButton, Stack } from "@chakra-ui/rea
 export default function Home() {
     return (
       <Drawer.Root size="xs">
-        <Drawer.Trigger>
+        <Drawer.Trigger asChild>
           <Button variant="outline" size="sm">
             Menu
           </Button>
