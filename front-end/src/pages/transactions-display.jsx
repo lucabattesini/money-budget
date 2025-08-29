@@ -12,7 +12,11 @@ export default function TransactionsDisplay() {
     }, []);
 
     useEffect(() => {
-            getAllCategories().then(data => setCategories(data.data))
+        getAllCategories().then(data => {
+            if (data) {
+                setCategories(data.data)
+            }
+        })
     }, [])
 
     return(
@@ -47,7 +51,7 @@ export default function TransactionsDisplay() {
                             const categoryObj = categories.find((category) => String(category.id) === transaction.category);
                             const categoryName = categoryObj ? categoryObj.name : "Category not found";
                             const formatedDate = new Date(transaction.date)
-                            
+                             
                             return (
                                 <Table.Row key={transaction.id}>
                                     <Table.Cell>{transaction.label}</Table.Cell>

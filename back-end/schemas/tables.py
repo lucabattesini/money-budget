@@ -10,7 +10,6 @@ class Transactions(Base):
     value = Column(Float)
     date = Column(DateTime)
     category = Column(String(100))
-    type = Column(String(100))
 
 class Users(Base):
     __tablename__ = "users"
