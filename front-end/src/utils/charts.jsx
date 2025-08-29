@@ -13,7 +13,11 @@ export default function BarListChart() {
             getAllCategories().then(data => setCategories(data.data))
     }, []);
     useEffect(() => {
-        getAddedTransactionsByCategory().then(data => setCategoriesAdded(data.data))
+        getAddedTransactionsByCategory().then(data => {
+            if (data){
+                setCategoriesAdded(data.data)
+            }
+        })
     }, []);
 
     const organizedCategories = []

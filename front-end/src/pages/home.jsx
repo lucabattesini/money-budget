@@ -22,7 +22,7 @@ export default function Home() {
 
                   <Link href="/report-expense"
                   fontSize="lg"
-                  fontWeight="bold">Report Exponse</Link>
+                  fontWeight="bold">Report Expense</Link>
 
                   <Link href="/transactions"
                   fontSize="lg"

@@ -4,6 +4,9 @@ import { toaster, Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import Home from "./home";
 
+// tirar letra "e"
+// tirar seta para baixo
+
 export default function ReportExpense() {
     const [value, setvalue] = useState("");
     const [description, setDescription] = useState("");

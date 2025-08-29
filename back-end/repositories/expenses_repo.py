@@ -24,8 +24,8 @@ def get_all_transactions_repo():
 
 def get_added_transactions_by_category_repo():
     now = datetime.now()
-    current_month = now.strftime("%m")
-    current_year = now.strftime("%Y")
+    current_month = now.month
+    current_year = now.year
 
     added_categoires = (
         db.query(
@@ -41,5 +41,3 @@ def get_added_transactions_by_category_repo():
         {"category": category, "total": total}
         for category, total in added_categoires
     ]
-
-get_added_transactions_by_category_repo()
