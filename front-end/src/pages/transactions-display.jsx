@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Center, Stack, Heading, Box, Table, Card, Flex, Text } from "@chakra-ui/react";
+import { Center, Stack, Heading, Box, Card, Flex, Text } from "@chakra-ui/react";
 import { getAllTransactions, getAllCategories } from "../api/endpoints";
 import Home from "./home";
 
@@ -46,20 +46,34 @@ export default function TransactionsDisplay() {
                         <Card.Root 
                         size="sm"
                         width={"35vh"} 
-                        key={transaction.id}>
+                        height={"14vh"}
+                        key={transaction.id}
+                        >
                             <Card.Header>
                                 <Flex justify="space-between">
                                     <Text>
                                         - {transaction.value /100} R$
                                     </Text>
                                     <Text>
-                                        {categoryName} - {formatedDate.toLocaleDateString("pt-BR")}
+                                        {categoryName}
                                     </Text>
                                 </Flex>
                             </Card.Header>
                             <Card.Body
-                            color="fg.muted">
-                                {transaction.label}
+                            color="fg.muted"
+                            >
+                                <Flex
+                                justify="space-between">
+                                    <Text
+                                    whiteSpace="normal"
+                                    wordBreak="break-word"
+                                    maxW="15ch">
+                                        {transaction.label}
+                                    </Text>
+                                    <Text>
+                                        {formatedDate.toLocaleDateString("pt-BR")}
+                                    </Text>
+                                </Flex>
                             </Card.Body>
 
                         </Card.Root>
