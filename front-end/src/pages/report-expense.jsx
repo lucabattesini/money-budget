@@ -5,6 +5,7 @@ import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import Home from "./home";
 
 // tirar seta para baixo
+// retornar feedback
 
 export default function ReportExpense() {
     const [value, setvalue] = useState("");
@@ -66,6 +67,7 @@ export default function ReportExpense() {
         }
 
         insertNewTransaction(payload).then(data => {
+            if (data.status === 201) {
                 toaster.create({
                 title: "Accepted",
                 type: "success",
@@ -74,13 +76,23 @@ export default function ReportExpense() {
                 isClosable: true,
                 position: "top",
                 });
-                
+
                 setvalue("");
                 setDescription("");
                 setSelectedCategory("Select category");
-            })
-        }
-
+                
+            } else if (data.status !== 201){
+                toaster.create({
+                title: "Error",
+                type: "error",
+                description: "Some error ocurred to report your transaction, please try again later",
+                duration: 5000,
+                isClosable: true,
+                position: "top",
+                });
+            }
+        })
+    }
     return (
         <Center>
             <Stack
