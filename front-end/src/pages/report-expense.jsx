@@ -66,22 +66,35 @@ export default function ReportExpense() {
             return;
         }
 
-        insertNewTransaction(payload).then(data => {
-            if (data.status === 201) {
-                toaster.create({
-                title: "Accepted",
-                type: "success",
-                description: "Transaction saved successfully",
-                duration: 5000,
-                isClosable: true,
-                position: "top",
-                });
+        insertNewTransaction(payload)
+            .then(data => {
+                console.log(data)
+                if (data.status === 201) {
+                    toaster.create({
+                    title: "Accepted",
+                    type: "success",
+                    description: "Transaction saved successfully",
+                    duration: 5000,
+                    isClosable: true,
+                    position: "top",
+                    });
 
-                setvalue("");
-                setDescription("");
-                setSelectedCategory("Select category");
-                
-            } else if (data.status !== 201){
+                    setvalue("");
+                    setDescription("");
+                    setSelectedCategory("Select category");
+
+                } else {
+                    toaster.create({
+                    title: "Error",
+                    type: "error",
+                    description: "Some error ocurred to report your transaction, please try again later",
+                    duration: 5000,
+                    isClosable: true,
+                    position: "top",
+                    });
+                }
+            })
+            .catch(error => {
                 toaster.create({
                 title: "Error",
                 type: "error",
@@ -90,8 +103,7 @@ export default function ReportExpense() {
                 isClosable: true,
                 position: "top",
                 });
-            }
-        })
+            })
     }
     return (
         <Center>
