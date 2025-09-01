@@ -2,7 +2,7 @@ from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from schemas.tables_schemas import Transaction
-from controllers.expenses_controller import get_all_transactions, get_added_transactions_by_category, create_transaction
+from controllers.transactions_controller import get_all_transactions, get_added_transactions_by_category, create_transaction
 
 router = APIRouter(
     prefix="/transactions",
