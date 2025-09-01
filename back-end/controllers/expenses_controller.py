@@ -1,15 +1,17 @@
 from datetime import datetime
-from repositories.expenses_repo import report_transaction_repo, get_all_transactions_repo, get_added_transactions_by_category_repo
+from repositories.expenses_repo import create_transaction as create_transaction_repo, get_transactions_summed_by_category as get_transactions_summed_by_category_repo, get_all_transactions as get_all_transactions_repo
+from schemas.tables_schemas import Transaction
 
 # Return the created object
-def report_transaction_ctrl(label, value, category):
+def create_transaction(transaction: Transaction):
     today = datetime.now()
-    object = report_transaction_repo(label, value, today, category)
-    
+    transaction.date = today
+    object = create_transaction_repo(transaction)
+
     return object
 
-def get_all_transactions_ctrl():
+def get_all_transactions():
     return get_all_transactions_repo()
 
-def get_added_transactions_by_category_ctrl():
-    return get_added_transactions_by_category_repo()
+def get_added_transactions_by_category(month, year):
+    return get_transactions_summed_by_category_repo(month, year)

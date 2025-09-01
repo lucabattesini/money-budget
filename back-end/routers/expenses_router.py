@@ -2,34 +2,34 @@ from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from schemas.tables_schemas import Transaction
-from controllers.expenses_controller import report_transaction_ctrl, get_all_transactions_ctrl, get_added_transactions_by_category_ctrl
+from controllers.expenses_controller import get_all_transactions, get_added_transactions_by_category, create_transaction
 
 router = APIRouter(
-    prefix="/report-expense",
-    tags=["report-expense"],
+    prefix="/transactions",
+    tags=["transactions "],
     responses={404: {"description": "Not found"}}
 )
- 
+
 @router.get("/")
 async def get_all_transactions_router():
-    transactions = get_all_transactions_ctrl()
+    transactions = get_all_transactions()
     json_result = jsonable_encoder(transactions)
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_200_OK
     )
 
-@router.get("/added-by-category")
-async def get_added_transactions_by_category_router():
-    json_result = jsonable_encoder(get_added_transactions_by_category_ctrl())
+@router.get("/summed-by-category")
+async def get_summed_transactions_by_category_router():
+    json_result = jsonable_encoder(get_added_transactions_by_category())
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_200_OK
     )
 
 @router.post("/")
-async def report_transaction_router(transaction: Transaction):
-    transaction_created = report_transaction_ctrl(transaction.label, transaction.value, transaction.category)
+async def create_transaction_router(transaction: Transaction):
+    transaction_created = create_transaction(transaction)
     json_result = jsonable_encoder(transaction_created)
     return JSONResponse(
         content={"data": json_result},
