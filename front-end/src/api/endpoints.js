@@ -6,13 +6,14 @@ export const endpoints ={
     user: `${URL_BASE}/user`
 };
 
+
+// GET
 export function getAllCategories() {
     return fetch(endpoints.categories, {
-            method: "get"
-            })
-            .then(Response => Response.json())
-
-            .catch(error => console.error("Failed to get categories", error))
+        method: "get"
+        })
+        .then(Response => Response.json())
+        .catch(error => console.error("Failed to get categories", error))
 };
 
 export function getAddedTransactionsByCategory() {
@@ -20,7 +21,6 @@ export function getAddedTransactionsByCategory() {
         method: "get"
     })
     .then(Response => Response.json())
-
     .catch(error => console.error("Failed to get added categories", error))
 };
 
@@ -29,10 +29,11 @@ export function getAllTransactions() {
         method: "get"
     })
     .then(Response => Response.json())
-
     .catch(error => console.error("Failed to get transactions", error))
 };
 
+
+// POST
 export function insertNewTransaction(payload) {
     return fetch(endpoints.expenses, {
         method: "post",
@@ -46,7 +47,6 @@ export function insertNewTransaction(payload) {
         const body = res.json()
         return {status: res.status, body};
     })
-
     .catch(error => console.error("Failed to insert new transaction", error))
 };
 

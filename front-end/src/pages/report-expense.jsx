@@ -129,6 +129,7 @@ export default function ReportExpense() {
                 type="number" placeholder="Amount" variant="outline" 
                 value={value} onChange={(e) => setvalue(e.target.value)}
                 />
+
                 <Input
                 placeholder="Description" variant="outline" maxLength={25}
                 value={description} onChange={(e) => setDescription(e.target.value)}
@@ -162,7 +163,9 @@ export default function ReportExpense() {
                     </Portal>
                 </Select.Root>
 
-                <Button onClick={handleSubmit}>Submit</Button>
+                <Button onClick={handleSubmit}>
+                    Submit
+                </Button>
             </Stack>
         </Center>
     );

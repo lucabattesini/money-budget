@@ -75,7 +75,6 @@ export default function TransactionsDisplay() {
                                     </Text>
                                 </Flex>
                             </Card.Body>
-
                         </Card.Root>
                     )
             })}
