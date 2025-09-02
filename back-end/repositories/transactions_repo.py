@@ -1,18 +1,15 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from db.connection import LocalSession
-from schemas.tables import Transactions
+from schemas.tables import TransactionsDB
+from schemas.tables_schemas import Transaction
 
 db: Session = LocalSession()
 
-def create_transaction(t):
+def create_transaction(t: Transaction):
     try:
-        db.add(Transactions(
-            label=t.label,
-            value=t.value,
-            date=t.date,
-            category=t.category
-        ))
+        transaction = TransactionsDB(**t.dict())
+        db.add(transaction)
         db.commit()
         return t
     
@@ -21,16 +18,16 @@ def create_transaction(t):
         raise
 
 def get_all_transactions():
-    return db.query(Transactions).all()
+    return db.query(TransactionsDB).all()
 
 def get_transactions_summed_by_category(month, year):
     added_categoiries = (
         db.query(
-            Transactions.category,
-            func.sum(Transactions.value).label("total"))
-            .filter(extract("month", Transactions.date) == month)
-            .filter(extract("year", Transactions.date) == year)
-            .group_by(Transactions.category)
+            TransactionsDB.category,
+            func.sum(TransactionsDB.value).label("total"))
+            .filter(extract("month", TransactionsDB.date) == month)
+            .filter(extract("year", TransactionsDB.date) == year)
+            .group_by(TransactionsDB.category)
             .all()
     )
 
