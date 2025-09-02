@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, func, ForeignKey
 from db.connection import Base
 
-class TransactionsDB(Base):
+class TransactionDB(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
