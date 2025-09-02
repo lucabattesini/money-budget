@@ -2,13 +2,20 @@ import { useState, useEffect } from "react";
 import { Center, Stack, Heading, Box, Card, Flex, Text } from "@chakra-ui/react";
 import { getAllTransactions, getAllCategories } from "../api/endpoints";
 import Home from "./home";
+import { SpinnerLoading } from "../utils/loadingComponent";
 
 export default function TransactionsDisplay() {
+    const [loading, setLoading] = useState(true)
     const [categories, setCategories] = useState([])
     const [transactions, setTransactions] = useState([]);
 
     useEffect(() => {
-            getAllTransactions().then(data => setTransactions(data.data))
+            getAllTransactions().then(data => {
+                if (data) {
+                    setTransactions(data.data)
+                    setLoading(false)
+                }
+        })
     }, []);
 
     useEffect(() => {
@@ -36,8 +43,9 @@ export default function TransactionsDisplay() {
                 <Heading size={"2xl"}>
                     Transactions list
                 </Heading>
-
-                {transactions.map((transaction) => {
+                
+                {loading && <SpinnerLoading/>}
+                {!loading && transactions.map((transaction) => {
                     const categoryObj = categories.find((category) => String(category.id) === transaction.category);
                     const categoryName = categoryObj ? categoryObj.name : "Category not found";
                     const formatedDate = new Date(transaction.date)

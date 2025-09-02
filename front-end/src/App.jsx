@@ -12,12 +12,12 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-          <Route path='/' element={ <Dashboard/> }/>
-          <Route path='/report-expense' element={ <ReportExpense/> }/>
-          <Route path='/transactions' element={ <TransactionsDisplay/> }/>
-          <Route path='/investments' element={ <Investments/> }/>
-          <Route path='/login' element={ <Login/> }/>
-          <Route path='/create-account' element={ <CreateAccount/> }/>
+        <Route path='/' element={ <Dashboard/> }/>
+        <Route path='/report-expense' element={ <ReportExpense/> }/>
+        <Route path='/transactions' element={ <TransactionsDisplay/> }/>
+        <Route path='/investments' element={ <Investments/> }/>
+        <Route path='/login' element={ <Login/> }/>
+        <Route path='/create-account' element={ <CreateAccount/> }/>
       </Routes>
     </BrowserRouter>
   );
