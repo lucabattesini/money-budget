@@ -17,4 +17,6 @@ def get_added_transactions_by_category():
     now = datetime.now()
     month = int(now.month)
     year = int(now.year)
-    return get_transactions_summed_by_category_repo(month, year)
+    added_categories = get_transactions_summed_by_category_repo(month, year)
+    total = [{"category": category, "total": total} for category, total in added_categories]
+    return total

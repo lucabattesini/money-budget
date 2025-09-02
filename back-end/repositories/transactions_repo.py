@@ -3,11 +3,8 @@ from sqlalchemy import func, extract
 from db.connection import LocalSession
 from schemas.tables import Transactions
 
-# Change names usaing as in all the files
-
-# Adjust the function to just do "Repositories" stuff
 db: Session = LocalSession()
-#Melhorar nomes da funções
+
 def create_transaction(t):
     try:
         db.add(Transactions(
@@ -21,17 +18,13 @@ def create_transaction(t):
         return t
     except Exception as e:
         db.rollback()
-    # Returning everything here and "trate" it in controller
 
 def get_all_transactions():
     try:
         return db.query(Transactions).all()
     except Exception as e:
         db.rollback()
-# Repositorio deve ser genérico
-# Função 2 e 3 devem ser a mesma - config via params
-# Improve func name
-# Deixar as funções parecidas- entender o codigo
+
 def get_transactions_summed_by_category(month, year):
     try:
         added_categoiries = (
@@ -47,5 +40,5 @@ def get_transactions_summed_by_category(month, year):
         db.rollback()
         raise
 
-    total = [{"category": category, "total": total} for category, total in added_categoiries]
-    return total
+    
+    return added_categoiries
