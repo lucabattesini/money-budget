@@ -69,7 +69,7 @@ export default function ReportExpense() {
         insertNewTransaction(payload)
             .then(data => {
                 console.log(data)
-                if (data.status === 201) {
+                if (data.status === 201 || data.status === 200) {
                     toaster.create({
                     title: "Accepted",
                     type: "success",

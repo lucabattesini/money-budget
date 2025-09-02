@@ -14,10 +14,10 @@ export default function BarListChart() {
     }, []);
     useEffect(() => {
         getAddedTransactionsByCategory().then(data => {
-            if (data){
-                setCategoriesAdded(data.data)
-            }
-        })
+            if (data) {
+            setCategoriesAdded(data.data)
+            console.log(data)
+        }})
     }, []);
 
     const organizedCategories = []

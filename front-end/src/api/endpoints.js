@@ -2,7 +2,7 @@ const URL_BASE = `${import.meta.env.VITE_API_URL}`
 
 export const endpoints ={
     categories: `${URL_BASE}/categories`,
-    expenses: `${URL_BASE}/report-expense`,
+    expenses: `${URL_BASE}/transactions`,
     user: `${URL_BASE}/user`
 };
 
@@ -16,7 +16,7 @@ export function getAllCategories() {
 };
 
 export function getAddedTransactionsByCategory() {
-    return fetch(endpoints.expenses + "/added-by-category", {
+    return fetch(endpoints.expenses + "/summed-by-category", {
         method: "get"
     })
     .then(Response => Response.json())
@@ -43,7 +43,8 @@ export function insertNewTransaction(payload) {
     })
     .then(res => {
         if (!res.ok) throw new Error("Error to request");
-        return res.json
+        const body = res.json()
+        return {status: res.status, body};
     })
 
     .catch(error => console.error("Failed to insert new transaction", error))

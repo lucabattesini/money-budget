@@ -8,10 +8,16 @@ from schemas.tables import Transactions
 # Adjust the function to just do "Repositories" stuff
 db: Session = LocalSession()
 #Melhorar nomes da funções
-def create_transaction(t: Transactions):
+def create_transaction(t):
     try:
-        db.add(t)
+        db.add(Transactions(
+            label=t.label,
+            value=t.value,
+            date=t.date,
+            category=t.category
+        ))
         db.commit()
+        db.close()
         return t
     except Exception as e:
         db.rollback()
@@ -28,10 +34,10 @@ def get_all_transactions():
 # Deixar as funções parecidas- entender o codigo
 def get_transactions_summed_by_category(month, year):
     try:
-        added_categoires = (
+        added_categoiries = (
             db.query(
                 Transactions.category,
-                func.sum(Transactions.value))
+                func.sum(Transactions.value).label("total"))
                 .filter(extract("month", Transactions.date) == month)
                 .filter(extract("year", Transactions.date) == year)
                 .group_by(Transactions.category)
@@ -39,8 +45,7 @@ def get_transactions_summed_by_category(month, year):
         )
     except Exception as e:
         db.rollback()
+        raise
 
-    return [
-        {"category": category, "total": total}
-        for category, total in added_categoires
-    ]
+    total = [{"category": category, "total": total} for category, total in added_categoiries]
+    return total

@@ -13,5 +13,8 @@ def create_transaction(transaction: Transaction):
 def get_all_transactions():
     return get_all_transactions_repo()
 
-def get_added_transactions_by_category(month, year):
+def get_added_transactions_by_category():
+    now = datetime.now()
+    month = int(now.month)
+    year = int(now.year)
     return get_transactions_summed_by_category_repo(month, year)

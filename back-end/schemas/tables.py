@@ -5,11 +5,11 @@ class Transactions(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     label = Column(String(100))
     value = Column(Integer)
     date = Column(DateTime)
-    category_id = Column(String(100))
+    category = Column(String(100))
 
 # Relate transactions column to user
 

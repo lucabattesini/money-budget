@@ -8,7 +8,7 @@ export default function TransactionsDisplay() {
     const [transactions, setTransactions] = useState([]);
 
     useEffect(() => {
-            getAllTransactions().then(data => setTransactions(data.data.slice().reverse()))
+            getAllTransactions().then(data => setTransactions(data.data))
     }, []);
 
     useEffect(() => {
