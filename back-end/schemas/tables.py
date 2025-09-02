@@ -11,8 +11,6 @@ class Transactions(Base):
     date = Column(DateTime)
     category = Column(String(100))
 
-# Relate transactions column to user
-
 class Users(Base):
     __tablename__ = "users"
 

@@ -5,7 +5,4 @@ from schemas.tables import Categories
 db: Session = LocalSession()
 
 def get_all_categories():
-
-    categories = db.query(Categories).all()
-
-    return categories
+    return db.query(Categories).all()

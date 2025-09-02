@@ -4,8 +4,7 @@ from schemas.tables_schemas import Transaction
 
 # Return the created object
 def create_transaction(transaction: Transaction):
-    today = datetime.now()
-    transaction.date = today
+    transaction.date = datetime.now()
     object = create_transaction_repo(transaction)
 
     return object
@@ -14,9 +13,9 @@ def get_all_transactions():
     return get_all_transactions_repo()
 
 def get_added_transactions_by_category():
-    now = datetime.now()
-    month = int(now.month)
-    year = int(now.year)
+    today = datetime.now()
+    month = int(today.month)
+    year = int(today.year)
     added_categories = get_transactions_summed_by_category_repo(month, year)
     total = [{"category": category, "total": total} for category, total in added_categories]
     return total

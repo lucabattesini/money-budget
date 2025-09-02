@@ -12,8 +12,7 @@ router = APIRouter(
 
 @router.get("/")
 async def get_all_transactions_router():
-    transactions = get_all_transactions()
-    json_result = jsonable_encoder(transactions)
+    json_result = jsonable_encoder(get_all_transactions())
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_200_OK
@@ -29,8 +28,7 @@ async def get_summed_transactions_by_category_router():
 
 @router.post("/")
 async def create_transaction_router(transaction: Transaction):
-    transaction_created = create_transaction(transaction)
-    json_result = jsonable_encoder(transaction_created)
+    json_result = jsonable_encoder(create_transaction(transaction))
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_201_CREATED

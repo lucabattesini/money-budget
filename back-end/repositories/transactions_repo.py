@@ -14,31 +14,24 @@ def create_transaction(t):
             category=t.category
         ))
         db.commit()
-        db.close()
         return t
-    except Exception as e:
-        db.rollback()
-
-def get_all_transactions():
-    try:
-        return db.query(Transactions).all()
-    except Exception as e:
-        db.rollback()
-
-def get_transactions_summed_by_category(month, year):
-    try:
-        added_categoiries = (
-            db.query(
-                Transactions.category,
-                func.sum(Transactions.value).label("total"))
-                .filter(extract("month", Transactions.date) == month)
-                .filter(extract("year", Transactions.date) == year)
-                .group_by(Transactions.category)
-                .all()
-        )
+    
     except Exception as e:
         db.rollback()
         raise
 
-    
+def get_all_transactions():
+    return db.query(Transactions).all()
+
+def get_transactions_summed_by_category(month, year):
+    added_categoiries = (
+        db.query(
+            Transactions.category,
+            func.sum(Transactions.value).label("total"))
+            .filter(extract("month", Transactions.date) == month)
+            .filter(extract("year", Transactions.date) == year)
+            .group_by(Transactions.category)
+            .all()
+    )
+
     return added_categoiries

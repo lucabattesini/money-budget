@@ -28,4 +28,5 @@ def seed_categories():
     finally:
         db.close() # Close the session with db
 
+# Execute de seed function
 seed_categories()
