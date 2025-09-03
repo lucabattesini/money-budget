@@ -11,7 +11,7 @@ def create_transaction(transaction: Transaction):
 def get_all_transactions():
     return get_all_transactions_repo()
 
-def get_added_transactions_by_category():
+def get_transactions_summed_by_category():
     today = datetime.now()
     month = int(today.month)
     year = int(today.year)
