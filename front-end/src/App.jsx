@@ -1,5 +1,6 @@
 import './styles/index.css';
 import {BrowserRouter, Routes, Route} from "react-router-dom";
+import { Box } from '@chakra-ui/react';
 import Home from "./pages/home"
 import Login from './pages/login';
 import CreateAccount from './pages/create-account';
@@ -11,6 +12,9 @@ import Investments from './pages/investments';
 function App() {
   return (
     <BrowserRouter>
+      <Box position="absolute" right={6} top={6}>
+        <Home/>
+      </Box>
       <Routes>
         <Route path='/' element={ <Dashboard/> }/>
         <Route path='/report-expense' element={ <ReportExpense/> }/>

@@ -5,7 +5,7 @@ import { BarList, useChart} from "@chakra-ui/charts";
 import Home from "./home";
 
 export default function Dashboard() {
-    const [categoriesAdded, setCategoriesAdded] = useState([]);
+    const [valuesSummedByCategory, setvaluesSummedByCategory] = useState([]);
     const [categories, setCategories] = useState([]);
 
     useEffect(() => {
@@ -14,14 +14,14 @@ export default function Dashboard() {
     useEffect(() => {
         getAddedTransactionsByCategory().then(data => {
             if (data) {
-            setCategoriesAdded(data.data)
+            setvaluesSummedByCategory(data.data)
             console.log(data)
         }})
     }, []);
 
     const organizedCategories = []
 
-    for (const r of categoriesAdded) {
+    for (const r of valuesSummedByCategory) {
         const categorieName = categories.find(element => element.id == r.category)
 
         if (!categorieName) continue;
@@ -50,11 +50,7 @@ export default function Dashboard() {
                 align="center"
                 justify="flex-start"
                 pt={20}
-            >
-                <Box position="absolute" right={6} top={6}>
-                    <Home/>
-                </Box>
-                
+            >   
                 <Heading size={"2xl"}>
                     Dashboard
                 </Heading>

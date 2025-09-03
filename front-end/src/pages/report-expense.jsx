@@ -68,7 +68,6 @@ export default function ReportExpense() {
 
         insertNewTransaction(payload)
             .then(data => {
-                console.log(data)
                 if (data.status === 201 || data.status === 200) {
                     toaster.create({
                     title: "Accepted",
@@ -114,11 +113,7 @@ export default function ReportExpense() {
                 align="center"
                 justify="flex-start"
                 pt={20}
-            >
-                <Box position="absolute" right={6} top={6}>
-                    <Home/>
-                </Box>
-                
+            >    
                 <Toaster/>
                 
                 <Heading size={"2xl"}>

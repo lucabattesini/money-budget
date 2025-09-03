@@ -36,10 +36,6 @@ export default function TransactionsDisplay() {
                 justify="flex-start"
                 pt={20}
             >
-                <Box position="absolute" right={6} top={6}>
-                    <Home/>
-                </Box>
-
                 <Heading size={"2xl"}>
                     Transactions list
                 </Heading>
