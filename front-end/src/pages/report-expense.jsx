@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Center, Stack, Button, Heading, Input, Portal, Select, Box} from "@chakra-ui/react";
-import { toaster, Toaster } from "../components/ui/toaster";
+import { Center, Stack, Button, Heading, Input, Portal, Select} from "@chakra-ui/react";
+import { Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
+import customToaster from "../utils/customToaster"
 // tirar seta para baixo
 
 export default function ReportExpense() {
@@ -24,81 +25,36 @@ export default function ReportExpense() {
         };
 
         if (!value || value === 0 ) {
-            toaster.create({
-            title: "Error",
-            type: "error",
-            description: "The amount value need to be bigger than 0",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-            position: "top",
-            });
+            customToaster("Error", "error", "The amount value need to be bigger than 0")
 
             return;
         }
 
         if (!description) {
-            toaster.create({
-            title: "Error",
-            type: "error",
-            description: "You need to give a description to the transaction",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-            position: "top",
-            });
+            customToaster("Error", "error", "You need to give a description to your transaction")
             return;
         }
 
         if (!selectCategoryId) {
-            toaster.create({
-            title: "Error",
-            type: "error",
-            description: "You need to select a category to the transaction",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-            position: "top",
-            });
+            customToaster("Error", "error", "You need to select a category to your transaction")
             return;
         }
 
         insertNewTransaction(payload)
             .then(data => {
                 if (data.status === 201 || data.status === 200) {
-                    toaster.create({
-                    title: "Accepted",
-                    type: "success",
-                    description: "Transaction saved successfully",
-                    duration: 5000,
-                    isClosable: true,
-                    position: "top",
-                    });
+                    customToaster("Accepted", "success", "Your transaction is saved!")
 
                     setvalue("");
                     setDescription("");
                     setSelectedCategory("Select category");
 
                 } else {
-                    toaster.create({
-                    title: "Error",
-                    type: "error",
-                    description: "Some error ocurred to report your transaction, please try again later",
-                    duration: 5000,
-                    isClosable: true,
-                    position: "top",
-                    });
+                    customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
                 }
             })
             .catch(error => {
-                toaster.create({
-                title: "Error",
-                type: "error",
-                description: "Some error ocurred to report your transaction, please try again later",
-                duration: 5000,
-                isClosable: true,
-                position: "top",
-                });
+                customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
             })
     }
     return (
