@@ -2,21 +2,21 @@ import { getAllCategories, getAddedTransactionsByCategory } from "../api/endpoin
 import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading,  } from "@chakra-ui/react"
 import { BarList, useChart} from "@chakra-ui/charts";
-import Home from "./home";
 
 export default function Dashboard() {
     const [valuesSummedByCategory, setvaluesSummedByCategory] = useState([]);
     const [categories, setCategories] = useState([]);
 
     useEffect(() => {
-            getAllCategories().then(data => setCategories(data.data))
-    }, []);
-    useEffect(() => {
-        getAddedTransactionsByCategory().then(data => {
-            if (data) {
-            setvaluesSummedByCategory(data.data)
-            console.log(data)
-        }})
+        Promise.all([
+            getAllCategories(),
+            getAddedTransactionsByCategory()
+        ]).then(([categoriesData, transactionsData]) => {
+            setCategories(categoriesData.data);
+            if (transactionsData) {
+                setvaluesSummedByCategory(transactionsData.data)
+            }
+        });
     }, []);
 
     const organizedCategories = []

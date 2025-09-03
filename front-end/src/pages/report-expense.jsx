@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Portal, Select, Box} from "@chakra-ui/react";
 import { toaster, Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
-import Home from "./home";
-
 // tirar seta para baixo
-// retornar feedback
 
 export default function ReportExpense() {
     const [value, setvalue] = useState("");

@@ -1,5 +1,4 @@
 import { Stack, Center, Heading, Box } from "@chakra-ui/react"
-import Home from "./home"
 
 export default function Investments() {
     return(
