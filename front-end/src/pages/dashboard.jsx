@@ -2,8 +2,10 @@ import { getAllCategories, getAddedTransactionsByCategory } from "../api/endpoin
 import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading,  } from "@chakra-ui/react"
 import { BarList, useChart} from "@chakra-ui/charts";
+import { SpinnerLoading } from "../utils/loadingComponent";
 
 export default function Dashboard() {
+    const [loading, setLoading] = useState(true)
     const [valuesSummedByCategory, setvaluesSummedByCategory] = useState([]);
     const [categories, setCategories] = useState([]);
 
@@ -15,6 +17,7 @@ export default function Dashboard() {
             setCategories(categoriesData.data);
             if (transactionsData) {
                 setvaluesSummedByCategory(transactionsData.data)
+                setLoading(false)
             }
         });
     }, []);
@@ -54,7 +57,9 @@ export default function Dashboard() {
                 <Heading size={"2xl"}>
                     Dashboard
                 </Heading>
-
+                
+                {loading && <SpinnerLoading/>}
+                {!loading && 
                 <Box width="100%">
                     <BarList.Root chart={chart}>
                         <BarList.Content>
@@ -63,6 +68,8 @@ export default function Dashboard() {
                         </BarList.Content>
                     </BarList.Root>
                 </Box>
+                }
+                
             </Stack>
         </Center>
     )
