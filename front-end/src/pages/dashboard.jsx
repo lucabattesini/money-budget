@@ -60,16 +60,15 @@ export default function Dashboard() {
                 
                 {loading && <SpinnerLoading/>}
                 {!loading && 
-                <Box width="100%">
-                    <BarList.Root chart={chart}>
-                        <BarList.Content>
-                            <BarList.Bar/>
-                            <BarList.Value/>
-                        </BarList.Content>
-                    </BarList.Root>
-                </Box>
+                    <Box width="100%">
+                        <BarList.Root chart={chart}>
+                            <BarList.Content>
+                                <BarList.Bar/>
+                                <BarList.Value/>
+                            </BarList.Content>
+                        </BarList.Root>
+                    </Box>
                 }
-                
             </Stack>
         </Center>
     )

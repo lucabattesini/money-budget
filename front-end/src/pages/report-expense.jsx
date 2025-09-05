@@ -1,21 +1,32 @@
 import { useEffect, useState } from "react";
-import { Center, Stack, Button, Heading, Input, Portal, Select} from "@chakra-ui/react";
+import { Center, Stack, Button, Heading, Input, Portal, Combobox, useFilter, useListCollection } from "@chakra-ui/react";
 import { Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import customToaster from "../utils/customToaster"
+import { SpinnerLoading } from "../utils/loadingComponent";
 // tirar seta para baixo
 
 export default function ReportExpense() {
+    const [loading, setLoading] = useState(true)
     const [value, setvalue] = useState("");
     const [description, setDescription] = useState("");
-    const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState("Select category");
     const [selectCategoryId, setSelectCategoryId] = useState("");
+    const [organizedCategories, setOrganizedCategories] = useState([])
 
     useEffect(() => {
-        getAllCategories().then(data => setCategories(data.data))
+        getAllCategories().then(
+            data => {
+                const organized = data.map((category) => ({
+                label: category.name,
+                value: String(category.id)
+                }));
+                setOrganizedCategories(organized);
+                setLoading(false)
+            }
+        )
     }, []);
-    
+
     const handleSubmit = () => {
         const formatedValue = value * 100
         const payload = {
@@ -57,6 +68,45 @@ export default function ReportExpense() {
                 customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
             })
     }
+
+
+    const { contains } = useFilter({ sensitivity: "base" })
+    const { collection, filter } = useListCollection({
+        initialItems: organizedCategories,
+        itemToString: (item) => item.label,
+        itemToValue: (item) => item.value
+    })
+
+    function categoriesDropDown(collectionLet, filterLet) {
+        return (
+            <Combobox.Root
+            collection={collectionLet}
+            onInputValueChange={(e) => filterLet(e.inputValue)}>
+                <Combobox.Label> Select Category </Combobox.Label>
+                <Combobox.Control>
+                    <Combobox.Input placeholder="Select category"/>
+                    <Combobox.IndicatorGroup>
+                        <Combobox.ClearTrigger/>
+                        <Combobox.Trigger />
+                    </Combobox.IndicatorGroup>
+                </Combobox.Control>
+                <Portal>
+                    <Combobox.Positioner>
+                        <Combobox.Content>
+                            <Combobox.Empty>No items found</Combobox.Empty>
+                            {collectionLet.items.map((item) => (
+                                <Combobox.Item item={item} key={item.value}>
+                                    {item.label}
+                                    <Combobox.Indicator />
+                                </Combobox.Item>
+                            ))}
+                        </Combobox.Content>
+                    </Combobox.Positioner>
+                </Portal>
+            </Combobox.Root>
+        )
+    }
+
     return (
         <Center>
             <Stack
@@ -82,35 +132,10 @@ export default function ReportExpense() {
                 placeholder="Description" variant="outline" maxLength={25}
                 value={description} onChange={(e) => setDescription(e.target.value)}
                 />
-
-                <Select.Root>
-                    <Select.HiddenSelect/>
-                    <Select.Control>
-                        <Select.Trigger>
-                            <Select.ValueText placeholder={selectedCategory}/>
-                        </Select.Trigger>
-                        <Select.IndicatorGroup>
-                            <Select.Indicator/>
-                        </Select.IndicatorGroup>
-                    </Select.Control>
-                    <Portal>
-                        <Select.Positioner>
-                            <Select.Content>
-                                {categories?.map((category) => (
-                                    <Select.Item item={category.name} key={category.id} 
-                                        onClick={() => {
-                                            setSelectCategoryId(category.id)
-                                            setSelectedCategory(category.name)
-                                        }}>
-                                        {category.name}
-                                        <Select.Indicator/>
-                                    </Select.Item>
-                                ))}
-                            </Select.Content>
-                        </Select.Positioner>
-                    </Portal>
-                </Select.Root>
-
+                
+                {loading && <SpinnerLoading/>}
+                {!loading && categoriesDropDown(collection, filter)}
+                
                 <Button onClick={handleSubmit}>
                     Submit
                 </Button>
