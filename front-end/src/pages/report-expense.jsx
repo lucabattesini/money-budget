@@ -10,9 +10,21 @@ export default function ReportExpense() {
     const [loading, setLoading] = useState(true)
     const [value, setvalue] = useState("");
     const [description, setDescription] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("Select category");
     const [selectCategoryId, setSelectCategoryId] = useState("");
     const [organizedCategories, setOrganizedCategories] = useState([])
+
+    const { contains } = useFilter({ sensitivity: "base" })
+    const { collection, filter } = useListCollection({
+        initialItems: organizedCategories,
+        filter: (items, query) => {
+            if (!query) {
+                return items
+            }
+            return contains(items, query)
+        }
+        //itemToString: (item) => item.label,
+        //itemToValue: (item) => item.value
+    })
 
     useEffect(() => {
         getAllCategories().then(
@@ -70,42 +82,8 @@ export default function ReportExpense() {
     }
 
 
-    const { contains } = useFilter({ sensitivity: "base" })
-    const { collection, filter } = useListCollection({
-        initialItems: organizedCategories,
-        itemToString: (item) => item.label,
-        itemToValue: (item) => item.value
-    })
+    
 
-    function categoriesDropDown(collectionLet, filterLet) {
-        return (
-            <Combobox.Root
-            collection={collectionLet}
-            onInputValueChange={(e) => filterLet(e.inputValue)}>
-                <Combobox.Label> Select Category </Combobox.Label>
-                <Combobox.Control>
-                    <Combobox.Input placeholder="Select category"/>
-                    <Combobox.IndicatorGroup>
-                        <Combobox.ClearTrigger/>
-                        <Combobox.Trigger />
-                    </Combobox.IndicatorGroup>
-                </Combobox.Control>
-                <Portal>
-                    <Combobox.Positioner>
-                        <Combobox.Content>
-                            <Combobox.Empty>No items found</Combobox.Empty>
-                            {collectionLet.items.map((item) => (
-                                <Combobox.Item item={item} key={item.value}>
-                                    {item.label}
-                                    <Combobox.Indicator />
-                                </Combobox.Item>
-                            ))}
-                        </Combobox.Content>
-                    </Combobox.Positioner>
-                </Portal>
-            </Combobox.Root>
-        )
-    }
 
     return (
         <Center>
@@ -134,7 +112,33 @@ export default function ReportExpense() {
                 />
                 
                 {loading && <SpinnerLoading/>}
-                {!loading && categoriesDropDown(collection, filter)}
+                {!loading && 
+                    <Combobox.Root
+                    collection={collection}
+                    onInputValueChange={(e) => filter(e.inputValue)}>
+                        <Combobox.Label> Select Category </Combobox.Label>
+                        <Combobox.Control>
+                            <Combobox.Input placeholder="Select category"/>
+                            <Combobox.IndicatorGroup>
+                                <Combobox.ClearTrigger/>
+                                <Combobox.Trigger />
+                            </Combobox.IndicatorGroup>
+                        </Combobox.Control>
+                        <Portal>
+                            <Combobox.Positioner>
+                                <Combobox.Content>
+                                    <Combobox.Empty>No items found</Combobox.Empty>
+                                    {collection.items.map((item) => (
+                                        <Combobox.Item item={item} key={item.value}>
+                                            {item.label}
+                                            <Combobox.Indicator />
+                                        </Combobox.Item>
+                                    ))}
+                                </Combobox.Content>
+                            </Combobox.Positioner>
+                        </Portal>
+                    </Combobox.Root>
+                }
                 
                 <Button onClick={handleSubmit}>
                     Submit
@@ -143,3 +147,17 @@ export default function ReportExpense() {
         </Center>
     );
 }
+
+const frameworks = [
+  { label: "React", value: "react" },
+  { label: "Solid", value: "solid" },
+  { label: "Vue", value: "vue" },
+  { label: "Angular", value: "angular" },
+  { label: "Svelte", value: "svelte" },
+  { label: "Preact", value: "preact" },
+  { label: "Qwik", value: "qwik" },
+  { label: "Lit", value: "lit" },
+  { label: "Alpine.js", value: "alpinejs" },
+  { label: "Ember", value: "ember" },
+  { label: "Next.js", value: "nextjs" },
+]
