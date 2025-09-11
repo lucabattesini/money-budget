@@ -9,6 +9,10 @@ class Transaction(BaseModel):
     date: Optional[datetime] = None
  
 class User(BaseModel):
-    name: Optional[str] = None
+    name: str
     email: str 
+    password: str
+
+class UserLogin(BaseModel):
+    email: str
     password: str

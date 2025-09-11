@@ -4,8 +4,6 @@ from schemas.tables import Users
 
 db: Session = LocalSession()
 
-# Reorganize and do the last tasks in this file
-
 def create_user_repo(name, email, password, created_at, updated_at, last_login, is_active):
     try:
         db.add(Users(name=name, 
@@ -19,7 +17,7 @@ def create_user_repo(name, email, password, created_at, updated_at, last_login, 
         db.commit()
     except Exception as e:
         db.rollback()
- 
+  
     return {
         "name": name,
         "email": email,

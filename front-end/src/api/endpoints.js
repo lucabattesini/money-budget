@@ -21,7 +21,6 @@ export function getAddedTransactionsByCategory() {
         method: "get"
     })
     .then(Response => Response.json())
-    .catch(error => console.error("Failed to get added categories", error))
 };
 
 export function getAllTransactions() {
@@ -43,7 +42,6 @@ export function insertNewTransaction(payload) {
         body: JSON.stringify(payload)
     })
     .then(res => {
-        if (!res.ok) throw new Error("Error to request");
         const body = res.json()
         return {status: res.status, body};
     })

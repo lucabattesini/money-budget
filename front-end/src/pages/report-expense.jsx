@@ -14,8 +14,7 @@ export default function ReportExpense() {
     const [filteredCategories, setFilteredCategories] = useState([]);
     const [searchQuery, setSearchQuery] = useState("")
 
-    useEffect(() => {
-        const fetchcategories = async () => {
+    const fetchcategories = async () => {
             try {
                 const categoriesData = await getAllCategories()
 
@@ -37,10 +36,11 @@ export default function ReportExpense() {
             }
         };
 
+    useEffect(() => {
         fetchcategories();
     }, []);
 
-    useEffect(() => {
+    const filter = () => {
         if (searchQuery.trim() === "") {
             setFilteredCategories(categories)
         } else {
@@ -48,6 +48,10 @@ export default function ReportExpense() {
             );
             setFilteredCategories(filtered);
         }
+    }
+
+    useEffect(() => {
+        filter()
     }, [searchQuery, categories]);
 
     const handleSubmit = () => {
@@ -86,9 +90,6 @@ export default function ReportExpense() {
                 } else {
                     customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
                 }
-            })
-            .catch(error => {
-                customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
             })
     }
 
