@@ -4,47 +4,58 @@ import { Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import customToaster from "../utils/customToaster"
 import { SpinnerLoading } from "../utils/loadingComponent";
-// tirar seta para baixo
 
 export default function ReportExpense() {
     const [loading, setLoading] = useState(true)
-    const [value, setvalue] = useState("");
+    const [value, setvalue] = useState();
     const [description, setDescription] = useState("");
-    const [selectCategoryId, setSelectCategoryId] = useState("");
-    const [organizedCategories, setOrganizedCategories] = useState([])
-
-    const { contains } = useFilter({ sensitivity: "base" })
-    const { collection, filter } = useListCollection({
-        initialItems: organizedCategories,
-        filter: (items, query) => {
-            if (!query) {
-                return items
-            }
-            return contains(items, query)
-        }
-        //itemToString: (item) => item.label,
-        //itemToValue: (item) => item.value
-    })
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState("");
+    const [filteredCategories, setFilteredCategories] = useState([]);
+    const [searchQuery, setSearchQuery] = useState("")
 
     useEffect(() => {
-        getAllCategories().then(
-            data => {
-                const organized = data.map((category) => ({
-                label: category.name,
-                value: String(category.id)
-                }));
-                setOrganizedCategories(organized);
+        const fetchcategories = async () => {
+            try {
+                const categoriesData = await getAllCategories()
+
+                if (categoriesData && categoriesData.data) {
+                    const organizedCategories = categoriesData.data.map((category) => ({
+                        id: category.id,
+                        name: category.name,
+                        value: String(category.id)
+                    }));
+
+                    setCategories(organizedCategories);
+                    setFilteredCategories(organizedCategories)
+                }
+            } catch (error) {
+                console.error("Error fetching categories", error)
+                customToaster("Error", "error", "Failed to load categories")
+            } finally {
                 setLoading(false)
             }
-        )
+        };
+
+        fetchcategories();
     }, []);
 
+    useEffect(() => {
+        if (searchQuery.trim() === "") {
+            setFilteredCategories(categories)
+        } else {
+            const filtered = categories.filter(category => category.name.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            setFilteredCategories(filtered);
+        }
+    }, [searchQuery, categories]);
+
     const handleSubmit = () => {
-        const formatedValue = value * 100
+        const formatedValue = parseInt(value) * 100;
         const payload = {
             label: description,
             value: parseInt(formatedValue),
-            category: String(selectCategoryId)
+            category: String(selectedCategory)
         };
 
         if (!value || value === 0 ) {
@@ -58,7 +69,7 @@ export default function ReportExpense() {
             return;
         }
 
-        if (!selectCategoryId) {
+        if (!selectedCategory) {
             customToaster("Error", "error", "You need to select a category to your transaction")
             return;
         }
@@ -81,9 +92,21 @@ export default function ReportExpense() {
             })
     }
 
+    const handleCategorySelect = (categoryId) => {
+        setSelectedCategory(categoryId);
+        const selected = categories.find(category => category.value === categoryId);
+        if (selected) {
+            setSearchQuery(selected.name);
+        }
+    };
 
-    
-
+    const getDisplayValue = () => {
+        if (selectedCategory) {
+            const selected = categories.find(category => category.value === selectedCategory);
+            return selected ? selected.name : "";
+        }
+        return searchQuery;
+    }
 
     return (
         <Center>
@@ -112,15 +135,35 @@ export default function ReportExpense() {
                 />
                 
                 {loading && <SpinnerLoading/>}
-                {!loading && 
+                {!loading && (
                     <Combobox.Root
-                    collection={collection}
-                    onInputValueChange={(e) => filter(e.inputValue)}>
+                    onValueChange={({value}) => {
+                        if (value.length > 0) {
+                            handleCategorySelect(value[0]);
+                        } else {
+                            setSelectedCategory("");
+                            setSearchQuery("");
+                        }
+                    }}
+                    value={selectedCategory ? [selectedCategory] : []}
+                    >
                         <Combobox.Label> Select Category </Combobox.Label>
                         <Combobox.Control>
-                            <Combobox.Input placeholder="Select category"/>
+                            <Combobox.Input 
+                            placeholder="Select category"
+                            value={getDisplayValue()}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                if (!e.target.value) {
+                                    setSelectedCategory("");
+                                }
+                            }}/>
                             <Combobox.IndicatorGroup>
-                                <Combobox.ClearTrigger/>
+                                <Combobox.ClearTrigger
+                                onClick={() => {
+                                    setSelectedCategory("");
+                                    setSearchQuery("");
+                                }}/>
                                 <Combobox.Trigger />
                             </Combobox.IndicatorGroup>
                         </Combobox.Control>
@@ -128,9 +171,13 @@ export default function ReportExpense() {
                             <Combobox.Positioner>
                                 <Combobox.Content>
                                     <Combobox.Empty>No items found</Combobox.Empty>
-                                    {collection.items.map((item) => (
-                                        <Combobox.Item item={item} key={item.value}>
-                                            {item.label}
+                                    {filteredCategories.map((category) => (
+                                        <Combobox.Item 
+                                        item={category} 
+                                        key={category.id}
+                                        value={category.value}
+                                        >
+                                            {category.name}
                                             <Combobox.Indicator />
                                         </Combobox.Item>
                                     ))}
@@ -138,6 +185,7 @@ export default function ReportExpense() {
                             </Combobox.Positioner>
                         </Portal>
                     </Combobox.Root>
+                    )
                 }
                 
                 <Button onClick={handleSubmit}>
@@ -147,17 +195,3 @@ export default function ReportExpense() {
         </Center>
     );
 }
-
-const frameworks = [
-  { label: "React", value: "react" },
-  { label: "Solid", value: "solid" },
-  { label: "Vue", value: "vue" },
-  { label: "Angular", value: "angular" },
-  { label: "Svelte", value: "svelte" },
-  { label: "Preact", value: "preact" },
-  { label: "Qwik", value: "qwik" },
-  { label: "Lit", value: "lit" },
-  { label: "Alpine.js", value: "alpinejs" },
-  { label: "Ember", value: "ember" },
-  { label: "Next.js", value: "nextjs" },
-]
