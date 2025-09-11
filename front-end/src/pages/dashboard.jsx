@@ -8,42 +8,41 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true)
     const [valuesSummedByCategory, setvaluesSummedByCategory] = useState([]);
     const [categories, setCategories] = useState([]);
+    const organizedCategories = []
 
     useEffect(() => {
         Promise.all([
             getAllCategories(),
             getAddedTransactionsByCategory()
         ]).then(([categoriesData, transactionsData]) => {
-            setCategories(categoriesData.data);
-            if (transactionsData) {
+            if (categoriesData && transactionsData) {
+                setCategories(categoriesData.data);
                 setvaluesSummedByCategory(transactionsData.data)
                 setLoading(false)
-            }
+            } 
         });
     }, []);
 
-    const organizedCategories = []
-
     for (const r of valuesSummedByCategory) {
-        const categorieName = categories.find(element => element.id == r.category)
-
-        if (!categorieName) continue;
-        const organizedCategory = {
-            name: categorieName.name,
-            value: r.total / 100
-        };
-
-        organizedCategories.push(organizedCategory);
-    }
+            const categorieName = categories?.find(element => element.id == r.category)
+            if (!categorieName) continue;
+            const organizedCategory = {
+                name: categorieName.name,
+                value: r.total / 100
+            };
+        
+            organizedCategories.push(organizedCategory);
+        }
 
     const chart = useChart({
         sort: { by: "value", direction: "desc"},
-        data: organizedCategories.map((item) => ({
+        data: organizedCategories?.map((item) => ({
             name: item.name,
             value: item.value
         })),
         series: [{name: "name", color: "teal.subtle"}],
     });
+    
     return(
         <Center>
             <Stack
@@ -63,7 +62,7 @@ export default function Dashboard() {
                     <Box width="100%">
                         <BarList.Root chart={chart}>
                             <BarList.Content>
-                                <BarList.Bar/>
+                                <BarList.Bar />
                                 <BarList.Value/>
                             </BarList.Content>
                         </BarList.Root>

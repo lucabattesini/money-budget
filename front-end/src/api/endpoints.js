@@ -13,7 +13,6 @@ export function getAllCategories() {
         method: "get"
         })
         .then(Response => Response.json())
-        .then(data => data.data)
         .catch(error => console.error("Failed to get categories", error))
 };
 
