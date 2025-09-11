@@ -9,21 +9,17 @@ export default function TransactionsDisplay() {
     const [transactions, setTransactions] = useState([]);
 
     useEffect(() => {
-            getAllTransactions().then(data => {
-                if (data) {
-                    setTransactions(data.data)
-                    setLoading(false)
-                }
-        })
-    }, []);
-
-    useEffect(() => {
-        getAllCategories().then(data => {
-            if (data) {
-                setCategories(data.data)
+        Promise.all([
+            getAllCategories(),
+            getAllTransactions()
+        ]).then(([categoriesData, transactionsData]) => {
+            if (categoriesData && transactionsData) {
+                setCategories(categoriesData.data)
+                setTransactions(transactionsData.data)
+                setLoading(false)
             }
         })
-    }, [])
+    }, []);
 
     return(
         <Center>
@@ -41,7 +37,7 @@ export default function TransactionsDisplay() {
                 
                 {loading && <SpinnerLoading/>}
                 {!loading && transactions.map((transaction) => {
-                    const categoryObj = categories.find((category) => String(category.id) === transaction.category);
+                    const categoryObj = categories?.find((category) => String(category.id) === transaction.category);
                     const categoryName = categoryObj ? categoryObj.name : "Category not found";
                     const formatedDate = new Date(transaction.date)
                      
