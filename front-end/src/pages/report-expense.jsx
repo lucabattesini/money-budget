@@ -7,7 +7,7 @@ import { SpinnerLoading } from "../utils/loadingComponent";
 
 export default function ReportExpense() {
     const [loading, setLoading] = useState(true)
-    const [value, setvalue] = useState();
+    const [value, setvalue] = useState("");
     const [description, setDescription] = useState("");
     const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState("");
@@ -123,74 +123,75 @@ export default function ReportExpense() {
                 <Heading size={"2xl"}>
                     Report Expense
                 </Heading>
-
-                <Input 
-                type="number" placeholder="Amount" variant="outline" 
-                value={value} onChange={(e) => setvalue(e.target.value)}
-                />
-
-                <Input
-                placeholder="Description" variant="outline" maxLength={25}
-                value={description} onChange={(e) => setDescription(e.target.value)}
-                />
-                
                 {loading && <SpinnerLoading/>}
                 {!loading && (
-                    <Combobox.Root
-                    onValueChange={({value}) => {
-                        if (value.length > 0) {
-                            handleCategorySelect(value[0]);
-                        } else {
-                            setSelectedCategory("");
-                            setSearchQuery("");
-                        }
-                    }}
-                    value={selectedCategory ? [selectedCategory] : []}
-                    >
-                        <Combobox.Label> Select Category </Combobox.Label>
-                        <Combobox.Control>
-                            <Combobox.Input 
-                            placeholder="Select category"
-                            value={getDisplayValue()}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                if (!e.target.value) {
-                                    setSelectedCategory("");
-                                }
-                            }}/>
-                            <Combobox.IndicatorGroup>
-                                <Combobox.ClearTrigger
-                                onClick={() => {
-                                    setSelectedCategory("");
-                                    setSearchQuery("");
+                    <>
+                        <Input 
+                        type="number" placeholder="Amount" variant="outline" 
+                        value={value} onChange={(e) => setvalue(e.target.value)}
+                        />
+
+                        <Input
+                        placeholder="Description" variant="outline" maxLength={25}
+                        value={description} onChange={(e) => setDescription(e.target.value)}
+                        />
+                    
+                    
+                        <Combobox.Root
+                        onValueChange={({value}) => {
+                            if (value.length > 0) {
+                                handleCategorySelect(value[0]);
+                            } else {
+                                setSelectedCategory("");
+                                setSearchQuery("");
+                            }
+                        }}
+                        value={selectedCategory ? [selectedCategory] : []}
+                        >
+                            <Combobox.Label> Select Category </Combobox.Label>
+                            <Combobox.Control>
+                                <Combobox.Input 
+                                placeholder="Select category"
+                                defaultValue={getDisplayValue()}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    if (!e.target.value) {
+                                        setSelectedCategory("");
+                                    }
                                 }}/>
-                                <Combobox.Trigger />
-                            </Combobox.IndicatorGroup>
-                        </Combobox.Control>
-                        <Portal>
-                            <Combobox.Positioner>
-                                <Combobox.Content>
-                                    <Combobox.Empty>No items found</Combobox.Empty>
-                                    {filteredCategories.map((category) => (
-                                        <Combobox.Item 
-                                        item={category} 
-                                        key={category.id}
-                                        value={category.value}
-                                        >
-                                            {category.name}
-                                            <Combobox.Indicator />
-                                        </Combobox.Item>
-                                    ))}
-                                </Combobox.Content>
-                            </Combobox.Positioner>
-                        </Portal>
-                    </Combobox.Root>
-                    )
-                }
-                
-                <Button onClick={handleSubmit}>
-                    Submit
-                </Button>
+                                <Combobox.IndicatorGroup>
+                                    <Combobox.ClearTrigger
+                                    onClick={() => {
+                                        setSelectedCategory("");
+                                        setSearchQuery("");
+                                    }}/>
+                                    <Combobox.Trigger />
+                                </Combobox.IndicatorGroup>
+                            </Combobox.Control>
+                            <Portal>
+                                <Combobox.Positioner>
+                                    <Combobox.Content>
+                                        <Combobox.Empty>No items found</Combobox.Empty>
+                                        {filteredCategories.map((category) => (
+                                            <Combobox.Item 
+                                            item={category} 
+                                            key={category.id}
+                                            value={category.value}
+                                            >
+                                                {category.name}
+                                                <Combobox.Indicator />
+                                            </Combobox.Item>
+                                        ))}
+                                    </Combobox.Content>
+                                </Combobox.Positioner>
+                            </Portal>
+                        </Combobox.Root>
+
+                        <Button onClick={handleSubmit}>
+                            Submit
+                        </Button>
+                    </>
+                )}
             </Stack>
         </Center>
     );
