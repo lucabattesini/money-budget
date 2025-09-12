@@ -22,19 +22,19 @@ export default function Home() {
                     Dashboard
                   </Link>
 
-                  <Link href="/#/report-expense"
+                  <Link href="/report-expense"
                   fontSize="lg"
                   fontWeight="bold">
                     Report Expense
                   </Link>
 
-                  <Link href="/#/transactions"
+                  <Link href="/transactions"
                   fontSize="lg"
                   fontWeight="bold">
                     Transactions
                   </Link>
 
-                  <Link href="/#/investments"
+                  <Link href="/investments"
                   fontSize="lg"
                   fontWeight="bold">
                     Investments
