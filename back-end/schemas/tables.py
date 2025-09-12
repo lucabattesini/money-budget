@@ -9,7 +9,7 @@ class TransactionDB(Base):
     label = Column(String(100))
     value = Column(Integer)
     date = Column(DateTime)
-    category = Column(String(100))
+    category = Column(String(100)) # TODO: Relate with category table
 
 class Users(Base):
     __tablename__ = "users"

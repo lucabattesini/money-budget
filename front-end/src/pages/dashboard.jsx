@@ -8,7 +8,7 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true)
     const [valuesSummedByCategory, setvaluesSummedByCategory] = useState([]);
     const [categories, setCategories] = useState([]);
-    const organizedCategories = []
+    const [organizedCategories, setOrganizedCategories] = useState([]);
 
     useEffect(() => {
         Promise.all([
@@ -23,17 +23,24 @@ export default function Dashboard() {
         });
     }, []);
 
-    for (const r of valuesSummedByCategory) {
+    const createOrganizedCategories = () => {
+        const organizedCategoriesList = []
+        for (const r of valuesSummedByCategory) {
             const categorieName = categories?.find(element => element.id == r.category)
             if (!categorieName) continue;
             const organizedCategory = {
                 name: categorieName.name,
                 value: r.total / 100
             };
-        
-            organizedCategories.push(organizedCategory);
+            organizedCategoriesList.push(organizedCategory);
         }
+        setOrganizedCategories(organizedCategoriesList)
+    }
 
+    useEffect(() => {
+        createOrganizedCategories()
+    }, [categories])
+    
     const chart = useChart({
         sort: { by: "value", direction: "desc"},
         data: organizedCategories?.map((item) => ({
