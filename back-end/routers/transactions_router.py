@@ -2,7 +2,7 @@ from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from schemas.tables_schemas import Transaction
-from controllers.transactions_controller import get_all_transactions, get_transactions_summed_by_category, create_transaction
+from controllers.transactions_controller import get_all_transactions, get_transactions_summed_by_category, create_transaction, delete_transaction
 
 router = APIRouter(
     prefix="/transactions",
@@ -32,4 +32,12 @@ async def create_transaction_router(transaction: Transaction):
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_201_CREATED
+    )
+
+@router.delete("/{id}")
+async def delete_transaction_router(id):
+    json_result = jsonable_encoder(delete_transaction(id))
+    return JSONResponse(
+        content={"data": json_result},
+        status_code=status.HTTP_202_ACCEPTED
     )

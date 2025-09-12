@@ -32,3 +32,12 @@ def get_transactions_summed_by_category(month, year):
     )
 
     return added_categoiries
+
+def delete_transaction(id):
+    transaction = db.query(TransactionDB).filter_by(id=id).first()
+    if transaction:
+        db.delete(transaction)
+        db.commit()
+        return transaction
+    else:
+        return {"message": "Transaction not found"}
