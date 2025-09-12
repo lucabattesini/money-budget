@@ -109,6 +109,18 @@ export default function ReportExpense() {
         return searchQuery;
     }
 
+    const resetSearchQueryAndcategory = () => {
+        setSelectedCategory("");
+        setSearchQuery("");
+    }
+
+    const setValueOnSearchQuery = (e) => {
+        setSearchQuery(e.target.value);
+        if (!e.target.value) {
+            setSelectedCategory("");
+        }
+    }
+
     return (
         <Center>
             <Stack
@@ -143,8 +155,7 @@ export default function ReportExpense() {
                             if (value.length > 0) {
                                 handleCategorySelect(value[0]);
                             } else {
-                                setSelectedCategory("");
-                                setSearchQuery("");
+                                resetSearchQueryAndcategory()
                             }
                         }}
                         value={selectedCategory ? [selectedCategory] : []}
@@ -155,16 +166,12 @@ export default function ReportExpense() {
                                 placeholder="Select category"
                                 defaultValue={getDisplayValue()}
                                 onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    if (!e.target.value) {
-                                        setSelectedCategory("");
-                                    }
+                                    setValueOnSearchQuery(e)
                                 }}/>
                                 <Combobox.IndicatorGroup>
                                     <Combobox.ClearTrigger
                                     onClick={() => {
-                                        setSelectedCategory("");
-                                        setSearchQuery("");
+                                        resetSearchQueryAndcategory()
                                     }}/>
                                     <Combobox.Trigger />
                                 </Combobox.IndicatorGroup>
