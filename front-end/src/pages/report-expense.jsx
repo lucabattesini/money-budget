@@ -1,84 +1,125 @@
 import { useEffect, useState } from "react";
-import { Center, Stack, Button, Heading, Input, Portal, Select, Box} from "@chakra-ui/react";
-import { toaster, Toaster } from "../components/ui/toaster";
+import { Center, Stack, Button, Heading, Input, Portal, Combobox } from "@chakra-ui/react";
+import { Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
-import Home from "./home";
+import customToaster from "../utils/customToaster"
+import { SpinnerLoading } from "../components/spinnerLoading";
 
 export default function ReportExpense() {
+    const [loading, setLoading] = useState(true)
     const [value, setvalue] = useState("");
     const [description, setDescription] = useState("");
     const [categories, setCategories] = useState([]);
-    const [selectedCategory, setSelectedCategory] = useState("Select category");
-    const [selectCategoryId, setSelectCategoryId] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState("");
+    const [filteredCategories, setFilteredCategories] = useState([]);
+    const [searchQuery, setSearchQuery] = useState("")
 
-    // Do it in the other fetchs
+    const fetchcategories = async () => {
+            try {
+                const categoriesData = await getAllCategories()
+
+                if (categoriesData && categoriesData.data) {
+                    const organizedCategories = categoriesData.data.map((category) => ({
+                        id: category.id,
+                        name: category.name,
+                        value: String(category.id)
+                    }));
+
+                    setCategories(organizedCategories);
+                    setFilteredCategories(organizedCategories)
+                }
+            } catch (error) {
+                console.error("Error fetching categories", error)
+                customToaster("Error", "error", "Failed to load categories")
+            } finally {
+                setLoading(false)
+            }
+        };
+
     useEffect(() => {
-        getAllCategories().then(data => setCategories(data.data))
+        fetchcategories();
     }, []);
-    
+
+    const filter = () => {
+        if (searchQuery.trim() === "") {
+            setFilteredCategories(categories)
+        } else {
+            const filtered = categories.filter(category => category.name.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            setFilteredCategories(filtered);
+        }
+    }
+
+    useEffect(() => {
+        filter()
+    }, [searchQuery, categories]);
+
     const handleSubmit = () => {
-        const formatedValue = value * 100
+        const formatedValue = parseInt(value) * 100;
         const payload = {
             label: description,
             value: parseInt(formatedValue),
-            category: String(selectCategoryId)
+            category: String(selectedCategory)
         };
 
         if (!value || value === 0 ) {
-            toaster.create({
-            title: "Error",
-            type: "error",
-            description: "The amount value need to be bigger than 0",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-            position: "top",
-            });
+            customToaster("Error", "error", "The amount value need to be bigger than 0")
 
             return;
         }
 
         if (!description) {
-            toaster.create({
-            title: "Error",
-            type: "error",
-            description: "You need to give a description to the transaction",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-            position: "top",
-            });
+            customToaster("Error", "error", "You need to give a description to your transaction")
             return;
         }
 
-        if (!selectCategoryId) {
-            toaster.create({
-            title: "Error",
-            type: "error",
-            description: "You need to select a category to the transaction",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-            position: "top",
-            });
+        if (!selectedCategory) {
+            customToaster("Error", "error", "You need to select a category to your transaction")
             return;
         }
 
-        insertNewTransaction(payload).then(data => {
-                toaster.create({
-                title: "Accepted",
-                type: "success",
-                description: "Transaction saved successfully",
-                duration: 5000,
-                isClosable: true,
-                position: "top",
-                });
-                
-                setvalue("");
-                setDescription("");
-                setSelectedCategory("Select category");
+        insertNewTransaction(payload)
+            .then(data => {
+                if (data.status === 201 || data.status === 200) {
+                    customToaster("Accepted", "success", "Your transaction is saved!")
+
+                    setvalue("");
+                    setDescription("");
+                    setSelectedCategory("Select category");
+
+                } else {
+                    customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
+                }
             })
+    }
+
+    const handleCategorySelect = (categoryId) => {
+        setSelectedCategory(categoryId);
+        const selected = categories.find(category => category.value === categoryId);
+        if (selected) {
+            setSearchQuery(selected.name);
         }
+    };
+
+    const getDisplayValue = () => {
+        if (selectedCategory) {
+            const selected = categories.find(category => category.value === selectedCategory);
+            return selected ? selected.name : "";
+        }
+        return searchQuery;
+    }
+
+    const resetSearchQueryAndcategory = () => {
+        setSelectedCategory("");
+        setSearchQuery("");
+    }
+
+    const setValueOnSearchQuery = (e) => {
+        setSearchQuery(e.target.value);
+        if (!e.target.value) {
+            setSelectedCategory("");
+        }
+    }
 
     return (
         <Center>
@@ -89,55 +130,76 @@ export default function ReportExpense() {
                 align="center"
                 justify="flex-start"
                 pt={20}
-            >
-                <Box position="absolute" right={6} top={6}>
-                    <Home/>
-                </Box>
-                
+            >    
                 <Toaster/>
                 
                 <Heading size={"2xl"}>
                     Report Expense
                 </Heading>
+                {loading && <SpinnerLoading/>}
+                {!loading && (
+                    <>
+                        <Input 
+                        type="number" placeholder="Amount" variant="outline" 
+                        value={value} onChange={(e) => setvalue(e.target.value)}
+                        />
 
-                <Input 
-                type="number" placeholder="Amount" variant="outline" 
-                value={value} onChange={(e) => setvalue(e.target.value)}
-                />
-                <Input
-                placeholder="Description" variant="outline" maxLength={50}
-                value={description} onChange={(e) => setDescription(e.target.value)}
-                />
+                        <Input
+                        placeholder="Description" variant="outline" maxLength={25}
+                        value={description} onChange={(e) => setDescription(e.target.value)}
+                        />
+                    
+                    
+                        <Combobox.Root
+                        onValueChange={({value}) => {
+                            if (value.length > 0) {
+                                handleCategorySelect(value[0]);
+                            } else {
+                                resetSearchQueryAndcategory()
+                            }
+                        }}
+                        value={selectedCategory ? [selectedCategory] : []}
+                        >
+                            <Combobox.Label> Select Category </Combobox.Label>
+                            <Combobox.Control>
+                                <Combobox.Input 
+                                placeholder="Select category"
+                                defaultValue={getDisplayValue()}
+                                onChange={(e) => {
+                                    setValueOnSearchQuery(e)
+                                }}/>
+                                <Combobox.IndicatorGroup>
+                                    <Combobox.ClearTrigger
+                                    onClick={() => {
+                                        resetSearchQueryAndcategory()
+                                    }}/>
+                                    <Combobox.Trigger />
+                                </Combobox.IndicatorGroup>
+                            </Combobox.Control>
+                            <Portal>
+                                <Combobox.Positioner>
+                                    <Combobox.Content>
+                                        <Combobox.Empty>No items found</Combobox.Empty>
+                                        {filteredCategories.map((category) => (
+                                            <Combobox.Item 
+                                            item={category} 
+                                            key={category.id}
+                                            value={category.value}
+                                            >
+                                                {category.name}
+                                                <Combobox.Indicator />
+                                            </Combobox.Item>
+                                        ))}
+                                    </Combobox.Content>
+                                </Combobox.Positioner>
+                            </Portal>
+                        </Combobox.Root>
 
-                <Select.Root>
-                    <Select.HiddenSelect/>
-                    <Select.Control>
-                        <Select.Trigger>
-                            <Select.ValueText placeholder={selectedCategory}/>
-                        </Select.Trigger>
-                        <Select.IndicatorGroup>
-                            <Select.Indicator/>
-                        </Select.IndicatorGroup>
-                    </Select.Control>
-                    <Portal>
-                        <Select.Positioner>
-                            <Select.Content>
-                                {categories?.map((category) => (
-                                    <Select.Item item={category.name} key={category.id} 
-                                        onClick={() => {
-                                            setSelectCategoryId(category.id)
-                                            setSelectedCategory(category.name)
-                                        }}>
-                                        {category.name}
-                                        <Select.Indicator/>
-                                    </Select.Item>
-                                ))}
-                            </Select.Content>
-                        </Select.Positioner>
-                    </Portal>
-                </Select.Root>
-
-                <Button onClick={handleSubmit}>Submit</Button>
+                        <Button onClick={handleSubmit}>
+                            Submit
+                        </Button>
+                    </>
+                )}
             </Stack>
         </Center>
     );

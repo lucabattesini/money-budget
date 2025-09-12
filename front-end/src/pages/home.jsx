@@ -3,7 +3,7 @@ import { Button, Link, Drawer, Portal, CloseButton, Stack } from "@chakra-ui/rea
 export default function Home() {
     return (
       <Drawer.Root size="xs">
-        <Drawer.Trigger>
+        <Drawer.Trigger asChild>
           <Button variant="outline" size="sm">
             Menu
           </Button>
@@ -18,19 +18,27 @@ export default function Home() {
                 pt={20}>
                   <Link href="/"
                   fontSize="lg"
-                  fontWeight="bold">Dashboard</Link>
+                  fontWeight="bold">
+                    Dashboard
+                  </Link>
 
-                  <Link href="/#/report-expense"
+                  <Link href="/report-expense"
                   fontSize="lg"
-                  fontWeight="bold">Report Exponse</Link>
+                  fontWeight="bold">
+                    Report Expense
+                  </Link>
 
-                  <Link href="/#/transactions"
+                  <Link href="/transactions"
                   fontSize="lg"
-                  fontWeight="bold">Transactions</Link>
+                  fontWeight="bold">
+                    Transactions
+                  </Link>
 
-                  <Link href="/#/investments"
+                  <Link href="/investments"
                   fontSize="lg"
-                  fontWeight="bold">Investments</Link>
+                  fontWeight="bold">
+                    Investments
+                  </Link>
                 </Stack>
               </Drawer.Body>
               <Drawer.CloseTrigger asChild>

@@ -1,5 +1,4 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
 from db.connection import LocalSession
 from schemas.tables import Users
 
@@ -18,9 +17,7 @@ def create_user_repo(name, email, password, created_at, updated_at, last_login, 
         db.commit()
     except Exception as e:
         db.rollback()
-    finally:
-        db.close()
-
+  
     return {
         "name": name,
         "email": email,

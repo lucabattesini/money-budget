@@ -27,19 +27,27 @@ export default function Login() {
                 justify="flex-start"
                 pt={16}
             >
-                <Heading size="2xl">Welcome back!</Heading>
+                <Heading size="2xl">
+                    Welcome back!
+                </Heading>
 
                 <Input 
                 placeholder="Email address" variant="outline"
-                value={email} onChange={(e) => setEmail(e.target.value)}/>
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                />
 
                 <Input 
                 placeholder="Password" variant="outline"
-                value={password} onChange={(e) => setPassword(e.target.value)}/>
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                />
 
-                <Button onClick={handleSubmit}>Log in</Button>
+                <Button onClick={handleSubmit}>
+                    Log in
+                </Button>
 
-                <Link variant="underline" href="/create-account">Don't have an account yet? Sign In now!</Link>
+                <Link variant="underline" href="/create-account">
+                    Don't have an account yet? Sign In now!
+                </Link>
             </Stack>
         </Center>
     );

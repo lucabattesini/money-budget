@@ -1,5 +1,4 @@
 import { Stack, Center, Heading, Box } from "@chakra-ui/react"
-import Home from "./home"
 
 export default function Investments() {
     return(
@@ -12,9 +11,6 @@ export default function Investments() {
                 justify="flex-start"
                 pt={20}
             >
-                <Box position="absolute" right={6} top={6}>
-                    <Home/>
-                </Box>
                 <Heading size={"2xl"}>
                     Investments Dashboard
                 </Heading>

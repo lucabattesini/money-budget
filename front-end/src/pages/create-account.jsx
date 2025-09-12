@@ -30,21 +30,28 @@ export default function CreateAccount() {
                 justify="flex-start"
                 pt={16}
             >
-                <Heading size="2xl">Create account</Heading>
+                <Heading size="2xl">
+                    Create account
+                </Heading>
 
                 <Input 
                 placeholder="User name" variant="outline"
-                value={name} onChange={(e) => setName(e.target.value)}/>
+                value={name} onChange={(e) => setName(e.target.value)}
+                />
 
                 <Input 
                 placeholder="Email address" variant="outline"
-                value={email} onChange={(e) => setEmail(e.target.value)}/>
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                />
 
                 <Input 
                 placeholder="Password" variant="outline"
-                value={password} onChange={(e) => setPassword(e.target.value)}/>
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                />
 
-                <Button onClick={handleSubmit}>Sign In</Button>
+                <Button onClick={handleSubmit}>
+                    Sign In
+                </Button>
             </Stack>
         </Center>
     );
