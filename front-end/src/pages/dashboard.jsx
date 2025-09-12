@@ -2,7 +2,7 @@ import { getAllCategories, getAddedTransactionsByCategory } from "../api/endpoin
 import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading,  } from "@chakra-ui/react"
 import { BarList, useChart} from "@chakra-ui/charts";
-import { SpinnerLoading } from "../utils/loadingComponent";
+import { SpinnerLoading } from "../components/spinnerLoading";
 
 export default function Dashboard() {
     const [loading, setLoading] = useState(true)

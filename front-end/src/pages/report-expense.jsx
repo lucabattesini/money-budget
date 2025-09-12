@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Center, Stack, Button, Heading, Input, Portal, Combobox, useFilter, useListCollection } from "@chakra-ui/react";
+import { Center, Stack, Button, Heading, Input, Portal, Combobox } from "@chakra-ui/react";
 import { Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import customToaster from "../utils/customToaster"
-import { SpinnerLoading } from "../utils/loadingComponent";
+import { SpinnerLoading } from "../components/spinnerLoading";
 
 export default function ReportExpense() {
     const [loading, setLoading] = useState(true)

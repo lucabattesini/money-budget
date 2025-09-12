@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Center, Stack, Heading, Box, Card, Flex, Text } from "@chakra-ui/react";
 import { getAllTransactions, getAllCategories } from "../api/endpoints";
-import { SpinnerLoading } from "../utils/loadingComponent";
+import { SpinnerLoading } from "../components/spinnerLoading";
 
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true)
