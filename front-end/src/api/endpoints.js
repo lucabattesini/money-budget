@@ -6,8 +6,6 @@ export const endpoints ={
     user: `${URL_BASE}/user`
 };
 
-
-// GET
 export function getAllCategories() {
     return fetch(endpoints.categories, {
         method: "get"
@@ -31,8 +29,6 @@ export function getAllTransactions() {
     .catch(error => console.error("Failed to get transactions", error))
 };
 
-
-// POST
 export function insertNewTransaction(payload) {
     return fetch(endpoints.expenses, {
         method: "post",
