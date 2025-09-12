@@ -1,5 +1,5 @@
 import './styles/index.css';
-import {BrowserRouter, Routes, Route} from "react-router-dom";
+import {HashRouter, Routes, Route} from "react-router-dom";
 import { Box } from '@chakra-ui/react';
 import Home from "./pages/home"
 import Login from './pages/login';
@@ -11,7 +11,7 @@ import Investments from './pages/investments';
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Box position="absolute" right={6} top={6}>
         <Home/>
       </Box>
@@ -23,7 +23,7 @@ function App() {
         <Route path='/login' element={ <Login/> }/>
         <Route path='/create-account' element={ <CreateAccount/> }/>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
