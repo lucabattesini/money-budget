@@ -73,3 +73,10 @@ export function loginUser(userInfo) {
     })
     .catch(error => console.error("Failed to create user", error))
 };
+
+export function deleteTransaction(id) {
+    return fetch(endpoints.expenses + `/${id}`, {
+        method: "delete",
+    })
+    .catch(error => console.error("Failed to delete transaction", error))
+}
