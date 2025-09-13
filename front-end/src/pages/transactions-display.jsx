@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { Center, Stack, Heading, Box, Card, Flex, Text } from "@chakra-ui/react";
+import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box } from "@chakra-ui/react";
 import { getAllTransactions, getAllCategories } from "../api/endpoints";
 import { SpinnerLoading } from "../components/spinnerLoading";
+import { IoIosCloseCircle } from "react-icons/io";
+import { deleteTransaction } from "../api/endpoints";
 
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true)
@@ -19,7 +21,11 @@ export default function TransactionsDisplay() {
                 setLoading(false)
             }
         })
-    }, []);
+    }, [transactions]);
+
+    const onDelete = (id) => {
+        deleteTransaction(id);
+    }
 
     return(
         <Center>
@@ -43,12 +49,23 @@ export default function TransactionsDisplay() {
                      
                     return (
                         <Card.Root 
-                        size="sm"
+                        
                         width={"35vh"} 
-                        height={"14vh"}
+                        height={"15vh"}
                         key={transaction.id}
                         >
-                            <Card.Header>
+                            <Box alignSelf={"end"} marginRight={"5px"}>
+                                <IconButton 
+                                variant="ghost" 
+                                color="white" 
+                                size="1px"
+                                onClick={() => onDelete(transaction.id)}>
+                                    <IoIosCloseCircle size="1.5vh"/>
+                                </IconButton>
+                            </Box>
+
+                            <Card.Header
+                            paddingTop={"0.5vh"}>
                                 <Flex justify="space-between">
                                     <Text>
                                         - {transaction.value /100} R$
