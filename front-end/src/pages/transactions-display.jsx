@@ -21,11 +21,10 @@ export default function TransactionsDisplay() {
                 setLoading(false)
             }
         })
-    }, []);
+    }, [transactions]);
 
-    const handleClick = (id) => {
+    const onDelete = (id) => {
         deleteTransaction(id);
-        window.location.reload();
     }
 
     return(
@@ -60,7 +59,7 @@ export default function TransactionsDisplay() {
                                 variant="ghost" 
                                 color="white" 
                                 size="1px"
-                                onClick={() => handleClick(transaction.id)}>
+                                onClick={() => onDelete(transaction.id)}>
                                     <IoIosCloseCircle size="1.5vh"/>
                                 </IconButton>
                             </Box>
