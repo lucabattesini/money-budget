@@ -9,6 +9,7 @@ export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true)
     const [categories, setCategories] = useState([])
     const [transactions, setTransactions] = useState([]);
+    const [trigger, setTrigger] = useState(0);
 
     useEffect(() => {
         Promise.all([
@@ -21,10 +22,11 @@ export default function TransactionsDisplay() {
                 setLoading(false)
             }
         })
-    }, [transactions]);
+    }, [trigger]);
 
     const onDelete = (id) => {
         deleteTransaction(id);
+        setTrigger(trigger + 1);
     }
 
     return(
