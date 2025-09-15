@@ -16,3 +16,7 @@ class User(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+class TransactionsDate(BaseModel):
+    organized_by: str
+    date: datetime

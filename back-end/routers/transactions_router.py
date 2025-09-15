@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from schemas.tables_schemas import Transaction
-from controllers.transactions_controller import get_all_transactions, get_transactions_summed_by_category, create_transaction, delete_transaction
+from schemas.tables_schemas import Transaction, TransactionsDate
+from controllers.transactions_controller import get_all_transactions, get_transactions_summed_by_category, create_transaction, delete_transaction, get_transactions_by_date
 
 router = APIRouter(
     prefix="/transactions",
@@ -15,6 +15,14 @@ async def get_all_transactions_router():
     json_result = jsonable_encoder(get_all_transactions())
     return JSONResponse(
         content={"data": json_result},
+        status_code=status.HTTP_200_OK
+    )
+
+@router.get("/by-date")
+async def get_transactions_by_date_router(transactions: TransactionsDate):
+    json_result = jsonable_encoder(get_transactions_by_date(transactions))
+    return JSONResponse(
+        content={"date": json_result},
         status_code=status.HTTP_200_OK
     )
 

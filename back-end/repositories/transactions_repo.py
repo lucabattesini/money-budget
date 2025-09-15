@@ -20,6 +20,14 @@ def create_transaction(t: Transaction):
 def get_all_transactions():
     return db.query(TransactionDB).all()
 
+def get_transactions_by_date(datetype, date):
+    filtered_transactions = (
+        db.query(TransactionDB)
+        .filter(extract(datetype, TransactionDB.date) == date)
+        .all()
+    )
+    return filtered_transactions
+
 def get_transactions_summed_by_category(month, year):
     added_categoiries = (
         db.query(
