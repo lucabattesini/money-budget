@@ -50,8 +50,8 @@ export default function TransactionsDisplay() {
                     return (
                         <Card.Root 
                         
-                        width={"35vh"} 
-                        height={"15vh"}
+                        width={"300px"} 
+                        height={"150px"}
                         key={transaction.id}
                         >
                             <Box alignSelf={"end"} marginRight={"5px"}>
