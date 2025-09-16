@@ -10,11 +10,11 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.get("/")
+@router.post("/")
 async def get_transactions_router(transactions: TransactionsDate):
     json_result = jsonable_encoder(get_transactions(transactions))
     return JSONResponse(
-        content={"date": json_result},
+        content={"data": json_result},
         status_code=status.HTTP_200_OK
     )
 
