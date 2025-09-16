@@ -27,8 +27,8 @@ async def get_summed_transactions_by_category_router():
     )
 
 @router.post("/create")
-async def create_transaction_router(transaction: Transaction):
-    json_result = jsonable_encoder(create_transaction(transaction))
+async def create_transaction_router(params: Transaction):
+    json_result = jsonable_encoder(create_transaction(params))
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_201_CREATED
