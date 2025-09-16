@@ -13,7 +13,7 @@ export default function TransactionsDisplay() {
     const [transactionsDate, setTransactionsDate] = useState({"organized_by": "all", "date": null});
 
     const now = new Date();
-    
+
     useEffect(() => {
         Promise.all([
             getAllCategories(),
@@ -25,8 +25,8 @@ export default function TransactionsDisplay() {
             if (transactionsData) {
                 setTransactions(transactionsData.data)
             }
-            setLoading(false)
-        })
+            
+        }).finally(setLoading(false))
     }, [trigger, transactionsDate]);
 
 
