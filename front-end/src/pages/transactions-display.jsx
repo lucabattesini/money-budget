@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box } from "@chakra-ui/react";
+import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box, Tabs } from "@chakra-ui/react";
 import { getTransactions, getAllCategories } from "../api/endpoints";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import { IoIosCloseCircle } from "react-icons/io";
@@ -10,24 +10,34 @@ export default function TransactionsDisplay() {
     const [categories, setCategories] = useState([])
     const [transactions, setTransactions] = useState([]);
     const [trigger, setTrigger] = useState(0);
+    const [transactionsDate, setTransactionsDate] = useState({"organized_by": "all", "date": null});
 
+    const now = new Date();
+    
     useEffect(() => {
         Promise.all([
             getAllCategories(),
-            getTransactions({"organized_by": "all", "date": null})
+            getTransactions(transactionsDate)
         ]).then(([categoriesData, transactionsData]) => {
-            if (categoriesData && transactionsData) {
+            console.log(transactionsData.data)
+            if (categoriesData) {
                 setCategories(categoriesData.data)
-                setTransactions(transactionsData.data)
-                setLoading(false)
             }
+            if (transactionsData) {
+                setTransactions(transactionsData.data)
+            }
+            setLoading(false)
         })
-    }, [trigger]);
+    }, [trigger, transactionsDate]);
 
 
     const onDelete = (id) => {
         deleteTransaction(id);
         setTrigger(trigger + 1);
+    }
+
+    const onClick = (organizedBy) => {
+        setTransactionsDate({"organized_by": organizedBy, "date": now})
     }
 
     return(
@@ -43,6 +53,20 @@ export default function TransactionsDisplay() {
                 <Heading size={"2xl"}>
                     Transactions list
                 </Heading>
+
+                <Tabs.Root defaultValue="all">
+                    <Tabs.List>
+                        <Tabs.Trigger value="all" onClick={() => onClick("all")}>
+                            All
+                        </Tabs.Trigger>
+                        <Tabs.Trigger value="today" onClick={() => onClick("day")}>
+                            Today
+                        </Tabs.Trigger>
+                        <Tabs.Trigger value="this-month" onClick={() => onClick("month")}>
+                            This Month
+                        </Tabs.Trigger>
+                    </Tabs.List>
+                </Tabs.Root>
                 
                 {loading && <SpinnerLoading/>}
                 {!loading && transactions.map((transaction) => {
