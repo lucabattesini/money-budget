@@ -18,5 +18,5 @@ class UserLogin(BaseModel):
     password: str
 
 class GetTransactionsParams(BaseModel):
-    organized_by: Literal["day", "month", "year", "all"]
+    organized_by: Optional[Literal["day", "month", "year"]] = None
     date: Optional[datetime] = None

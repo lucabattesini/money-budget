@@ -19,7 +19,7 @@ def create_transaction(t: Transaction):
 
 def get_transactions(datetype, date):
     query = db.query(TransactionDB)
-    if datetype == "all":
+    if datetype ==  None:
         filtered_transactions = query.all()
     else:
         filtered_transactions = query.filter(
