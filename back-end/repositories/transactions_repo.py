@@ -20,11 +20,11 @@ def create_transaction(t: Transaction):
 def get_transactions(datetype, date):
     query = db.query(TransactionDB)
     if datetype ==  None:
-        filtered_transactions = query.all()
+        filtered_transactions = query.order_by(TransactionDB.date.desc()).all()
     else:
         filtered_transactions = query.filter(
             extract(datetype, TransactionDB.date) == date
-        ).all()
+        ).order_by(TransactionDB.date.desc()).all()
 
     return filtered_transactions
 

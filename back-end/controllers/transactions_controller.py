@@ -7,13 +7,6 @@ def create_transaction(transaction: Transaction):
     object = create_transaction_repo(transaction)
     return object
 
-def organize_all_transactions(all_transactions):
-    increasing_ordered_list = sorted(all_transactions, key=lambda e: e.date)
-    decreasing_ordered_list = []
-    for r in increasing_ordered_list:
-        decreasing_ordered_list.insert(0, r)
-    return decreasing_ordered_list
-
 def get_transactions(transaction: GetTransactionsParams):
     datetype = transaction.organized_by
     if datetype == "year":
@@ -25,7 +18,7 @@ def get_transactions(transaction: GetTransactionsParams):
     else:
         formated_date = None
     
-    return organize_all_transactions(get_transactions_repo(datetype, formated_date))
+    return get_transactions_repo(datetype, formated_date)
 
 def get_transactions_summed_by_category():
     today = datetime.now()
