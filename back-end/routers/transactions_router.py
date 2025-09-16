@@ -11,8 +11,8 @@ router = APIRouter(
 )
 
 @router.post("/")
-async def get_transactions_router(transactions: GetTransactionsParams):
-    json_result = jsonable_encoder(get_transactions(transactions))
+async def get_transactions_router(transactionsParams: GetTransactionsParams):
+    json_result = jsonable_encoder(get_transactions(transactionsParams))
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_200_OK
