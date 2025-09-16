@@ -34,7 +34,7 @@ export function getTransactions(date) {
 };
 
 export function insertNewTransaction(payload) {
-    return fetch(endpoints.expenses, {
+    return fetch(endpoints.expenses + "/create-transaction", {
         method: "post",
         headers: {
                 "Content-Type": "application/json"
