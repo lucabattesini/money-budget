@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 
 class Transaction(BaseModel):
@@ -18,5 +18,5 @@ class UserLogin(BaseModel):
     password: str
 
 class TransactionsDate(BaseModel):
-    organized_by: str
-    date: datetime
+    organized_by: Literal["day", "month", "year", "all"]
+    date: Optional[datetime] = None

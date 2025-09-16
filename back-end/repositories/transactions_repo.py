@@ -17,15 +17,15 @@ def create_transaction(t: Transaction):
         db.rollback()
         raise
 
-def get_all_transactions():
-    return db.query(TransactionDB).all()
+def get_transactions(datetype, date):
+    query = db.query(TransactionDB)
+    if datetype == "all":
+        filtered_transactions = query.all()
+    else:
+        filtered_transactions = query.filter(
+            extract(datetype, TransactionDB.date) == date
+        ).all()
 
-def get_transactions_by_date(datetype, date):
-    filtered_transactions = (
-        db.query(TransactionDB)
-        .filter(extract(datetype, TransactionDB.date) == date)
-        .all()
-    )
     return filtered_transactions
 
 def get_transactions_summed_by_category(month, year):
