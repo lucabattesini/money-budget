@@ -19,7 +19,6 @@ export default function TransactionsDisplay() {
             getAllCategories(),
             getTransactions(transactionsDate)
         ]).then(([categoriesData, transactionsData]) => {
-            console.log(transactionsData.data)
             if (categoriesData) {
                 setCategories(categoriesData.data)
             }
