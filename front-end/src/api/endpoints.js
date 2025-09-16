@@ -21,9 +21,13 @@ export function getAddedTransactionsByCategory() {
     .then(Response => Response.json())
 };
 
-export function getAllTransactions() {
+export function getTransactions(date) {
     return fetch(endpoints.expenses, {
-        method: "get"
+        method: "post",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(date)
     })
     .then(Response => Response.json())
     .catch(error => console.error("Failed to get transactions", error))
