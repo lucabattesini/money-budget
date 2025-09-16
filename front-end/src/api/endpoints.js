@@ -2,7 +2,7 @@ const URL_BASE = `${import.meta.env.VITE_API_URL}`
 
 export const endpoints ={
     categories: `${URL_BASE}/categories`,
-    expenses: `${URL_BASE}/transactions`,
+    transactions: `${URL_BASE}/transactions`,
     user: `${URL_BASE}/user`
 };
 
@@ -15,14 +15,14 @@ export function getAllCategories() {
 };
 
 export function getAddedTransactionsByCategory() {
-    return fetch(endpoints.expenses + "/summed-by-category", {
+    return fetch(endpoints.transactions + "/summed-by-category", {
         method: "get"
     })
     .then(Response => Response.json())
 };
 
 export function getTransactions(date) {
-    return fetch(endpoints.expenses, {
+    return fetch(endpoints.transactions, {
         method: "post",
         headers: {
             "Content-Type": "application/json"
@@ -34,7 +34,7 @@ export function getTransactions(date) {
 };
 
 export function insertNewTransaction(payload) {
-    return fetch(endpoints.expenses + "/create", {
+    return fetch(endpoints.transactions + "/create", {
         method: "post",
         headers: {
                 "Content-Type": "application/json"
@@ -79,7 +79,7 @@ export function loginUser(userInfo) {
 };
 
 export function deleteTransaction(id) {
-    return fetch(endpoints.expenses + `/${id}`, {
+    return fetch(endpoints.transactions + `/${id}`, {
         method: "delete",
     })
     .catch(error => console.error("Failed to delete transaction", error))
