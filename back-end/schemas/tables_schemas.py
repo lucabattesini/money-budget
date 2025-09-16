@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 
 class Transaction(BaseModel):
@@ -16,3 +16,7 @@ class User(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+class GetTransactionsParams(BaseModel):
+    organized_by: Optional[Literal["day", "month", "year"]] = None
+    date: Optional[datetime] = None

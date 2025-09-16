@@ -1,19 +1,24 @@
 from datetime import datetime
-from repositories.transactions_repo import create_transaction as create_transaction_repo, get_transactions_summed_by_category as get_transactions_summed_by_category_repo, get_all_transactions as get_all_transactions_repo, delete_transaction as delete_transaction_repo
-from schemas.tables_schemas import Transaction
-
+from repositories.transactions_repo import create_transaction as create_transaction_repo, get_transactions_summed_by_category as get_transactions_summed_by_category_repo, delete_transaction as delete_transaction_repo, get_transactions as get_transactions_repo
+from schemas.tables_schemas import Transaction, GetTransactionsParams
+ 
 def create_transaction(transaction: Transaction):
     transaction.date = datetime.now()
     object = create_transaction_repo(transaction)
     return object
 
-def get_all_transactions():
-    all_transactions = get_all_transactions_repo()
-    increasing_ordered_list = sorted(all_transactions, key=lambda e: e.date)
-    decreasing_ordered_list = []
-    for r in increasing_ordered_list:
-        decreasing_ordered_list.insert(0, r)
-    return decreasing_ordered_list
+def get_transactions(transaction: GetTransactionsParams):
+    datetype = transaction.organized_by
+    if datetype == "year":
+        formated_date = transaction.date.strftime("%Y")
+    elif datetype == "month":
+        formated_date = transaction.date.strftime("%m")
+    elif datetype == "day":
+        formated_date = transaction.date.strftime("%d")
+    else:
+        formated_date = None
+    
+    return get_transactions_repo(datetype, formated_date)
 
 def get_transactions_summed_by_category():
     today = datetime.now()
