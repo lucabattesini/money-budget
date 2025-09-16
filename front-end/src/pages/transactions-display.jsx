@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box } from "@chakra-ui/react";
-import { getAllTransactions, getAllCategories } from "../api/endpoints";
+import { getTransactions, getAllCategories } from "../api/endpoints";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import { IoIosCloseCircle } from "react-icons/io";
 import { deleteTransaction } from "../api/endpoints";
@@ -14,7 +14,7 @@ export default function TransactionsDisplay() {
     useEffect(() => {
         Promise.all([
             getAllCategories(),
-            getAllTransactions()
+            getTransactions({"organized_by": "all", "date": null})
         ]).then(([categoriesData, transactionsData]) => {
             if (categoriesData && transactionsData) {
                 setCategories(categoriesData.data)
@@ -23,6 +23,7 @@ export default function TransactionsDisplay() {
             }
         })
     }, [trigger]);
+
 
     const onDelete = (id) => {
         deleteTransaction(id);
