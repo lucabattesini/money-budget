@@ -10,7 +10,7 @@ export default function TransactionsDisplay() {
     const [categories, setCategories] = useState([])
     const [transactions, setTransactions] = useState([]);
     const [trigger, setTrigger] = useState(0);
-    const [transactionsDate, setTransactionsDate] = useState({"organized_by": "all", "date": null});
+    const [transactionsDate, setTransactionsDate] = useState({"organized_by": null, "date": null});
 
     const now = new Date();
 
@@ -55,7 +55,7 @@ export default function TransactionsDisplay() {
 
                 <Tabs.Root defaultValue="all">
                     <Tabs.List>
-                        <Tabs.Trigger value="all" onClick={() => onClick("all")}>
+                        <Tabs.Trigger value="all" onClick={() => onClick(null)}>
                             All
                         </Tabs.Trigger>
                         <Tabs.Trigger value="today" onClick={() => onClick("day")}>
