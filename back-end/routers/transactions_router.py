@@ -19,8 +19,8 @@ async def get_transactions_router(transactionsParams: GetTransactionsParams):
     )
 
 @router.get("/summed-by-category")
-async def get_summed_transactions_by_category_router():
-    json_result = jsonable_encoder(get_transactions_summed_by_category())
+async def get_summed_transactions_by_category_router(transactionsParams: GetTransactionsParams):
+    json_result = jsonable_encoder(get_transactions_summed_by_category(transactionsParams))
     return JSONResponse(
         content={"data": json_result},
         status_code=status.HTTP_200_OK
