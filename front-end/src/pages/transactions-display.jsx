@@ -4,6 +4,7 @@ import { getTransactions, getAllCategories } from "../api/endpoints";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import { IoIosCloseCircle } from "react-icons/io";
 import { deleteTransaction } from "../api/endpoints";
+import { DateFilter } from "../components/dateFilter";
 
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true)
@@ -13,7 +14,7 @@ export default function TransactionsDisplay() {
     const [transactionsDate, setTransactionsDate] = useState({"organized_by": null, "date": null});
 
     const now = new Date();
-
+ 
     useEffect(() => {
         Promise.all([
             getAllCategories(),
@@ -35,7 +36,7 @@ export default function TransactionsDisplay() {
         setTrigger(trigger + 1);
     }
 
-    const onClick = (organizedBy) => {
+    const onFilterChange = (organizedBy) => {
         setTransactionsDate({"organized_by": organizedBy, "date": now})
     }
 
@@ -53,26 +54,14 @@ export default function TransactionsDisplay() {
                     Transactions list
                 </Heading>
 
-                <Tabs.Root defaultValue="all">
-                    <Tabs.List>
-                        <Tabs.Trigger value="all" onClick={() => onClick(null)}>
-                            All
-                        </Tabs.Trigger>
-                        <Tabs.Trigger value="today" onClick={() => onClick("day")}>
-                            Today
-                        </Tabs.Trigger>
-                        <Tabs.Trigger value="this-month" onClick={() => onClick("month")}>
-                            This Month
-                        </Tabs.Trigger>
-                    </Tabs.List>
-                </Tabs.Root>
                 
+                <DateFilter filterChange={onFilterChange} />
                 {loading && <SpinnerLoading/>}
                 {!loading && transactions.map((transaction) => {
                     const categoryObj = categories?.find((category) => String(category.id) === transaction.category);
                     const categoryName = categoryObj ? categoryObj.name : "Category not found";
                     const formatedDate = new Date(transaction.date)
-                     
+
                     return (
                         <Card.Root 
                         
