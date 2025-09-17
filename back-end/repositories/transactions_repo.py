@@ -27,17 +27,20 @@ def get_transactions(datetype, date):
         ).order_by(TransactionDB.date.desc()).all()
 
     return filtered_transactions
-
-def get_transactions_summed_by_category(month, year):
-    added_categoiries = (
-        db.query(
-            TransactionDB.category,
-            func.sum(TransactionDB.value).label("total"))
-            .filter(extract("month", TransactionDB.date) == month)
-            .filter(extract("year", TransactionDB.date) == year)
-            .group_by(TransactionDB.category)
-            .all()
-    )
+ 
+def get_transactions_summed_by_category(datetype, date):
+    if datetype == None:
+        added_categoiries = db.query(
+            TransactionDB.category, func.sum(TransactionDB.value).label("total")
+            ).group_by(TransactionDB.category).all()
+    else:
+        added_categoiries = db.query(
+                TransactionDB.category, func.sum(TransactionDB.value).label("total")
+            ).group_by(
+                TransactionDB.category
+            ).filter(
+                extract(datetype, TransactionDB.date) == date
+            ).all()
 
     return added_categoiries
 
