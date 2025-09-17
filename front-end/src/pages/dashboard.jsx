@@ -1,27 +1,35 @@
-import { getAllCategories, getAddedTransactionsByCategory } from "../api/endpoints";
+import { getAllCategories, getSummedTransactionsByCategory } from "../api/endpoints";
 import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading,  } from "@chakra-ui/react"
 import { BarList, useChart} from "@chakra-ui/charts";
 import { SpinnerLoading } from "../components/spinnerLoading";
+import { DateFilter } from "../components/dateFilter";
 
 export default function Dashboard() {
     const [loading, setLoading] = useState(true)
     const [valuesSummedByCategory, setvaluesSummedByCategory] = useState([]);
     const [categories, setCategories] = useState([]);
     const [organizedCategories, setOrganizedCategories] = useState([]);
+    const [trigger, setTrigger] = useState(0);
+    const [transactionsDate, setTransactionsDate] = useState({"organized_by": null, "date": null});
+
+    const now = new Date();
 
     useEffect(() => {
         Promise.all([
             getAllCategories(),
-            getAddedTransactionsByCategory()
+            getSummedTransactionsByCategory(transactionsDate)
         ]).then(([categoriesData, transactionsData]) => {
-            if (categoriesData && transactionsData) {
+            if (categoriesData) {
                 setCategories(categoriesData.data);
+            } 
+            if (transactionsData) {
                 setvaluesSummedByCategory(transactionsData.data)
                 setLoading(false)
-            } 
+            }
+
         });
-    }, []);
+    }, [trigger, transactionsDate]);
 
     const createOrganizedCategories = () => {
         const organizedCategoriesList = []
@@ -50,6 +58,10 @@ export default function Dashboard() {
         series: [{name: "name", color: "teal.subtle"}],
     });
     
+    const onFilterChange = (organizedBy) => {
+        setTransactionsDate({"organized_by": organizedBy, "date": now})
+    }
+
     return(
         <Center>
             <Stack
@@ -64,6 +76,7 @@ export default function Dashboard() {
                     Dashboard
                 </Heading>
                 
+                <DateFilter filterChange={onFilterChange} />
                 {loading && <SpinnerLoading/>}
                 {!loading && 
                     <Box width="100%">

@@ -25,9 +25,10 @@ export default function TransactionsDisplay() {
             }
             if (transactionsData) {
                 setTransactions(transactionsData.data)
+                setLoading(false)
             }
             
-        }).finally(setLoading(false))
+        })
     }, [trigger, transactionsDate]);
 
 

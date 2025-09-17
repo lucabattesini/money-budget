@@ -14,11 +14,16 @@ export function getAllCategories() {
         .catch(error => console.error("Failed to get categories", error))
 };
 
-export function getAddedTransactionsByCategory() {
+export function getSummedTransactionsByCategory(date) {
     return fetch(endpoints.transactions + "/summed-by-category", {
-        method: "get"
+        method: "post",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(date)
     })
     .then(Response => Response.json())
+    .catch(error => console.error("Failed to get transactions", error))
 };
 
 export function getTransactions(date) {
