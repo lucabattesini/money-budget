@@ -77,8 +77,8 @@ export function loginUser(userInfo) {
         body: JSON.stringify(userInfo)
     })
     .then(res => {
-        if (!res.ok) throw new Error("Error to request");
-        return res.json
+        const body = res.json()
+        return {status: res.status, body};
     })
     .catch(error => console.error("Failed to create user", error))
 };

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from schemas.tables_schemas import User
+from schemas.tables_schemas import User, UserLogin
 from controllers.users_controller import create_user_ctrl, user_login_ctrl, get_all_users
  
 router = APIRouter(
@@ -27,7 +27,7 @@ async def create_user(user: User):
     )
 
 @router.post("/user-login")
-async def login(user: User):
+async def login(user: UserLogin):
     json_result = jsonable_encoder(user_login_ctrl(user.email, user.password))
     return JSONResponse(
         content={"data": json_result},

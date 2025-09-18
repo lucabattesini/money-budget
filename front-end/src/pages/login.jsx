@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Heading, Input, Center, Stack, Button, Text, Link } from "@chakra-ui/react";
+import { Heading, Input, Center, Stack, Button, Link } from "@chakra-ui/react";
 import { loginUser } from "../api/endpoints";
 
 export default function Login() {
@@ -45,7 +45,7 @@ export default function Login() {
                     Log in
                 </Button>
 
-                <Link variant="underline" href="/create-account">
+                <Link variant="underline" href="/#/create-account">
                     Don't have an account yet? Sign In now!
                 </Link>
             </Stack>
