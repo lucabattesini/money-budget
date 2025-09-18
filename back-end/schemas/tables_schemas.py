@@ -12,6 +12,9 @@ class User(BaseModel):
     name: str
     email: str 
     password: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
 
 class UserLogin(BaseModel):
     email: str
