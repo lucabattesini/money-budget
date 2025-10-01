@@ -17,7 +17,6 @@ def get_transactions(transaction: GetTransactionsParams):
         formated_date = transaction.date.strftime("%d")
     else:
         formated_date = None
-    
     return get_transactions_repo(datetype, formated_date)
 
 def get_transactions_summed_by_category(transaction: GetTransactionsParams):

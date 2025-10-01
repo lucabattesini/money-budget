@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Heading, Input, Center, Stack, Button, Link } from "@chakra-ui/react";
 import { loginUser } from "../api/endpoints";
 
