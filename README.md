@@ -1,15 +1,15 @@
-# Money Budget
+# 💸Money Budget
 
-## Description
+## 📝Description
 A personal finance management application built to help users organize their income, expenses, and savings goals efficiently. This project combines a FastAPI backend with a React (Vite) frontend, providing a fast and modern experience for budget tracking.
 
-## Features
+## 🎮Features
 - Track Incomes
 - Transactions organized by category
 - View transactions history
 - View balance with charts
   
-## Technologies used
+## 🔨Technologies used
 - Python
 - JavaScript
 - FastAPI
@@ -18,7 +18,7 @@ A personal finance management application built to help users organize their inc
 - SQLalchemy
 - Chakra UI
 
-## Installing
+## 💿Installing
 ### Installing dependencies
 First, we need to install the
 You'll have to install Python and NodeJS on you computer, access the links above and install it.
@@ -34,7 +34,7 @@ Now, with the frontent requirements, got to the frontend folder in the terminal 
 
     npm install
 
-## Running
+## 😃Running
 In the terminal go to backend folder and run
 
     uvicorn app:app --reload
