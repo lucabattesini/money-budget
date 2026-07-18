@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Center, Stack, Button, Heading, Input, Portal, Combobox } from "@chakra-ui/react";
 import { Toaster } from "../components/ui/toaster";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
+import { getToken } from "../lib/auth";
 import customToaster from "../utils/customToaster"
 import { SpinnerLoading } from "../components/spinnerLoading";
 
@@ -16,7 +17,8 @@ export default function ReportExpense() {
 
     const fetchcategories = async () => {
             try {
-                const categoriesData = await getAllCategories()
+                const token = getToken();
+                const categoriesData = await getAllCategories(token)
 
                 if (categoriesData && categoriesData.data) {
                     const organizedCategories = categoriesData.data.map((category) => ({
@@ -78,7 +80,7 @@ export default function ReportExpense() {
             return;
         }
 
-        insertNewTransaction(payload)
+        insertNewTransaction(payload, getToken())
             .then(data => {
                 if (data.status === 201 || data.status === 200) {
                     customToaster("Accepted", "success", "Your transaction is saved!")

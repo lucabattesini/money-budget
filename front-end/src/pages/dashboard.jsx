@@ -1,4 +1,5 @@
 import { getAllCategories, getSummedTransactionsByCategory } from "../api/endpoints";
+import { getToken } from "../lib/auth";
 import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading,  } from "@chakra-ui/react"
 import { BarList, useChart} from "@chakra-ui/charts";
@@ -16,9 +17,10 @@ export default function Dashboard() {
     const now = new Date();
 
     useEffect(() => {
+        const token = getToken();
         Promise.all([
-            getAllCategories(),
-            getSummedTransactionsByCategory(transactionsDate)
+            getAllCategories(token),
+            getSummedTransactionsByCategory(transactionsDate, token)
         ]).then(([categoriesData, transactionsData]) => {
             if (categoriesData) {
                 setCategories(categoriesData.data);

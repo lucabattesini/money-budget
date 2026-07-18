@@ -1,19 +1,28 @@
 import { useGoogleLogin } from "@react-oauth/google";
 import { Center, Stack, Heading, Text, Button, Box, Alert } from "@chakra-ui/react";
 import { FcGoogle } from "react-icons/fc";
+import { useNavigate } from "react-router-dom";
+import { loginWithGoogle } from "../api/endpoints";
+import { saveToken } from "../lib/auth";
 
 const hasClientId = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
 function LoginGoogleForm() {
+    const navigate = useNavigate();
+
     const login = useGoogleLogin({
-        onSuccess: (tokenResponse) => {
-            // TODO: send tokenResponse.access_token to backend /auth/google
-            console.log("Google token:", tokenResponse);
+        onSuccess: async (tokenResponse) => {
+            const data = await loginWithGoogle(tokenResponse.access_token);
+            if (data?.data?.token) {
+                saveToken(data.data.token);
+                navigate("/");
+            }
         },
         onError: () => {
             console.error("Google login failed");
         },
     });
+
 
     return (
         <Button

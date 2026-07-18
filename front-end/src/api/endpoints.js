@@ -1,91 +1,95 @@
 const URL_BASE = `${import.meta.env.VITE_API_URL}`
 
-export const endpoints ={
+export const endpoints = {
     categories: `${URL_BASE}/categories`,
     transactions: `${URL_BASE}/transactions`,
-    user: `${URL_BASE}/user`
+    user: `${URL_BASE}/user`,
+    auth: `${URL_BASE}/auth`,
 };
 
-export function getAllCategories() {
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+export function loginWithGoogle(idToken) {
+    return fetch(endpoints.auth + "/google", {
+        method: "post",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken }),
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Google auth failed");
+        return res.json();
+    })
+    .catch(error => console.error("Failed to login with Google", error));
+}
+
+export function getMe(token) {
+    return fetch(endpoints.user + "/me", {
+        method: "get",
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(res => res.json())
+    .catch(error => console.error("Failed to get current user", error));
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+export function getAllCategories(token) {
     return fetch(endpoints.categories, {
-        method: "get"
-        })
-        .then(Response => Response.json())
-        .catch(error => console.error("Failed to get categories", error))
-};
+        method: "get",
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(res => res.json())
+    .catch(error => console.error("Failed to get categories", error));
+}
 
-export function getSummedTransactionsByCategory(date) {
+// ─── Transactions ─────────────────────────────────────────────────────────────
+
+export function getSummedTransactionsByCategory(date, token) {
     return fetch(endpoints.transactions + "/summed-by-category", {
         method: "post",
         headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(date)
+        body: JSON.stringify(date),
     })
-    .then(Response => Response.json())
-    .catch(error => console.error("Failed to get transactions", error))
-};
+    .then(res => res.json())
+    .catch(error => console.error("Failed to get transactions", error));
+}
 
-export function getTransactions(date) {
+export function getTransactions(date, token) {
     return fetch(endpoints.transactions, {
         method: "post",
         headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(date)
+        body: JSON.stringify(date),
     })
-    .then(Response => Response.json())
-    .catch(error => console.error("Failed to get transactions", error))
-};
+    .then(res => res.json())
+    .catch(error => console.error("Failed to get transactions", error));
+}
 
-export function insertNewTransaction(payload) {
+export function insertNewTransaction(payload, token) {
     return fetch(endpoints.transactions + "/create", {
         method: "post",
         headers: {
-                "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
     })
     .then(res => {
-        const body = res.json()
-        return {status: res.status, body};
+        const body = res.json();
+        return { status: res.status, body };
     })
-    .catch(error => console.error("Failed to insert new transaction", error))
-};
+    .catch(error => console.error("Failed to insert new transaction", error));
+}
 
-export function createUser(userInfo) {
-    return fetch(endpoints.user + "/create-user", {
-        method: "post",
-        headers: {
-            "Content-type": "application/json"
-        },
-        body: JSON.stringify(userInfo)
-    })
-    .then(res => {
-        if (!res.ok) throw new Error("Error to request");
-        return res.json
-    })
-    .catch(error => console.error("Failed to create user", error))
-};
-
-export function loginUser(userInfo) {
-    return fetch(endpoints.user + "/user-login", {
-        method: "post",
-        headers: {
-            "Content-type": "application/json"
-        },
-        body: JSON.stringify(userInfo)
-    })
-    .then(res => {
-        if (!res.ok) throw new Error("Error to request");
-        return res.json
-    })
-    .catch(error => console.error("Failed to create user", error))
-};
-
-export function deleteTransaction(id) {
+export function deleteTransaction(id, token) {
     return fetch(endpoints.transactions + `/${id}`, {
         method: "delete",
+        headers: { Authorization: `Bearer ${token}` },
     })
-    .catch(error => console.error("Failed to delete transaction", error))
+    .catch(error => console.error("Failed to delete transaction", error));
 }

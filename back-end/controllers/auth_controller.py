@@ -3,7 +3,11 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from controllers.users_controller import upsert_user_ctrl
+
+security = HTTPBearer()
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 JWT_SECRET = os.getenv("JWT_SECRET")
@@ -31,6 +35,23 @@ def create_jwt(user_id: int) -> str:
 def decode_jwt(token: str) -> dict:
     """Decode and validate a JWT. Raises jwt.PyJWTError on failure."""
     return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
+
+def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> int:
+    """
+    Extract and validate a Bearer JWT using FastAPI's HTTPBearer.
+    Returns the user_id encoded in the token payload.
+    """
+    try:
+        payload = decode_jwt(credentials.credentials)
+        return payload["user_id"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Authorization header malformed")
+
 
 
 def login_with_google(id_token_str: str) -> dict:
