@@ -39,6 +39,12 @@ export default function Home() {
                   fontWeight="bold">
                     Investments
                   </Link>
+
+                  <Link href="/#/account"
+                  fontSize="lg"
+                  fontWeight="bold">
+                    Account
+                  </Link>
                 </Stack>
               </Drawer.Body>
               <Drawer.CloseTrigger asChild>
