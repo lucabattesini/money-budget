@@ -1,11 +1,12 @@
-from datetime import datetime
-from repositories.users_repo import create_user_repo, user_login_repo
- 
-def create_user_ctrl(name, email, password):
-    today = datetime.now()
-    created_user = create_user_repo(name, email, password, today, today, None, False)
-    return created_user
- 
-def user_login_ctrl(email, password):
-    logged_user = user_login_repo(email, password)
-    return logged_user
+from repositories.users_repo import upsert_user_repo, get_user_by_google_id_repo, get_user_by_id_repo
+
+def upsert_user_ctrl(google_id, name, email, picture=None):
+    """Create or update a user after Google OAuth login."""
+    return upsert_user_repo(google_id, name, email, picture)
+
+def get_user_by_google_id_ctrl(google_id):
+    return get_user_by_google_id_repo(google_id)
+
+def get_user_by_id_ctrl(user_id: int):
+    return get_user_by_id_repo(user_id)
+

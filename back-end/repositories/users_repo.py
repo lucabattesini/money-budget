@@ -1,38 +1,41 @@
+from datetime import datetime
 from sqlalchemy.orm import Session
 from db.connection import LocalSession
 from schemas.tables import Users
 
 db: Session = LocalSession()
 
-def create_user_repo(name, email, password, created_at, updated_at, last_login, is_active):
+def upsert_user_repo(google_id: str, name: str, email: str, picture: str = None):
+    """Insert a new user or update name/picture/last_login if they already exist."""
+    now = datetime.now()
+    user = db.query(Users).filter(Users.google_id == google_id).first()
+
+    if user:
+        user.name = name
+        user.picture = picture
+        user.last_login = now
+    else:
+        user = Users(
+            google_id=google_id,
+            name=name,
+            email=email,
+            picture=picture,
+            last_login=now,
+        )
+        db.add(user)
+
     try:
-        db.add(Users(name=name, 
-                     email=email, 
-                     password=password, 
-                     created_at=created_at,
-                     updated_at=updated_at,
-                     last_login=last_login,
-                     is_active=is_active
-                    ))
         db.commit()
+        db.refresh(user)
     except Exception as e:
         db.rollback()
-  
-    return {
-        "name": name,
-        "email": email,
-        "password": password,
-        "created_at": created_at,
-        "updated_at": updated_at,
-        "last_login": last_login,
-        "is_active": is_active
-    }
+        raise e
 
-def user_login_repo(email, password):
-    user = (
-        db.query(Users)
-        .filter(Users.email == email)
-        .filter(Users.password == password)
-        .all()
-    )
     return user
+
+def get_user_by_google_id_repo(google_id: str):
+    return db.query(Users).filter(Users.google_id == google_id).first()
+
+def get_user_by_id_repo(user_id: int):
+    return db.query(Users).filter(Users.id == user_id).first()
+

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import categories_router, transactions_router, users_router
+from routers import categories_router, transactions_router, users_router, auth_router
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import find_dotenv, load_dotenv
@@ -19,6 +19,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+app.include_router(auth_router.router)
 app.include_router(users_router.router)
 app.include_router(categories_router.router)
 app.include_router(transactions_router.router)

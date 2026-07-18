@@ -15,13 +15,15 @@ class Users(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    google_id = Column(String(100), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
-    password = Column(String(100), unique=True, nullable=False)
+    picture = Column(String(255), nullable=True)
+    whatsapp_phone = Column(String(30), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
     last_login = Column(DateTime)
-    is_active = Column(Boolean, default=False)
+
 
 class Categories(Base):
     __tablename__ = "categories"
