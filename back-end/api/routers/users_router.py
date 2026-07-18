@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from controllers.users_controller import get_user_by_id_ctrl
-from controllers.auth_controller import get_current_user_id
+from api.controllers.users_controller import get_user_by_id_ctrl
+from api.controllers.auth_controller import get_current_user_id
 from schemas.tables_schemas import UserResponse
 
 router = APIRouter(

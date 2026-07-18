@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from controllers.categories_controller import get_all_categories
+from api.controllers.categories_controller import get_all_categories
 
 router = APIRouter(
     prefix="/categories",

@@ -1,5 +1,5 @@
 from datetime import datetime
-from repositories.transactions_repo import (
+from api.repositories.transactions_repo import (
     create_transaction as create_transaction_repo,
     get_transactions_summed_by_category as get_transactions_summed_by_category_repo,
     delete_transaction as delete_transaction_repo,

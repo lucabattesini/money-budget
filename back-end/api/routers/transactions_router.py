@@ -2,13 +2,13 @@ from fastapi import APIRouter, status, HTTPException, Header
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from schemas.tables_schemas import Transaction, GetTransactionsParams
-from controllers.transactions_controller import (
+from api.controllers.transactions_controller import (
     get_transactions_summed_by_category,
     create_transaction,
     delete_transaction,
     get_transactions,
 )
-from controllers.auth_controller import get_current_user_id
+from api.controllers.auth_controller import get_current_user_id
 from fastapi import Depends
 
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, status, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
-from controllers.auth_controller import login_with_google
+from api.controllers.auth_controller import login_with_google
 
 router = APIRouter(
     prefix="/auth",

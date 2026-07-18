@@ -5,7 +5,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from controllers.users_controller import upsert_user_ctrl
+from api.controllers.users_controller import upsert_user_ctrl
 
 security = HTTPBearer()
 
