@@ -23,3 +23,6 @@ class RecorderResponse(BaseModel):
 
 class QueryResponse(BaseModel):
     sql_query: str
+
+class SecretaryResponse(BaseModel):
+    reply: str
