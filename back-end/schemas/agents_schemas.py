@@ -1,7 +1,7 @@
 import pydantic
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel
-from typing import Literal
+from typing import Literal, List
 
 class OrchestratorResponse(BaseModel):
     message: str
@@ -14,6 +14,9 @@ CategoryType = Literal[
     "Eventos Especiais", "Emergências", "Fundo de Emergência", "Investimentos", "Outros"
 ]
 
-class RecorderResponse(BaseModel):
+class ExpenseItem(BaseModel):
     amount: int | None
     Category: CategoryType
+
+class RecorderResponse(BaseModel):
+    items: List[ExpenseItem]

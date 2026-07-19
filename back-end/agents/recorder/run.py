@@ -38,6 +38,6 @@ def run_recorder(user_input: str) -> RecorderResponse:
     except Exception as e:
         print("ERROR PARSING JSON OR VALIDATING:", e)
         print("RAW RESPONSE TEXT:", response.text)
-        return RecorderResponse(amount=None, Category="Other")
+        return RecorderResponse(items=[])
 
-print(run_recorder("47 conta de agua"))
+print(run_recorder("gastei 30 com mercado e 2 com comida"))
