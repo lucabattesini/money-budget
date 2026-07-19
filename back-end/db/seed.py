@@ -3,10 +3,10 @@ from .connection import LocalSession
 from schemas.tables import Categories
 
 default_categories = [
-    "Rent", "Utilities", "Internet & Phone", "Insurance", "Debt Payments", "Taxes", "Super Market",
-    "Food", "Transportation", "Health & Pharmacy", "Personal Care", "Entertainment", "Shopping", "Subscriptions",
-    "Fitness & Sports", "Hobbies", "Travel", "Education", "Home Maintenance", "Pets", "Gifts & Donations",
-    "Special Events", "Emergencies", "Emergency Funds", "Investments", "Other"
+    "Aluguel", "Contas Básicas", "Internet e Telefone", "Seguros", "Pagamento de Dívidas", "Impostos", "Supermercado",
+    "Alimentação", "Transporte", "Saúde e Farmácia", "Cuidados Pessoais", "Entretenimento", "Compras", "Assinaturas",
+    "Exercícios e Esportes", "Hobbies", "Viagem", "Educação", "Manutenção da Casa", "Pets", "Presentes e Doações",
+    "Eventos Especiais", "Emergências", "Fundo de Emergência", "Investimentos", "Outros"
 ]
 
 def seed_categories():
