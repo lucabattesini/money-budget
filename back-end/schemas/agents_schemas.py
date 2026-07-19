@@ -20,3 +20,6 @@ class ExpenseItem(BaseModel):
 
 class RecorderResponse(BaseModel):
     items: List[ExpenseItem]
+
+class QueryResponse(BaseModel):
+    sql_query: str
