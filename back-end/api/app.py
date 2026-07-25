@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.routers import categories_router, transactions_router, users_router, auth_router
+from api.routers import categories_router, transactions_router, users_router, auth_router, whatsapp_router
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import find_dotenv, load_dotenv
@@ -23,3 +23,4 @@ app.include_router(auth_router.router)
 app.include_router(users_router.router)
 app.include_router(categories_router.router)
 app.include_router(transactions_router.router)
+app.include_router(whatsapp_router.router)

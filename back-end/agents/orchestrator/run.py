@@ -37,6 +37,3 @@ def run_orchestrator(user_input: str) -> OrchestratorResponse:
         return OrchestratorResponse(**data)
     except Exception:
         return OrchestratorResponse(message=user_input, type="off-topic")
-
-
-print(run_orchestrator("16 mercado"))

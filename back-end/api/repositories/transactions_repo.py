@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, text
+import re
 from db.connection import LocalSession
 from schemas.tables import TransactionDB
 from schemas.tables_schemas import Transaction
@@ -42,3 +43,22 @@ def delete_transaction(id, user_id: int):
         db.commit()
         return transaction
     return {"message": "Transaction not found"}
+
+def execute_agent_query(sql_query: str, user_id: int):
+    query_upper = sql_query.strip().upper()
+    
+    if not query_upper.startswith("SELECT"):
+        raise ValueError("Invalid action: Only read operations are allowed.")
+        
+    forbidden_words = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "USERS"]
+    for word in forbidden_words:
+        if re.search(rf'\b{word}\b', query_upper):
+            raise ValueError(f"Invalid action: Unauthorized command or table ({word}).")
+
+    try:
+        sql = text(sql_query)
+        result = db.execute(sql, {"user_id": user_id})
+        return [dict(row) for row in result.mappings()]
+    except Exception:
+        db.rollback()
+        raise

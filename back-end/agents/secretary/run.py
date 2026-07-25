@@ -42,5 +42,3 @@ def run_secretary(user_message: str, query_results: str) -> SecretaryResponse:
         print("ERROR PARSING JSON OR VALIDATING:", e)
         print("RAW RESPONSE TEXT:", response.text)
         return SecretaryResponse(reply="Desculpe, ocorreu um erro ao processar sua resposta.")
-
-print(run_secretary("Quais foram os meus 3 maiores gastos dessa semana e qual o total deles?", "[{'label': 'Supermercado Extra', 'value': 450, 'date': '2026-07-15'}, {'label': 'Posto Ipiranga', 'value': 210, 'date': '2026-07-16'}, {'label': 'Farmácia Pague Menos', 'value': 120, 'date': '2026-07-17'}, {'total_semana': 780}]"))

@@ -40,5 +40,3 @@ def run_query(user_question: str) -> QueryResponse:
         print("RAW RESPONSE TEXT:", response.text)
         return QueryResponse(sql_query="")
 
-
-print(run_query("Quanto eu gastei com comida esse mês?"))

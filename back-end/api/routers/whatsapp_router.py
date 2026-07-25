@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, Request, Response, status, Query
 from fastapi.responses import PlainTextResponse
-
+from api.controllers.whatsapp_controller import process_whatsapp_message
 router = APIRouter(
     prefix="/webhook",
     tags=["whatsapp"]
@@ -28,7 +28,11 @@ async def verify_webhook(
 async def receive_message(request: Request):
     try:
         body = await request.json()
-        print("NEW MESSAGE RECEIVED:", body)
+        
+        msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
+        result = process_whatsapp_message(msg["from"], msg["text"]["body"])
+        print(f"AI RESPONSE TO {msg['from']}:", result["reply"])
+
     except Exception as e:
         print("ERROR PROCESSING WEBHOOK:", e)
         

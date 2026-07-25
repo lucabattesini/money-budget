@@ -38,4 +38,6 @@ def get_user_by_google_id_repo(google_id: str):
 
 def get_user_by_id_repo(user_id: int):
     return db.query(Users).filter(Users.id == user_id).first()
-
+
+def get_user_by_whatsapp_phone(phone: str):
+    return db.query(Users).filter(Users.whatsapp_phone == phone).first()

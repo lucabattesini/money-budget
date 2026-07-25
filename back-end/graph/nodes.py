@@ -1,8 +1,11 @@
+from datetime import datetime
 from graph.state import AssistantState
 from agents.orchestrator.run import run_orchestrator
 from agents.query.run import run_query
 from agents.recorder.run import run_recorder
 from agents.secretary.run import run_secretary
+from api.repositories.transactions_repo import execute_agent_query, create_transaction
+from schemas.tables_schemas import Transaction
 
 def node_orchestrator(state: AssistantState):
     response = run_orchestrator(state["user_message"])
@@ -10,6 +13,17 @@ def node_orchestrator(state: AssistantState):
 
 def node_recorder(state: AssistantState):
     response = run_recorder(state["user_message"])
+    
+    for item in response.items:
+        if item.amount is not None:
+            t = Transaction(
+                label="Registro via Assistente",
+                value=item.amount,
+                category=item.Category,
+                date=datetime.now()
+            )
+            create_transaction(t, state["user_id"])
+            
     return {
         "extracted_items": response.items,
         "final_response": "Registro(s) processado(s) com sucesso!"
@@ -20,8 +34,8 @@ def node_query(state: AssistantState):
     return {"sql_query": response.sql_query}
 
 def node_db_execute(state: AssistantState):
-    fake_db_result = [{"total": 150}] 
-    return {"db_results": fake_db_result}
+    db_results = execute_agent_query(state["sql_query"], state["user_id"])
+    return {"db_results": db_results}
 
 def node_secretary(state: AssistantState):
     response = run_secretary(state["user_message"], str(state["db_results"]))

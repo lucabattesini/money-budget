@@ -39,5 +39,3 @@ def run_recorder(user_input: str) -> RecorderResponse:
         print("ERROR PARSING JSON OR VALIDATING:", e)
         print("RAW RESPONSE TEXT:", response.text)
         return RecorderResponse(items=[])
-
-print(run_recorder("gastei 30 com mercado e 2 com comida"))
