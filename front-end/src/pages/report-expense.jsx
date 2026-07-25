@@ -126,12 +126,13 @@ export default function ReportExpense() {
     return (
         <Center>
             <Stack
-                height="100vh"
+                minHeight="100vh"
                 gap={6}
-                width="35vh"
+                w="full"
+                maxW="md"
                 align="center"
                 justify="flex-start"
-                pt={20}
+                py={10}
             >    
                 <Toaster/>
                 
