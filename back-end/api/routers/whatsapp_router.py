@@ -2,12 +2,13 @@ import os
 from fastapi import APIRouter, Request, Response, status, Query
 from fastapi.responses import PlainTextResponse
 from api.controllers.whatsapp_controller import process_whatsapp_message
+from api.services.whatsapp_service import send_whatsapp_message
 router = APIRouter(
     prefix="/webhook",
     tags=["whatsapp"]
 )
 
-VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "my_secret_token_123")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 
 @router.get("/")
 async def verify_webhook(
@@ -32,6 +33,8 @@ async def receive_message(request: Request):
         msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
         result = process_whatsapp_message(msg["from"], msg["text"]["body"])
         print(f"AI RESPONSE TO {msg['from']}:", result["reply"])
+
+        send_whatsapp_message(msg["from"], result["reply"])
 
         return {"status": "success", "reply": result["reply"]}
 

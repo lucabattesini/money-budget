@@ -17,7 +17,6 @@ def node_recorder(state: AssistantState):
     
     for item in response.items:
         if item.amount is not None:
-            # Encontrar o ID da categoria
             cat_obj = get_category_by_name(item.Category)
             if not cat_obj:
                 cat_obj = get_category_by_name("Outros")
