@@ -33,7 +33,8 @@ async def receive_message(request: Request):
         result = process_whatsapp_message(msg["from"], msg["text"]["body"])
         print(f"AI RESPONSE TO {msg['from']}:", result["reply"])
 
+        return {"status": "success", "reply": result["reply"]}
+
     except Exception as e:
         print("ERROR PROCESSING WEBHOOK:", e)
-        
-    return Response(status_code=status.HTTP_200_OK)
+        return {"status": "error", "message": str(e)}

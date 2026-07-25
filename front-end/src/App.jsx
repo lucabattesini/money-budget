@@ -1,5 +1,5 @@
 import './styles/index.css';
-import {HashRouter, Routes, Route} from "react-router-dom";
+import {HashRouter, Routes, Route, Navigate} from "react-router-dom";
 import { Box } from '@chakra-ui/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import Home from "./pages/home"
@@ -11,8 +11,16 @@ import ReportExpense from './pages/report-expense';
 import TransactionsDisplay from './pages/transactions-display';
 import Investments from './pages/investments';
 import Account from './pages/account';
+import { isAuthenticated } from './lib/auth';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+
+function ProtectedRoute({ children }) {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login-google" replace />;
+  }
+  return children;
+}
 
 function App() {
   return (
@@ -22,14 +30,17 @@ function App() {
           <Home/>
         </Box>
         <Routes>
-          <Route path='/' element={ <Dashboard/> }/>
-          <Route path='/report-expense' element={ <ReportExpense/> }/>
-          <Route path='/transactions' element={ <TransactionsDisplay/> }/>
-          <Route path='/investments' element={ <Investments/> }/>
+          {/* Public Routes */}
           <Route path='/login' element={ <Login/> }/>
           <Route path='/login-google' element={ <LoginGoogle/> }/>
           <Route path='/create-account' element={ <CreateAccount/> }/>
-          <Route path='/account' element={ <Account/> }/>
+
+          {/* Protected Routes */}
+          <Route path='/' element={ <ProtectedRoute><Dashboard/></ProtectedRoute> }/>
+          <Route path='/report-expense' element={ <ProtectedRoute><ReportExpense/></ProtectedRoute> }/>
+          <Route path='/transactions' element={ <ProtectedRoute><TransactionsDisplay/></ProtectedRoute> }/>
+          <Route path='/investments' element={ <ProtectedRoute><Investments/></ProtectedRoute> }/>
+          <Route path='/account' element={ <ProtectedRoute><Account/></ProtectedRoute> }/>
         </Routes>
       </HashRouter>
     </GoogleOAuthProvider>

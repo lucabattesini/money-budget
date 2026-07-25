@@ -1,8 +1,8 @@
 from api.repositories.users_repo import upsert_user_repo, get_user_by_google_id_repo, get_user_by_id_repo
 
-def upsert_user_ctrl(google_id, name, email, picture=None):
+def upsert_user_ctrl(google_id, name, email, picture=None, whatsapp_phone=None):
     """Create or update a user after Google OAuth login."""
-    return upsert_user_repo(google_id, name, email, picture)
+    return upsert_user_repo(google_id, name, email, picture, whatsapp_phone)
 
 def get_user_by_google_id_ctrl(google_id):
     return get_user_by_google_id_repo(google_id)

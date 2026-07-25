@@ -9,18 +9,19 @@ from api.controllers.users_controller import upsert_user_ctrl
 
 security = HTTPBearer()
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_SECRET = os.getenv("JWT_SECRET", "my_super_secret_dev_key_123")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_DAYS = 7
 
 
 def verify_google_token(token: str) -> dict:
     """Verify a Google ID token and return its payload."""
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
     payload = id_token.verify_oauth2_token(
         token,
         google_requests.Request(),
-        GOOGLE_CLIENT_ID
+        client_id,
+        clock_skew_in_seconds=60
     )
     return payload
 
@@ -54,7 +55,7 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
 
 
 
-def login_with_google(id_token_str: str) -> dict:
+def login_with_google(id_token_str: str, whatsapp_phone: str = None) -> dict:
     """
     Full Google login flow:
     1. Verify the Google ID token
@@ -68,7 +69,7 @@ def login_with_google(id_token_str: str) -> dict:
     email = google_payload.get("email", "")
     picture = google_payload.get("picture", None)
 
-    user = upsert_user_ctrl(google_id, name, email, picture)
+    user = upsert_user_ctrl(google_id, name, email, picture, whatsapp_phone)
 
     token = create_jwt(user.id)
 

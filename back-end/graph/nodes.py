@@ -5,6 +5,7 @@ from agents.query.run import run_query
 from agents.recorder.run import run_recorder
 from agents.secretary.run import run_secretary
 from api.repositories.transactions_repo import execute_agent_query, create_transaction
+from api.repositories.categories_repo import get_category_by_name
 from schemas.tables_schemas import Transaction
 
 def node_orchestrator(state: AssistantState):
@@ -16,10 +17,17 @@ def node_recorder(state: AssistantState):
     
     for item in response.items:
         if item.amount is not None:
+            # Encontrar o ID da categoria
+            cat_obj = get_category_by_name(item.Category)
+            if not cat_obj:
+                cat_obj = get_category_by_name("Outros")
+            
+            category_id_str = str(cat_obj.id) if cat_obj else item.Category
+
             t = Transaction(
                 label="Registro via Assistente",
-                value=item.amount,
-                category=item.Category,
+                value=int(item.amount * 100),
+                category=category_id_str,
                 date=datetime.now()
             )
             create_transaction(t, state["user_id"])

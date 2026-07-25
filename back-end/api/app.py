@@ -1,13 +1,14 @@
-from fastapi import FastAPI
-from api.routers import categories_router, transactions_router, users_router, auth_router, whatsapp_router
-from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import find_dotenv, load_dotenv
 
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 
-FRONT_END_URL = os.getenv("FRONT_URL")
+from fastapi import FastAPI
+from api.routers import categories_router, transactions_router, users_router, auth_router, whatsapp_router
+from fastapi.middleware.cors import CORSMiddleware
+
+FRONT_END_URL = os.getenv("FRONT_URL", "http://localhost:5173")
 
 app = FastAPI()
 

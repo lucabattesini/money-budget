@@ -9,11 +9,11 @@ export const endpoints = {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-export function loginWithGoogle(idToken) {
+export function loginWithGoogle(idToken, phone) {
     return fetch(endpoints.auth + "/google", {
         method: "post",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
+        body: JSON.stringify({ id_token: idToken, whatsapp_phone: phone }),
     })
     .then(res => {
         if (!res.ok) throw new Error("Google auth failed");
@@ -21,6 +21,10 @@ export function loginWithGoogle(idToken) {
     })
     .catch(error => console.error("Failed to login with Google", error));
 }
+
+// Deprecated email/password routes to prevent Vite from crashing
+export function loginUser() { return Promise.resolve(); }
+export function createUser() { return Promise.resolve(); }
 
 export function getMe(token) {
     return fetch(endpoints.user + "/me", {

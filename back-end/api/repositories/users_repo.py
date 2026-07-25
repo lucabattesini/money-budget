@@ -5,7 +5,7 @@ from schemas.tables import Users
 
 db: Session = LocalSession()
 
-def upsert_user_repo(google_id: str, name: str, email: str, picture: str = None):
+def upsert_user_repo(google_id: str, name: str, email: str, picture: str = None, whatsapp_phone: str = None):
     """Insert a new user or update name/picture/last_login if they already exist."""
     now = datetime.now()
     user = db.query(Users).filter(Users.google_id == google_id).first()
@@ -14,12 +14,15 @@ def upsert_user_repo(google_id: str, name: str, email: str, picture: str = None)
         user.name = name
         user.picture = picture
         user.last_login = now
+        if whatsapp_phone:
+            user.whatsapp_phone = whatsapp_phone
     else:
         user = Users(
             google_id=google_id,
             name=name,
             email=email,
             picture=picture,
+            whatsapp_phone=whatsapp_phone,
             last_login=now,
         )
         db.add(user)

@@ -11,8 +11,11 @@ router = APIRouter(
 )
 
 
+from typing import Optional
+
 class GoogleTokenRequest(BaseModel):
     id_token: str
+    whatsapp_phone: Optional[str] = None
 
 
 @router.post("/google")
@@ -22,13 +25,14 @@ async def auth_google(request: GoogleTokenRequest):
     verify it, upsert the user, and return a JWT.
     """
     try:
-        result = login_with_google(request.id_token)
+        result = login_with_google(request.id_token, request.whatsapp_phone)
         return JSONResponse(
             content={"data": jsonable_encoder(result)},
             status_code=status.HTTP_200_OK
         )
     except ValueError as e:
         # google-auth raises ValueError for invalid/expired tokens
+        print(f"GOOGLE TOKEN VALIDATION ERROR: {str(e)}")
         raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Auth error: {str(e)}")

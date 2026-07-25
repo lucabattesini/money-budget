@@ -1,7 +1,6 @@
-import { useGoogleLogin } from "@react-oauth/google";
-import { Center, Stack, Heading, Text, Button, Box, Alert } from "@chakra-ui/react";
-import { FcGoogle } from "react-icons/fc";
-import { useNavigate } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
+import { Center, Stack, Heading, Text, Box, Alert } from "@chakra-ui/react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { loginWithGoogle } from "../api/endpoints";
 import { saveToken } from "../lib/auth";
 
@@ -9,33 +8,30 @@ const hasClientId = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
 function LoginGoogleForm() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const phone = searchParams.get("phone");
 
-    const login = useGoogleLogin({
-        onSuccess: async (tokenResponse) => {
-            const data = await loginWithGoogle(tokenResponse.access_token);
-            if (data?.data?.token) {
-                saveToken(data.data.token);
-                navigate("/");
-            }
-        },
-        onError: () => {
-            console.error("Google login failed");
-        },
-    });
+    const onSuccess = async (credentialResponse) => {
+        // credentialResponse.credential is the id_token
+        const data = await loginWithGoogle(credentialResponse.credential, phone);
+        if (data?.data?.token) {
+            saveToken(data.data.token);
+            navigate("/");
+        }
+    };
 
+    const onError = () => {
+        console.error("Google login failed");
+    };
 
     return (
-        <Button
-            id="google-login-btn"
-            onClick={() => login()}
-            variant="outline"
-            w="full"
-            size="lg"
-            gap={3}
-        >
-            <FcGoogle size={22} />
-            Continue with Google
-        </Button>
+        <Center>
+            <GoogleLogin
+                onSuccess={onSuccess}
+                onError={onError}
+                size="large"
+            />
+        </Center>
     );
 }
 
@@ -70,4 +66,3 @@ export default function LoginGoogle() {
         </Center>
     );
 }
-
