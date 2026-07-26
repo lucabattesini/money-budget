@@ -8,9 +8,8 @@ export default function Sidebar() {
 
     const navItems = [
         { name: "Dashboard", path: "/", icon: LuLayoutDashboard },
-        { name: "Report Expense", path: "/report-expense", icon: LuReceipt },
         { name: "Transactions", path: "/transactions", icon: LuArrowRightLeft },
-        { name: "Investments", path: "/investments", icon: LuTrendingUp },
+        { name: "Report Expense", path: "/report-expense", icon: LuReceipt },
         { name: "Account", path: "/account", icon: LuUser },
     ];
 
