@@ -2,7 +2,7 @@ import './styles/index.css';
 import {HashRouter, Routes, Route, Navigate} from "react-router-dom";
 import { Box } from '@chakra-ui/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import Home from "./pages/home"
+import Layout from './components/Layout';
 import Login from './pages/login';
 import LoginGoogle from './pages/login-google';
 import CreateAccount from './pages/create-account';
@@ -26,21 +26,20 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <HashRouter>
-        <Box position="absolute" right={6} top={6}>
-          <Home/>
-        </Box>
         <Routes>
           {/* Public Routes */}
           <Route path='/login' element={ <Login/> }/>
           <Route path='/login-google' element={ <LoginGoogle/> }/>
           <Route path='/create-account' element={ <CreateAccount/> }/>
 
-          {/* Protected Routes */}
-          <Route path='/' element={ <ProtectedRoute><Dashboard/></ProtectedRoute> }/>
-          <Route path='/report-expense' element={ <ProtectedRoute><ReportExpense/></ProtectedRoute> }/>
-          <Route path='/transactions' element={ <ProtectedRoute><TransactionsDisplay/></ProtectedRoute> }/>
-          <Route path='/investments' element={ <ProtectedRoute><Investments/></ProtectedRoute> }/>
-          <Route path='/account' element={ <ProtectedRoute><Account/></ProtectedRoute> }/>
+          {/* Protected Routes inside Layout */}
+          <Route element={<ProtectedRoute><Layout/></ProtectedRoute>}>
+            <Route path='/' element={<Dashboard/>}/>
+            <Route path='/report-expense' element={<ReportExpense/>}/>
+            <Route path='/transactions' element={<TransactionsDisplay/>}/>
+            <Route path='/investments' element={<Investments/>}/>
+            <Route path='/account' element={<Account/>}/>
+          </Route>
         </Routes>
       </HashRouter>
     </GoogleOAuthProvider>

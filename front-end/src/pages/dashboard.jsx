@@ -1,96 +1,71 @@
-import { getAllCategories, getSummedTransactionsByCategory } from "../api/endpoints";
-import { getToken } from "../lib/auth";
 import { useState, useEffect } from "react";
-import { Box, Stack, Center, Heading,  } from "@chakra-ui/react"
-import { BarList, useChart} from "@chakra-ui/charts";
+import { Box, Stack, Center, Heading, SimpleGrid, GridItem } from "@chakra-ui/react";
+import { getAllCategories, getTransactions } from "../api/endpoints";
+import { getToken } from "../lib/auth";
 import { SpinnerLoading } from "../components/spinnerLoading";
-import { DateFilter } from "../components/dateFilter";
+import CategoryPieChart from "../components/CategoryPieChart";
+import ExpenseTrendLine from "../components/ExpenseTrendLine";
+import TopCategoriesBarList from "../components/TopCategoriesBarList";
 
 export default function Dashboard() {
-    const [loading, setLoading] = useState(true)
-    const [valuesSummedByCategory, setvaluesSummedByCategory] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
-    const [organizedCategories, setOrganizedCategories] = useState([]);
-    const [trigger, setTrigger] = useState(0);
-    const [transactionsDate, setTransactionsDate] = useState({"organized_by": null, "date": null});
-
-    const now = new Date();
+    const [transactions, setTransactions] = useState([]);
 
     useEffect(() => {
         const token = getToken();
+        // Request all transactions by passing null date filters
+        const allTransactionsQuery = { organized_by: null, date: null };
+
         Promise.all([
             getAllCategories(token),
-            getSummedTransactionsByCategory(transactionsDate, token)
+            getTransactions(allTransactionsQuery, token)
         ]).then(([categoriesData, transactionsData]) => {
             if (categoriesData) {
                 setCategories(categoriesData.data);
             } 
             if (transactionsData) {
-                setvaluesSummedByCategory(transactionsData.data)
-                setLoading(false)
+                setTransactions(transactionsData.data);
             }
-
+            setLoading(false);
+        }).catch(err => {
+            console.error(err);
+            setLoading(false);
         });
-    }, [trigger, transactionsDate]);
+    }, []);
 
-    const createOrganizedCategories = () => {
-        const organizedCategoriesList = []
-        for (const r of valuesSummedByCategory) {
-            const categorieName = categories?.find(element => element.id == r.category)
-            if (!categorieName) continue;
-            const organizedCategory = {
-                name: categorieName.name,
-                value: r.total / 100
-            };
-            organizedCategoriesList.push(organizedCategory);
-        }
-        setOrganizedCategories(organizedCategoriesList)
-    }
-
-    useEffect(() => {
-        createOrganizedCategories()
-    }, [categories])
-    
-    const chart = useChart({
-        sort: { by: "value", direction: "desc"},
-        data: organizedCategories?.map((item) => ({
-            name: item.name,
-            value: item.value
-        })),
-        series: [{name: "name", color: "teal.subtle"}],
-    });
-    
-    const onFilterChange = (organizedBy) => {
-        setTransactionsDate({"organized_by": organizedBy, "date": now})
-    }
-
-    return(
+    return (
         <Center>
             <Stack
-                height="100vh"
+                minHeight="100vh"
                 gap={6}
-                width="35vh"
+                w="full"
+                maxW="6xl"
                 align="center"
                 justify="flex-start"
-                pt={20}
+                py={10}
+                px={4}
             >   
-                <Heading size={"2xl"}>
+                <Heading size="2xl" mb={6}>
                     Dashboard
                 </Heading>
                 
-                <DateFilter filterChange={onFilterChange} />
-                {loading && <SpinnerLoading/>}
-                {!loading && 
-                    <Box width="100%">
-                        <BarList.Root chart={chart}>
-                            <BarList.Content>
-                                <BarList.Bar />
-                                <BarList.Value/>
-                            </BarList.Content>
-                        </BarList.Root>
-                    </Box>
-                }
+                {loading ? (
+                    <SpinnerLoading />
+                ) : (
+                    <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6} w="full">
+                        <GridItem colSpan={{ base: 1, lg: 2 }}>
+                            <ExpenseTrendLine transactions={transactions} />
+                        </GridItem>
+                        <GridItem>
+                            <CategoryPieChart transactions={transactions} categories={categories} />
+                        </GridItem>
+                        <GridItem>
+                            <TopCategoriesBarList transactions={transactions} categories={categories} />
+                        </GridItem>
+                    </SimpleGrid>
+                )}
             </Stack>
         </Center>
-    )
+    );
 }
