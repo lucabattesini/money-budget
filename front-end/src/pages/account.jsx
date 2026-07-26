@@ -67,8 +67,8 @@ export default function Account() {
             >
                 {/* Header */}
                 <Stack gap={1}>
-                    <Heading size="2xl">My Account</Heading>
-                    <Text color="fg.muted">Manage your profile and integrations</Text>
+                    <Heading size="2xl">Minha Conta</Heading>
+                    <Text color="fg.muted">Gerencie seu perfil e integrações</Text>
                 </Stack>
 
                 {/* Profile card */}
@@ -113,22 +113,22 @@ export default function Account() {
                     <Stack gap={1}>
                         <Stack direction="row" align="center" gap={2}>
                             <MdOutlineWhatsapp size={20} color="#25D366" />
-                            <Heading size="md">WhatsApp Integration</Heading>
+                            <Heading size="md">Integração com WhatsApp</Heading>
                         </Stack>
                         <Text fontSize="sm" color="fg.muted">
-                            Link your number to register expenses by sending a message.
+                            Vincule seu número para registrar despesas enviando uma mensagem.
                         </Text>
                     </Stack>
 
                     <Field.Root>
-                        <Field.Label>Phone number</Field.Label>
+                        <Field.Label>Número de telefone</Field.Label>
                         <Input
                             id="whatsapp-phone-input"
                             placeholder="+55 51 99999-9999"
                             value={whatsappPhone}
                             onChange={(e) => setWhatsappPhone(e.target.value)}
                         />
-                        <Field.HelperText>Include the country code (e.g. +55)</Field.HelperText>
+                        <Field.HelperText>Inclua o código do país (ex: +55)</Field.HelperText>
                     </Field.Root>
 
                     <Button
@@ -138,7 +138,7 @@ export default function Account() {
                         variant="outline"
                         w="full"
                     >
-                        {saved ? "Saved!" : "Save number"}
+                        {saved ? "Salvo!" : "Salvar número"}
                     </Button>
                 </Stack>
 
@@ -147,7 +147,7 @@ export default function Account() {
                 {/* Danger zone */}
                 <Stack gap={3}>
                     <Text fontSize="sm" fontWeight="semibold" color="fg.muted">
-                        Session
+                        Sessão
                     </Text>
                     <Button
                         id="logout-btn"
@@ -156,7 +156,7 @@ export default function Account() {
                         colorPalette="red"
                         w="full"
                     >
-                        Sign out
+                        Sair
                     </Button>
                 </Stack>
             </Stack>

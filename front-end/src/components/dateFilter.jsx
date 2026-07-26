@@ -5,13 +5,13 @@ export function DateFilter({ filterChange }) {
         <Tabs.Root defaultValue="all">
             <Tabs.List>
                 <Tabs.Trigger value="all" onClick={() => filterChange(null)}>
-                    All
+                    Tudo
                 </Tabs.Trigger>
                 <Tabs.Trigger value="today" onClick={() => filterChange("day")}>
-                    Today
+                    Hoje
                 </Tabs.Trigger>
                 <Tabs.Trigger value="this-month" onClick={() => filterChange("month")}>
-                    This Month
+                    Este Mês
                 </Tabs.Trigger>
             </Tabs.List>
         </Tabs.Root>

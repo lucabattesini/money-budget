@@ -31,26 +31,26 @@ export default function CreateAccount() {
                 pt={16}
             >
                 <Heading size="2xl">
-                    Create account
+                    Criar conta
                 </Heading>
 
                 <Input 
-                placeholder="User name" variant="outline"
+                placeholder="Nome de usuário" variant="outline"
                 value={name} onChange={(e) => setName(e.target.value)}
                 />
 
                 <Input 
-                placeholder="Email address" variant="outline"
+                placeholder="Endereço de e-mail" variant="outline"
                 value={email} onChange={(e) => setEmail(e.target.value)}
                 />
 
                 <Input 
-                placeholder="Password" variant="outline"
+                placeholder="Senha" variant="outline"
                 value={password} onChange={(e) => setPassword(e.target.value)}
                 />
 
                 <Button onClick={handleSubmit}>
-                    Sign In
+                    Registrar
                 </Button>
             </Stack>
         </Center>
