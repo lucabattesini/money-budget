@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box, Divider } from "@chakra-ui/react";
+import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box, Separator } from "@chakra-ui/react";
 import { getTransactions, getAllCategories, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { SpinnerLoading } from "../components/spinnerLoading";
+import TransactionSummary from "../components/TransactionSummary";
 import { IoIosCloseCircle } from "react-icons/io";
 
 export default function TransactionsDisplay() {
@@ -99,7 +100,7 @@ export default function TransactionsDisplay() {
     return(
         <Center>
             <Stack minHeight="100vh" gap={6} w="full" maxW="md" align="center" justify="flex-start" py={10}>
-                <Heading size="2xl" mb={4}>Transactions list</Heading>
+                <TransactionSummary transactions={transactions} />
 
                 {loading && <SpinnerLoading/>}
                 
@@ -108,10 +109,10 @@ export default function TransactionsDisplay() {
                     return (
                         <Box key={group.title} w="full" display="flex" flexDirection="column" alignItems="center">
                             <Flex w="full" align="center" mb={6} mt={2}>
-                                <Box bg="gray.800" color="white" px={3} py={1} borderRadius="md" mr={4} fontSize="sm" fontWeight="bold">
+                                <Box color="gray.400" mr={4} fontSize="xs" fontWeight="bold" textTransform="uppercase">
                                     {group.title}
                                 </Box>
-                                <Divider flex="1" borderColor="gray.600" />
+                                <Separator flex="1" borderColor="gray.700" />
                             </Flex>
                             
                             {group.data.map(renderTransactionCard)}
