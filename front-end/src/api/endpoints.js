@@ -37,7 +37,7 @@ export function getMe(token) {
 
 export function updatePhone(phone, token) {
     return fetch(endpoints.user + "/me/phone", {
-        method: "patch",
+        method: "PATCH",
         headers: { 
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}` 
