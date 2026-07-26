@@ -43,4 +43,16 @@ def get_user_by_id_repo(user_id: int):
     return db.query(Users).filter(Users.id == user_id).first()
 
 def get_user_by_whatsapp_phone(phone: str):
-    return db.query(Users).filter(Users.whatsapp_phone == phone).first()
+    return db.query(Users).filter(Users.whatsapp_phone == phone).first()
+
+def update_user_phone_repo(user_id: int, whatsapp_phone: str):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if user:
+        user.whatsapp_phone = whatsapp_phone
+        try:
+            db.commit()
+            db.refresh(user)
+        except Exception as e:
+            db.rollback()
+            raise e
+    return user

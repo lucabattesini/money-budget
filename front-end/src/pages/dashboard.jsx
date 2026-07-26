@@ -61,7 +61,7 @@ export default function Dashboard() {
                         bgClip="text"
                         fontWeight="extrabold"
                     >
-                        Welcome back, {user.name.split(' ')[0]} 👋
+                        Bem-vindo de volta, {user.name.split(' ')[0]} 👋
                     </Heading>
                 )}
                 {loading ? (
