@@ -35,6 +35,22 @@ export function getMe(token) {
     .catch(error => console.error("Failed to get current user", error));
 }
 
+export function updatePhone(phone, token) {
+    return fetch(endpoints.user + "/me/phone", {
+        method: "patch",
+        headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ whatsapp_phone: phone })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Failed to update phone");
+        return res.json();
+    })
+    .catch(error => console.error("Failed to update phone", error));
+}
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export function getAllCategories(token) {

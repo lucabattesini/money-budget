@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Center,
     Stack,
@@ -11,32 +11,48 @@ import {
     Badge,
     Avatar,
     Field,
+    Spinner,
 } from "@chakra-ui/react";
 import { FcGoogle } from "react-icons/fc";
 import { MdOutlineWhatsapp } from "react-icons/md";
-
-// Mock user — will be replaced with real auth context later
-const mockUser = {
-    name: "Luca Battesini",
-    email: "luca@example.com",
-    picture: "",
-    whatsappPhone: "",
-};
+import { getMe, updatePhone } from "../api/endpoints";
+import { getToken, removeToken } from "../lib/auth";
 
 export default function Account() {
-    const [whatsappPhone, setWhatsappPhone] = useState(mockUser.whatsappPhone);
+    const [user, setUser] = useState(null);
+    const [whatsappPhone, setWhatsappPhone] = useState("");
     const [saved, setSaved] = useState(false);
+    const [loading, setLoading] = useState(true);
 
-    const handleSavePhone = () => {
-        // TODO: call PATCH /users/me with whatsapp_phone
-        console.log("Saving phone:", whatsappPhone);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
+    useEffect(() => {
+        const token = getToken();
+        if (token) {
+            getMe(token).then((data) => {
+                if (data && data.data) {
+                    setUser(data.data);
+                    setWhatsappPhone(data.data.whatsapp_phone || "");
+                }
+                setLoading(false);
+            });
+        } else {
+            setLoading(false);
+        }
+    }, []);
+
+    const handleSavePhone = async () => {
+        const token = getToken();
+        if (token) {
+            const result = await updatePhone(whatsappPhone, token);
+            if (result) {
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2500);
+            }
+        }
     };
 
     const handleLogout = () => {
-        // TODO: clear auth token / session
-        console.log("Logging out...");
+        removeToken();
+        window.location.href = "/";
     };
 
     return (
@@ -56,32 +72,39 @@ export default function Account() {
                 </Stack>
 
                 {/* Profile card */}
-                <Stack
-                    gap={4}
-                    p={5}
-                    borderWidth="1px"
-                    borderRadius="xl"
-                >
-                    <Stack direction="row" align="center" gap={4}>
-                        <Avatar.Root size="lg">
-                            <Avatar.Fallback name={mockUser.name} />
-                        </Avatar.Root>
-                        <Stack gap={0}>
-                            <Text fontWeight="semibold">{mockUser.name}</Text>
-                            <Text fontSize="sm" color="fg.muted">{mockUser.email}</Text>
+                {loading ? (
+                    <Center p={10}>
+                        <Spinner size="xl" />
+                    </Center>
+                ) : user ? (
+                    <Stack
+                        gap={4}
+                        p={5}
+                        borderWidth="1px"
+                        borderRadius="xl"
+                    >
+                        <Stack direction="row" align="center" gap={4}>
+                            <Avatar.Root size="lg">
+                                <Avatar.Fallback name={user.name} />
+                                {user.picture && <Avatar.Image src={user.picture} />}
+                            </Avatar.Root>
+                            <Stack gap={0}>
+                                <Text fontWeight="semibold">{user.name}</Text>
+                                <Text fontSize="sm" color="fg.muted">{user.email}</Text>
+                            </Stack>
+                            <Badge
+                                ml="auto"
+                                colorPalette="green"
+                                variant="subtle"
+                                size="sm"
+                                gap={1}
+                            >
+                                <FcGoogle />
+                                Google
+                            </Badge>
                         </Stack>
-                        <Badge
-                            ml="auto"
-                            colorPalette="green"
-                            variant="subtle"
-                            size="sm"
-                            gap={1}
-                        >
-                            <FcGoogle />
-                            Google
-                        </Badge>
                     </Stack>
-                </Stack>
+                ) : null}
 
                 <Separator />
 

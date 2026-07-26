@@ -27,6 +27,9 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UserUpdatePhone(BaseModel):
+    whatsapp_phone: str
+
 class GetTransactionsParams(BaseModel):
     organized_by: Optional[Literal["day", "month", "year"]] = None
     date: Optional[datetime] = None
