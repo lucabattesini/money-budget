@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading, SimpleGrid, GridItem } from "@chakra-ui/react";
-import { getAllCategories, getTransactions } from "../api/endpoints";
+import { getAllCategories, getTransactions, getMe } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import CategoryPieChart from "../components/CategoryPieChart";
@@ -11,6 +11,7 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
+    const [user, setUser] = useState(null);
 
     useEffect(() => {
         const token = getToken();
@@ -19,13 +20,17 @@ export default function Dashboard() {
 
         Promise.all([
             getAllCategories(token),
-            getTransactions(allTransactionsQuery, token)
-        ]).then(([categoriesData, transactionsData]) => {
+            getTransactions(allTransactionsQuery, token),
+            getMe(token)
+        ]).then(([categoriesData, transactionsData, userData]) => {
             if (categoriesData) {
                 setCategories(categoriesData.data);
-            } 
+            }
             if (transactionsData) {
                 setTransactions(transactionsData.data);
+            }
+            if (userData?.data) {
+                setUser(userData.data);
             }
             setLoading(false);
         }).catch(err => {
@@ -45,23 +50,32 @@ export default function Dashboard() {
                 justify="flex-start"
                 py={10}
                 px={4}
-            >   
-                <Heading size="2xl" mb={6}>
-                    Dashboard
-                </Heading>
-                
+            >
+                {user && (
+                    <Heading
+                        size="2xl"
+                        mb={6}
+                        w="full"
+                        textAlign="left"
+                        bgGradient="linear(to-r, teal.400, blue.500)"
+                        bgClip="text"
+                        fontWeight="extrabold"
+                    >
+                        Bem-vindo de volta, {user.name.split(' ')[0]} 👋
+                    </Heading>
+                )}
                 {loading ? (
                     <SpinnerLoading />
                 ) : (
                     <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6} w="full">
-                        <GridItem colSpan={{ base: 1, lg: 2 }}>
-                            <ExpenseTrendLine transactions={transactions} />
-                        </GridItem>
                         <GridItem>
                             <CategoryPieChart transactions={transactions} categories={categories} />
                         </GridItem>
                         <GridItem>
                             <TopCategoriesBarList transactions={transactions} categories={categories} />
+                        </GridItem>
+                        <GridItem colSpan={{ base: 1, lg: 2 }}>
+                            <ExpenseTrendLine transactions={transactions} />
                         </GridItem>
                     </SimpleGrid>
                 )}

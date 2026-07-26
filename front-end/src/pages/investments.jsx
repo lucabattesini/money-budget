@@ -13,7 +13,7 @@ export default function Investments() {
                 py={10}
             >
                 <Heading size={"2xl"}>
-                    Investments Dashboard
+                    Painel de Investimentos
                 </Heading>
                 
             </Stack>

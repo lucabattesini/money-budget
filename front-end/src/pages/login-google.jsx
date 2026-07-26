@@ -40,8 +40,8 @@ export default function LoginGoogle() {
         <Center minH="100vh">
             <Stack gap={8} align="center" maxW="sm" w="full" px={6}>
                 <Stack gap={2} align="center" textAlign="center">
-                    <Heading size="2xl">Welcome back!</Heading>
-                    <Text color="fg.muted">Sign in to your account to continue</Text>
+                    <Heading size="2xl">Bem-vindo de volta!</Heading>
+                    <Text color="fg.muted">Faça login na sua conta para continuar</Text>
                 </Stack>
 
                 <Box w="full">
@@ -49,9 +49,9 @@ export default function LoginGoogle() {
                         <Alert.Root status="warning" borderRadius="lg">
                             <Alert.Indicator />
                             <Alert.Description>
-                                Google Client ID not configured. Add{" "}
-                                <strong>VITE_GOOGLE_CLIENT_ID</strong> to your{" "}
-                                <strong>.env</strong> file.
+                                Google Client ID não configurado. Adicione{" "}
+                                <strong>VITE_GOOGLE_CLIENT_ID</strong> no seu arquivo{" "}
+                                <strong>.env</strong>.
                             </Alert.Description>
                         </Alert.Root>
                     ) : (
@@ -60,7 +60,7 @@ export default function LoginGoogle() {
                 </Box>
 
                 <Text fontSize="xs" color="fg.subtle" textAlign="center">
-                    By signing in, you agree to our Terms of Service and Privacy Policy.
+                    Ao fazer login, você concorda com nossos Termos de Serviço e Política de Privacidade.
                 </Text>
             </Stack>
         </Center>

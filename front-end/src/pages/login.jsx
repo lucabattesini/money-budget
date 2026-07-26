@@ -28,25 +28,25 @@ export default function Login() {
                 pt={16}
             >
                 <Heading size="2xl">
-                    Welcome back!
+                    Bem-vindo de volta!
                 </Heading>
 
                 <Input 
-                placeholder="Email address" variant="outline"
+                placeholder="Endereço de e-mail" variant="outline"
                 value={email} onChange={(e) => setEmail(e.target.value)}
                 />
 
                 <Input 
-                placeholder="Password" variant="outline"
+                placeholder="Senha" variant="outline"
                 value={password} onChange={(e) => setPassword(e.target.value)}
                 />
 
                 <Button onClick={handleSubmit}>
-                    Log in
+                    Entrar
                 </Button>
 
                 <Link variant="underline" href="/create-account">
-                    Don't have an account yet? Sign In now!
+                    Ainda não tem uma conta? Crie uma agora!
                 </Link>
             </Stack>
         </Center>
