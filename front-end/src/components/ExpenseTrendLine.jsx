@@ -4,6 +4,10 @@ import { useMemo } from "react";
 
 const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
+// Compact labels (e.g. "R$ 3,5 mil") so the Y axis ticks don't get clipped
+const axisFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 });
+const formatAxisValue = (value) => axisFormatter.format(value);
+
 export default function ExpenseTrendLine({ transactions }) {
     const data = useMemo(() => {
         if (!transactions) return [];
@@ -48,7 +52,7 @@ export default function ExpenseTrendLine({ transactions }) {
                     <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="label" />
-                        <YAxis tickFormatter={(value) => `R$ ${value}`} />
+                        <YAxis width={80} tickFormatter={formatAxisValue} />
                         <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
                         <Line type="monotone" dataKey="total" stroke="#00C49F" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 8 }} />
                     </LineChart>

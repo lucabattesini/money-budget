@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Box, Stack, Center, Heading, SimpleGrid, GridItem } from "@chakra-ui/react";
+import { Box, Stack, Center, Heading, SimpleGrid, GridItem, Text, Flex } from "@chakra-ui/react";
 import { getAllCategories, getTransactions, getMe } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { SpinnerLoading } from "../components/spinnerLoading";
@@ -39,6 +39,16 @@ export default function Dashboard() {
         });
     }, []);
 
+    const now = new Date();
+    const monthTotal = transactions
+        .filter(t => {
+            const tDate = new Date(t.date);
+            return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
+        })
+        .reduce((sum, t) => sum + t.value / 100, 0);
+    const monthName = now.toLocaleDateString('pt-BR', { month: 'long' });
+    const formattedMonthTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotal);
+
     return (
         <Center>
             <Stack
@@ -67,6 +77,18 @@ export default function Dashboard() {
                 {loading ? (
                     <SpinnerLoading />
                 ) : (
+                    <>
+                    <Flex w="full" justify="center" py={{ base: 6, md: 10 }} mb={4}>
+                        {/* Shrink-wrapped box: centered on the page, label aligned to the value's left edge */}
+                        <Box textAlign="left">
+                            <Text fontSize={{ base: "xs", md: "sm" }} color="gray.400" textTransform="uppercase" letterSpacing="0.3em" fontWeight="medium" mb={3}>
+                                Gastos de {monthName}
+                            </Text>
+                            <Text fontSize={{ base: "5xl", sm: "6xl", md: "8xl", lg: "9xl" }} fontWeight="bold" lineHeight="1" letterSpacing="tighter">
+                                {formattedMonthTotal}
+                            </Text>
+                        </Box>
+                    </Flex>
                     <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6} w="full">
                         <GridItem>
                             <CategoryPieChart transactions={transactions} categories={categories} />
@@ -78,6 +100,7 @@ export default function Dashboard() {
                             <ExpenseTrendLine transactions={transactions} />
                         </GridItem>
                     </SimpleGrid>
+                    </>
                 )}
             </Stack>
         </Center>

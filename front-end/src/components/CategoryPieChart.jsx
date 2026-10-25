@@ -1,4 +1,4 @@
-import { Box, Heading, Text, Center } from "@chakra-ui/react";
+import { Box, Heading, Text, Center, Stack, Flex } from "@chakra-ui/react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useMemo } from "react";
 
@@ -16,28 +16,32 @@ export default function CategoryPieChart({ transactions, categories }) {
         });
 
         // Map to chart data
-        const mappedData = Object.keys(sums).map((catId, index) => {
+        const mappedData = Object.keys(sums).map((catId) => {
             const cat = categories.find(c => String(c.id) === String(catId));
             return {
                 name: cat ? cat.name : "Desconhecido",
-                value: sums[catId],
-                color: COLORS[index % COLORS.length]
+                value: sums[catId]
             };
         }).filter(item => item.value > 0);
 
         // Sort descending so the legend can pick the top 5
         mappedData.sort((a, b) => b.value - a.value);
 
-        return mappedData;
+        // Assign colors after sorting so the biggest slices get distinct colors
+        return mappedData.map((item, index) => ({ ...item, color: COLORS[index % COLORS.length] }));
     }, [transactions, categories]);
 
-    // Create a custom payload for the Legend to only show the top 5
-    const legendPayload = data.slice(0, 5).map((item) => ({
-        id: item.name,
-        type: "square",
-        value: item.name,
-        color: item.color
-    }));
+    // Recharts 3 ignores Legend's payload prop, so render the top 5 ourselves
+    const renderLegend = () => (
+        <Stack gap={1}>
+            {data.slice(0, 5).map((item) => (
+                <Flex key={item.name} align="center" gap={2}>
+                    <Box w="10px" h="10px" bg={item.color} flexShrink={0} />
+                    <Text fontSize="sm" color={item.color}>{item.name}</Text>
+                </Flex>
+            ))}
+        </Stack>
+    );
 
     return (
         <Box w="full" h="300px" p={4} borderRadius="lg">
@@ -66,7 +70,7 @@ export default function CategoryPieChart({ transactions, categories }) {
                             layout="vertical" 
                             verticalAlign="middle" 
                             align="left" 
-                            payload={legendPayload} 
+                            content={renderLegend}
                         />
                     </PieChart>
                 </ResponsiveContainer>
