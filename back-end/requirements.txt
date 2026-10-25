@@ -7,5 +7,5 @@ psycopg2-binary
 google-auth
 PyJWT
 langgraph
-google-generativeai
+google-genai
 requests

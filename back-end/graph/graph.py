@@ -1,43 +1,36 @@
 from langgraph.graph import StateGraph, END
 from graph.state import AssistantState
-from graph.nodes import (
-    node_orchestrator, node_recorder, node_query, 
-    node_db_execute, node_secretary, node_off_topic
-)
+from graph.nodes import node_agent, node_tools, node_give_up
+
+# Model turns allowed per message (each turn may call several tools at once)
+MAX_STEPS = 4
 
 workflow = StateGraph(AssistantState)
 
-workflow.add_node("orchestrator", node_orchestrator)
-workflow.add_node("recorder", node_recorder)
-workflow.add_node("query", node_query)
-workflow.add_node("db_execute", node_db_execute)
-workflow.add_node("secretary", node_secretary)
-workflow.add_node("off_topic", node_off_topic)
+workflow.add_node("agent", node_agent)
+workflow.add_node("tools", node_tools)
+workflow.add_node("give_up", node_give_up)
 
-def route_intent(state: AssistantState):
-    intent = state.get("intent")
-    if intent == "registry":
-        return "recorder"
-    elif intent == "check":
-        return "query"
-    return "off_topic"
+def route_after_agent(state: AssistantState):
+    if state.get("final_response"):
+        return END
+    if state["steps"] >= MAX_STEPS:
+        return "give_up"
+    return "tools"
 
-workflow.set_entry_point("orchestrator")
+workflow.set_entry_point("agent")
 
 workflow.add_conditional_edges(
-    "orchestrator",
-    route_intent,
+    "agent",
+    route_after_agent,
     {
-        "recorder": "recorder",
-        "query": "query",
-        "off_topic": "off_topic"
+        "tools": "tools",
+        "give_up": "give_up",
+        END: END
     }
 )
 
-workflow.add_edge("recorder", END)
-workflow.add_edge("off_topic", END)
-workflow.add_edge("query", "db_execute")
-workflow.add_edge("db_execute", "secretary")
-workflow.add_edge("secretary", END)
+workflow.add_edge("tools", "agent")
+workflow.add_edge("give_up", END)
 
 app = workflow.compile()

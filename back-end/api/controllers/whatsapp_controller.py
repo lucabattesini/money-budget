@@ -1,4 +1,5 @@
 import os
+from google.genai import types
 from api.repositories.users_repo import get_user_by_whatsapp_phone
 from graph.graph import app
 
@@ -13,8 +14,10 @@ def process_whatsapp_message(sender_number: str, message_text: str):
         }
     
     initial_state = {
-        "user_message": message_text,
-        "user_id": user.id
+        "user_id": user.id,
+        "user_name": user.name,
+        "messages": [types.Content(role="user", parts=[types.Part(text=message_text)])],
+        "steps": 0,
     }
     
     result = app.invoke(initial_state)

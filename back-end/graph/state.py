@@ -1,11 +1,9 @@
-from typing import TypedDict, Optional, Any, List
-from schemas.agents_schemas import ExpenseItem, ToolCall
+from typing import TypedDict, Optional, List
+from google.genai import types
 
 class AssistantState(TypedDict):
     user_id: int
-    user_message: str
-    intent: Optional[str]
-    query_tool_calls: Optional[List[ToolCall]]
-    db_results: Optional[Any]
-    extracted_items: Optional[List[ExpenseItem]]
+    user_name: str
+    messages: List[types.Content]  # conversation sent to the model, including tool calls and results
+    steps: int  # model turns so far, to cap the tool loop
     final_response: Optional[str]

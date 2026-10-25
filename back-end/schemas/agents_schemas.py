@@ -1,11 +1,7 @@
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field
-from typing import Literal, List, Optional, Any
+from typing import Literal, List, Optional
 from datetime import date as Date  # aliased: a field below is also called "date"
-
-class OrchestratorResponse(BaseModel):
-    message: str
-    type: Literal["check", "registry", "off-topic"]
 
 CategoryType = Literal[
     "Aluguel", "Contas Básicas", "Internet e Telefone", "Seguros", "Pagamento de Dívidas", "Impostos", "Supermercado",
@@ -23,11 +19,7 @@ class ExpenseItem(BaseModel):
     date: Optional[Date] = None  # defaults to today
 
 class RecordExpensesArgs(BaseModel):
-    items: List[ExpenseItem]
-
-class RecorderResponse(BaseModel):
-    items: List[ExpenseItem]
-    reply: Optional[str] = None  # text the model sent instead of / alongside the tool call
+    items: List[ExpenseItem] = Field(min_length=1)
 
 # --- Query tools (list_transactions / summarize_transactions) ---
 
@@ -48,13 +40,3 @@ class ListTransactionsArgs(QueryFiltersArgs):
 
 class SummarizeTransactionsArgs(QueryFiltersArgs):
     group_by: Optional[Literal["category", "day", "month", "year", "weekday"]] = None
-
-class ToolCall(BaseModel):
-    name: str
-    args: dict[str, Any]
-
-class QueryResponse(BaseModel):
-    tool_calls: List[ToolCall]
-
-class SecretaryResponse(BaseModel):
-    reply: str
