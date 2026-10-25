@@ -59,7 +59,7 @@ export default function ExpenseForm() {
         const payload = {
             label: description,
             value: parseInt(formatedValue),
-            category: String(selectedCategory)
+            category_id: Number(selectedCategory)
         };
 
         if (!value || value === 0 ) {

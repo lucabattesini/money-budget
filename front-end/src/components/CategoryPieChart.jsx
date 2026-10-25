@@ -11,8 +11,8 @@ export default function CategoryPieChart({ transactions, categories }) {
         // Sum by category for all-time
         const sums = {};
         transactions.forEach(t => {
-            if (!sums[t.category]) sums[t.category] = 0;
-            sums[t.category] += (t.value / 100);
+            if (!sums[t.category_id]) sums[t.category_id] = 0;
+            sums[t.category_id] += (t.value / 100);
         });
 
         // Map to chart data

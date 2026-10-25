@@ -33,7 +33,7 @@ def get_transactions(transaction: GetTransactionsParams, user_id: int):
 def get_transactions_summed_by_category(transaction: GetTransactionsParams, user_id: int):
     datetype, formatted_date = _parse_date(transaction)
     rows = get_transactions_summed_by_category_repo(datetype, formatted_date, user_id)
-    return [{"category": category, "total": total} for category, total in rows]
+    return [{"category_id": category_id, "total": total} for category_id, total in rows]
 
 
 def delete_transaction(id, user_id: int):

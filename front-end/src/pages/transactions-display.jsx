@@ -66,7 +66,7 @@ export default function TransactionsDisplay() {
     ];
 
     const renderTransactionCard = (transaction) => {
-        const categoryObj = categories?.find((category) => String(category.id) === transaction.category);
+        const categoryObj = categories?.find((category) => category.id === transaction.category_id);
         const categoryName = categoryObj ? categoryObj.name : "Categoria não encontrada";
         const formatedDate = new Date(transaction.date);
 
