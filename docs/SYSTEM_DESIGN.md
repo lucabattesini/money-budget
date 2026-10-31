@@ -234,10 +234,16 @@ sequenceDiagram
 ```
 
 ## 5. Deployment / runtime notes
-- Backend: `uvicorn app:app --reload`, FastAPI with CORS restricted to the
+- Backend: `uvicorn api.app:app --reload`, FastAPI with CORS restricted to the
   configured front-end origin(s).
 - Frontend: Vite dev server (`npm run dev`), talks to the API via
   `VITE_API_URL`.
+- Local dev: `docker compose up --build` (root `docker-compose.yml`) runs
+  three services: `db` (Postgres 16, named volume), `api` (FastAPI with
+  `--reload`; runs `db.migrations` and `db.seed` before starting) and `web`
+  (Vite dev server). Source is bind-mounted for hot reload. The compose
+  `DB_URL` must use `postgresql+psycopg2://` (SQLAlchemy 2.1 defaults a bare
+  `postgresql://` to psycopg v3, which is not installed).
 - DB: Postgres in production, falls back to local SQLite (`test.db`,
   gitignored) for local dev when `DB_URL` is unset.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM

@@ -1,0 +1,56 @@
+# Local development environment: Postgres + FastAPI + Vite.
+#   cp .env.example .env   (and the back-end/front-end .env files)
+#   docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-money}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-money}
+      POSTGRES_DB: ${POSTGRES_DB:-money_budget}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./back-end
+    # Create tables, run the idempotent migration, seed categories, then serve.
+    command: >
+      sh -c "python -m db.migrations &&
+             python -m db.seed &&
+             uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload"
+    env_file:
+      - path: ./back-end/.env
+        required: false
+    environment:
+      DB_URL: postgresql+psycopg2://${POSTGRES_USER:-money}:${POSTGRES_PASSWORD:-money}@db:5432/${POSTGRES_DB:-money_budget}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./back-end:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./front-end
+    env_file:
+      - path: ./front-end/.env
+        required: false
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./front-end:/app
+      - web_node_modules:/app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  web_node_modules:
