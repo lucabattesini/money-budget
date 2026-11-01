@@ -26,7 +26,9 @@ keys:
     cp .env.example .env
 
 At minimum you will want `GEMINI_API_KEY`, `GOOGLE_CLIENT_ID` and
-`VITE_GOOGLE_CLIENT_ID` (the same Google OAuth client ID in both). The comments
+`VITE_GOOGLE_CLIENT_ID` (the same Google OAuth client ID in both), and a
+`JWT_SECRET` (`openssl rand -hex 32`). Without `JWT_SECRET` the API refuses to
+start, unless `APP_ENV=development` is set for local dev. The comments
 in `.env.example` explain the rest.
 
 ## 🐳Running with Docker (recommended)

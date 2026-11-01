@@ -116,7 +116,8 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
 ### 3.3 Auth
 - Frontend obtains a Google ID token (`@react-oauth/google`).
 - `POST /auth/google` verifies it against Google, upserts the user, and
-  returns an app-issued JWT (HS256, 7-day expiry).
+  returns an app-issued JWT (HS256, 7-day expiry). The signing key comes from
+  `JWT_SECRET`; the API refuses to start without it unless `APP_ENV=development`.
 - Every protected endpoint depends on `get_current_user_id` (FastAPI
   `HTTPBearer` + `decode_jwt`).
 - A user can also be matched by `whatsapp_phone`, which is how the chatbot

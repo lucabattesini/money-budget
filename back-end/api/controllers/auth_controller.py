@@ -1,3 +1,4 @@
+import logging
 import os
 import jwt
 from datetime import datetime, timedelta, timezone
@@ -8,8 +9,30 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.controllers.users_controller import upsert_user_ctrl
 
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
-JWT_SECRET = os.getenv("JWT_SECRET", "my_super_secret_dev_key_123")
+DEV_JWT_SECRET = "dev-only-insecure-secret-do-not-use-in-production"
+
+
+def load_jwt_secret() -> str:
+    """Return the secret used to sign login tokens.
+
+    A real secret must be set in JWT_SECRET. An empty value counts as missing.
+    The insecure dev key is only used when APP_ENV=development is set explicitly.
+    """
+    secret = os.getenv("JWT_SECRET", "").strip()
+    if secret:
+        return secret
+    if os.getenv("APP_ENV", "").strip().lower() == "development":
+        logger.warning("JWT_SECRET is not set: using an insecure development secret")
+        return DEV_JWT_SECRET
+    raise RuntimeError(
+        "JWT_SECRET is not set. Set it in .env (generate one with "
+        "`openssl rand -hex 32`), or set APP_ENV=development for local dev only."
+    )
+
+
+JWT_SECRET = load_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_DAYS = 7
 
