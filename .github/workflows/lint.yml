@@ -13,15 +13,11 @@ permissions:
   contents: read
 
 jobs:
-  backend-lint:
+  lint:
     # This job name is what a branch rule must require to block merges
-    name: Back-end lint
+    name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    defaults:
-      run:
-        working-directory: back-end
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v7.0.1
@@ -30,12 +26,28 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Same version as requirements-dev.txt
-      - name: Install ruff
-        run: pip install "$(grep '^ruff==' requirements-dev.txt)"
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: front-end/package-lock.json
 
-      - name: Check style
+      # Same version as back-end/requirements-dev.txt
+      - name: Install ruff
+        run: pip install "$(grep '^ruff==' back-end/requirements-dev.txt)"
+
+      - name: Back-end style (ruff)
+        working-directory: back-end
         run: ruff check .
 
-      - name: Check formatting
+      - name: Back-end formatting (ruff)
+        working-directory: back-end
         run: ruff format --check .
+
+      - name: Install front-end dependencies
+        working-directory: front-end
+        run: npm ci
+
+      - name: Front-end style (ESLint)
+        working-directory: front-end
+        run: npm run lint
