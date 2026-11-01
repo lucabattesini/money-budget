@@ -102,7 +102,9 @@ the front-end uses ESLint:
 Editors pick up indentation and line-ending rules from `.editorconfig`; VS Code
 will suggest the ruff, ESLint and EditorConfig extensions.
 
-To run the Python checks on each commit, install the hook once on your machine:
+To run ruff and ESLint on each commit, install the hooks once on your machine
+(the ESLint hook runs inside the `web` container, so start the stack first with
+`docker compose up -d`):
 
     pip install pre-commit
     pre-commit install

@@ -9,3 +9,14 @@ repos:
         files: ^back-end/
       - id: ruff-format
         files: ^back-end/
+
+  - repo: local
+    hooks:
+      # Runs inside the `web` container because npm on the host does not work
+      # while the stack is up (see README). Start it first: docker compose up -d
+      - id: eslint
+        name: eslint (front-end)
+        entry: docker compose exec -T web npm run lint
+        language: system
+        files: ^front-end/
+        pass_filenames: false
