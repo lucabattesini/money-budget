@@ -45,11 +45,27 @@ is worse than a short one that stays accurate — keep edits proportional to
 the change (a one-line table tweak doesn't need a new diagram; a new agent
 node does).
 
+## Codes: tickets vs. PRs
+
+Two separate numbers are used, and they are deliberately different:
+
+- **Ticket number (`TKT-<n>`)** follows GitHub: it is the issue number
+  (issue #16 is `TKT-16`). Issue titles start with it, e.g.
+  `TKT-16: Stop using a default secret for login tokens`.
+- **PR code (`MB-<NNNN>`)** is our own sequential counter, one per pull
+  request: `MB-0001`, `MB-0002`, ... It is zero-padded to four digits and
+  never reused. To get the next one, take the highest `MB-` code found in
+  existing PR titles and branch names (`gh pr list --state all`) and add 1.
+  `MB-0000` is only a placeholder for work done before tickets existed.
+
+A PR links to its ticket in the description (`Closes #16`), not through its
+code. The PR code and the ticket number are unrelated and will usually differ.
+
 ## Branch naming
 
 New branches must follow the pattern `MB-0000-feature-name`, where `MB-0000`
-is the ticket/issue number and `feature-name` is a short kebab-case
-description (e.g. `MB-0123-whatsapp-category-filter`). Branch off `main`
+is the PR code (see above) and `feature-name` is a short kebab-case
+description (e.g. `MB-0007-whatsapp-category-filter`). Branch off `main`
 (this repo's default branch).
 
 ## Issues
@@ -59,17 +75,18 @@ Use the templates in `.github/ISSUE_TEMPLATE/` (task, bug, feature). Keep
 the **Technical notes** section: that is the place for relevant files,
 current behavior, constraints and suggested approach, and it is what agents
 should read first when picking up an issue. The GitHub issue number is the
-ticket code used in branch names and commit messages (`MB-<number>`).
+ticket number: issue titles start with `TKT-<number>:`, and the PR that
+delivers it says `Closes #<number>` in its description.
 
 ## Commit messages
 
-Every commit message must start with the ticket code from the branch name,
+Every commit message must start with the PR code from the branch name,
 followed by the usual conventional-commit type:
 
-    MB-0123 feat: add whatsapp category filter
+    MB-0007 feat: add whatsapp category filter
 
-The code is the `MB-0000` prefix of the current branch (e.g. branch
-`MB-0123-whatsapp-category-filter` -> `MB-0123`). Keep the subject short and
+The code is the `MB-NNNN` prefix of the current branch (e.g. branch
+`MB-0007-whatsapp-category-filter` -> `MB-0007`). Keep the subject short and
 in the imperative mood; use the body to explain the why when it isn't obvious.
 
 ## Pull request descriptions
