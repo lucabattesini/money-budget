@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, date
 from pydantic import ValidationError
+from sqlalchemy.orm import Session
+from db.connection import session_scope
 from graph.state import AssistantState
 from agents.orchestrator.run import run_orchestrator
 from agents.query.run import run_query
@@ -21,32 +23,33 @@ def _format_brl(amount: float) -> str:
 def _to_cents(amount: float | None) -> int | None:
     return None if amount is None else round(amount * 100)
 
-def _category_ids(names: list[str] | None) -> list[int] | None:
+def _category_ids(db: Session, names: list[str] | None) -> list[int] | None:
     if not names:
         return None
     # An unknown name maps to -1 so it matches nothing instead of silently widening the filter
-    return [cat.id if (cat := get_category_by_name(name)) else -1 for name in names]
+    return [cat.id if (cat := get_category_by_name(db, name)) else -1 for name in names]
 
-def _to_filters(args: QueryFiltersArgs) -> TransactionFilters:
+def _to_filters(db: Session, args: QueryFiltersArgs) -> TransactionFilters:
     return TransactionFilters(
         start_date=args.start_date,
         end_date=args.end_date,
-        category_ids=_category_ids(args.categories),
-        exclude_category_ids=_category_ids(args.exclude_categories),
+        category_ids=_category_ids(db, args.categories),
+        exclude_category_ids=_category_ids(db, args.exclude_categories),
         search=args.search,
         min_value=_to_cents(args.min_amount),
         max_value=_to_cents(args.max_amount),
         weekdays=args.weekdays,
     )
 
-def _run_query_tool(call: ToolCall, user_id: int) -> dict:
+def _run_query_tool(db: Session, call: ToolCall, user_id: int) -> dict:
     """Execute one query tool call for the user and return its result with amounts in reais."""
     try:
         if call.name == LIST_TRANSACTIONS:
             args = ListTransactionsArgs(**call.args)
             rows = list_transactions(
+                db,
                 user_id,
-                _to_filters(args),
+                _to_filters(db, args),
                 order_by="value" if args.order_by == "amount" else "date",
                 order_dir=args.order_dir,
                 limit=args.limit,
@@ -62,7 +65,7 @@ def _run_query_tool(call: ToolCall, user_id: int) -> dict:
             ]
         elif call.name == SUMMARIZE_TRANSACTIONS:
             args = SummarizeTransactionsArgs(**call.args)
-            rows = aggregate_transactions(user_id, _to_filters(args), args.group_by)
+            rows = aggregate_transactions(db, user_id, _to_filters(db, args), args.group_by)
             result = []
             for row in rows:
                 item = {}
@@ -96,21 +99,22 @@ def node_recorder(state: AssistantState):
     now = datetime.now()
 
     registered = []
-    for item in response.items:
-        cat_obj = get_category_by_name(item.category) or get_category_by_name("Outros")
-        # Keep the current time so same-day ordering still makes sense; never store future dates
-        expense_date = item.date if item.date and item.date <= date.today() else now.date()
+    with session_scope() as db:
+        for item in response.items:
+            cat_obj = get_category_by_name(db, item.category) or get_category_by_name(db, "Outros")
+            # Keep the current time so same-day ordering still makes sense; never store future dates
+            expense_date = item.date if item.date and item.date <= date.today() else now.date()
 
-        t = Transaction(
-            label=item.description,
-            value=round(item.amount * 100),
-            category_id=cat_obj.id,
-            date=datetime.combine(expense_date, now.time()),
-        )
-        create_transaction(t, state["user_id"])
-        registered.append(
-            f"• {_format_brl(item.amount)} em {cat_obj.name} ({item.description}, {expense_date.strftime('%d/%m')})"
-        )
+            t = Transaction(
+                label=item.description,
+                value=round(item.amount * 100),
+                category_id=cat_obj.id,
+                date=datetime.combine(expense_date, now.time()),
+            )
+            create_transaction(db, t, state["user_id"])
+            registered.append(
+                f"• {_format_brl(item.amount)} em {cat_obj.name} ({item.description}, {expense_date.strftime('%d/%m')})"
+            )
 
     parts = []
     if registered:
@@ -130,7 +134,8 @@ def node_query(state: AssistantState):
     return {"query_tool_calls": response.tool_calls}
 
 def node_db_execute(state: AssistantState):
-    db_results = [_run_query_tool(call, state["user_id"]) for call in state["query_tool_calls"]]
+    with session_scope() as db:
+        db_results = [_run_query_tool(db, call, state["user_id"]) for call in state["query_tool_calls"]]
     return {"db_results": db_results}
 
 def node_secretary(state: AssistantState):

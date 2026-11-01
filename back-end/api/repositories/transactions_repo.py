@@ -2,11 +2,8 @@ from datetime import datetime, time, timedelta
 from typing import Literal, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
-from db.connection import LocalSession
 from schemas.tables import TransactionDB, Categories
 from schemas.tables_schemas import Transaction, TransactionFilters, TransactionOut, TransactionAggregate
-
-db: Session = LocalSession()
 
 MAX_LIST_LIMIT = 200
 
@@ -23,7 +20,7 @@ PERIOD_PARTS = {
 
 GroupBy = Literal["category", "day", "month", "year", "weekday"]
 
-def create_transaction(t: Transaction, user_id: int):
+def create_transaction(db: Session, t: Transaction, user_id: int):
     try:
         transaction = TransactionDB(**t.dict(), user_id=user_id)
         db.add(transaction)
@@ -33,7 +30,7 @@ def create_transaction(t: Transaction, user_id: int):
         db.rollback()
         raise
 
-def get_transactions(datetype, date, user_id: int):
+def get_transactions(db: Session, datetype, date, user_id: int):
     query = db.query(TransactionDB).filter(TransactionDB.user_id == user_id)
     if datetype is None:
         return query.order_by(TransactionDB.date.desc()).all()
@@ -41,7 +38,7 @@ def get_transactions(datetype, date, user_id: int):
         extract(datetype, TransactionDB.date) == date
     ).order_by(TransactionDB.date.desc()).all()
 
-def get_transactions_summed_by_category(datetype, date, user_id: int):
+def get_transactions_summed_by_category(db: Session, datetype, date, user_id: int):
     query = db.query(
         TransactionDB.category_id,
         func.sum(TransactionDB.value).label("total")
@@ -77,6 +74,7 @@ def _apply_filters(query, user_id: int, f: TransactionFilters):
     return query
 
 def list_transactions(
+    db: Session,
     user_id: int,
     filters: TransactionFilters,
     order_by: Literal["date", "value"] = "date",
@@ -111,6 +109,7 @@ def list_transactions(
     ]
 
 def aggregate_transactions(
+    db: Session,
     user_id: int,
     filters: TransactionFilters,
     group_by: Optional[GroupBy] = None,
@@ -149,7 +148,7 @@ def aggregate_transactions(
         results.append(TransactionAggregate(**data))
     return results
 
-def delete_transaction(id, user_id: int):
+def delete_transaction(db: Session, id, user_id: int):
     transaction = db.query(TransactionDB).filter_by(id=id, user_id=user_id).first()
     if transaction:
         db.delete(transaction)

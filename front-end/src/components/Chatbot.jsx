@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Flex, Box, Text, Input, IconButton, Stack } from "@chakra-ui/react";
 import { LuSend } from "react-icons/lu";
 import { getMe } from "../api/endpoints";
+import { API_URL } from "../api/config";
 import { getToken } from "../lib/auth";
 
 export default function Chatbot() {
@@ -64,8 +65,7 @@ export default function Chatbot() {
         };
 
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-            const response = await fetch(`${apiUrl}/webhook/`, {
+            const response = await fetch(`${API_URL}/webhook/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"

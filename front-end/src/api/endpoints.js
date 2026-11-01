@@ -1,4 +1,6 @@
-const URL_BASE = `${import.meta.env.VITE_API_URL}`
+import { API_URL } from "./config";
+
+const URL_BASE = API_URL;
 
 export const endpoints = {
     categories: `${URL_BASE}/categories`,

@@ -1,5 +1,7 @@
 import os
-from fastapi import APIRouter, Request, Response, status, Query
+from fastapi import APIRouter, Depends, Request, Response, status, Query
+from sqlalchemy.orm import Session
+from db.connection import get_db
 from fastapi.responses import PlainTextResponse
 from api.controllers.whatsapp_controller import process_whatsapp_message
 from api.services.whatsapp_service import send_whatsapp_message
@@ -26,12 +28,12 @@ async def verify_webhook(
     return Response(status_code=status.HTTP_400_BAD_REQUEST)
 
 @router.post("/")
-async def receive_message(request: Request):
+async def receive_message(request: Request, db: Session = Depends(get_db)):
     try:
         body = await request.json()
         
         msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
-        result = process_whatsapp_message(msg["from"], msg["text"]["body"])
+        result = process_whatsapp_message(db, msg["from"], msg["text"]["body"])
         print(f"AI RESPONSE TO {msg['from']}:", result["reply"])
 
         send_whatsapp_message(msg["from"], result["reply"])

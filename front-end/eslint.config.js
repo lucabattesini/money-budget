@@ -26,4 +26,12 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Test helpers and the Chakra UI snippets in components/ui export hooks and helpers next to
+    // components; hot reload of those files is not a concern
+    files: ['src/test/**', '**/*.test.{js,jsx}', 'src/components/ui/**'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
