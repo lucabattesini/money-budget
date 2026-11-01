@@ -1,5 +1,5 @@
 # Local development environment: Postgres + FastAPI + Vite.
-#   cp .env.example .env   (and the back-end/front-end .env files)
+#   cp .env.example .env   (single env file at the repo root)
 #   docker compose up --build
 services:
   db:
@@ -26,7 +26,7 @@ services:
              python -m db.seed &&
              uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload"
     env_file:
-      - path: ./back-end/.env
+      - path: ./.env
         required: false
     environment:
       DB_URL: postgresql+psycopg2://${POSTGRES_USER:-money}:${POSTGRES_PASSWORD:-money}@db:5432/${POSTGRES_DB:-money_budget}
@@ -41,7 +41,7 @@ services:
   web:
     build: ./front-end
     env_file:
-      - path: ./front-end/.env
+      - path: ./.env
         required: false
     ports:
       - "5173:5173"

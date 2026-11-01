@@ -37,14 +37,14 @@ Now, with the frontent requirements, got to the frontend folder in the terminal 
 ## 🐳Running with Docker (recommended)
 Requires Docker with Compose. From the repo root:
 
-    cp back-end/.env.example back-end/.env      # add GEMINI_API_KEY etc.
-    cp front-end/.env.example front-end/.env   # add VITE_GOOGLE_CLIENT_ID
+    cp .env.example .env   # add GEMINI_API_KEY, VITE_GOOGLE_CLIENT_ID, etc.
     docker compose up --build
 
 This starts PostgreSQL (`localhost:5432`), the API (`http://localhost:8000`) and
 the front-end (`http://localhost:5173`) with hot reload. On startup the API
 creates the tables, runs the migration and seeds the default categories.
-Optionally `cp .env.example .env` to change the Postgres credentials.
+All configuration (back-end, front-end and Postgres credentials) lives in the
+single `.env` file at the repo root.
 
 Stop with `docker compose down` (add `-v` to also delete the database volume).
 

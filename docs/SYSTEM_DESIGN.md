@@ -238,6 +238,8 @@ sequenceDiagram
   configured front-end origin(s).
 - Frontend: Vite dev server (`npm run dev`), talks to the API via
   `VITE_API_URL`.
+- Config: one `.env` at the repo root (see `.env.example`) feeds compose, the
+  back-end (`find_dotenv` walks up to it) and Vite (`envDir: '..'`).
 - Local dev: `docker compose up --build` (root `docker-compose.yml`) runs
   three services: `db` (Postgres 16, named volume), `api` (FastAPI with
   `--reload`; runs `db.migrations` and `db.seed` before starting) and `web`
