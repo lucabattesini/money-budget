@@ -52,6 +52,15 @@ is the ticket/issue number and `feature-name` is a short kebab-case
 description (e.g. `MB-0123-whatsapp-category-filter`). Branch off `main`
 (this repo's default branch).
 
+## Issues
+
+Use the templates in `.github/ISSUE_TEMPLATE/` (task, bug, feature). Keep
+"What and why" in plain language for people. Put implementation details in
+the **Technical notes** section: that is the place for relevant files,
+current behavior, constraints and suggested approach, and it is what agents
+should read first when picking up an issue. The GitHub issue number is the
+ticket code used in branch names and commit messages (`MB-<number>`).
+
 ## Commit messages
 
 Every commit message must start with the ticket code from the branch name,
