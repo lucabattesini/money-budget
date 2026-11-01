@@ -12,7 +12,7 @@ also works if a Postgres matching `TEST_DB_URL` is reachable; see below.
 
 `.github/workflows/tests.yml` runs the same suite on every pull request and on
 pushes to `main`, using a Postgres service container (no Docker Compose). The
-check is called **Back-end tests**. To make it block merges, a repository admin
+check is called **Back-end tests** (the front-end has its own, **Front-end tests**). To make it block merges, a repository admin
 must require that check in a branch rule (Settings -> Rules -> Rulesets, or
 Branches -> Branch protection) for `main`.
 

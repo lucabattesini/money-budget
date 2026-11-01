@@ -83,8 +83,13 @@ created automatically:
 
     docker compose exec api python -m pytest
 
-They also run automatically on every pull request (GitHub Actions). See
-`back-end/tests/README.md` for how it works.
+Front-end tests also run inside Docker (running npm on your machine does not
+work while the stack is up):
+
+    docker compose exec web npm test
+
+Both suites run automatically on every pull request (GitHub Actions). See
+`back-end/tests/README.md` and `front-end/src/test/README.md` for how they work.
 
 ## 📚Documentation
 See `docs/SYSTEM_DESIGN.md` for the architecture and `AGENTS.md` for the

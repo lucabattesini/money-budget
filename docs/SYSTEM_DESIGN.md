@@ -259,8 +259,8 @@ sequenceDiagram
   calls), Meta WhatsApp Cloud API (chat channel).
 
 ## 6. Testing
-- **Scope today:** back-end only (`back-end/tests/`), run with `pytest`. There
-  are no front-end tests yet.
+- **Scope:** back-end (`back-end/tests/`, `pytest`) and front-end
+  (`front-end/src/**/*.test.*`, Vitest + React Testing Library on jsdom).
 - **Database:** a real Postgres database named `<POSTGRES_DB>_test`, created
   automatically and separate from the dev one. Each test runs in a transaction
   that is rolled back; the app's sessions (`get_db`, `session_scope`) are bound
@@ -271,8 +271,11 @@ sequenceDiagram
 - **External services:** Gemini calls are blocked by default and agents are
   stubbed per test; Google token verification is monkeypatched. Nothing in the
   suite reaches the network.
-- **CI:** `.github/workflows/tests.yml` runs the suite on every pull request
-  and on pushes to `main`, against a Postgres service container. The check is
-  named "Back-end tests"; a branch rule requiring it blocks merges when it
-  fails.
+- **Front-end:** components and pages are tested like a user would use them;
+  `fetch` is replaced per test, so no test reaches a real server. Google sign-in
+  is stubbed.
+- **CI:** `.github/workflows/tests.yml` runs both suites on every pull request
+  and on pushes to `main` (the back-end against a Postgres service container).
+  The checks are named "Back-end tests" and "Front-end tests"; a branch rule
+  requiring them blocks merges when they fail.
 - Run commands and conventions: `back-end/tests/README.md`.

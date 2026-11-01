@@ -105,26 +105,31 @@ for humans:
 
 ## Testing
 
-Back-end changes come with tests, in the same PR:
+Changes come with tests, in the same PR (back-end and front-end):
 
 - New behavior gets a test; a bug fix gets a test that fails without the fix.
-- Run the suite with `docker compose exec api python -m pytest` and make sure
-  it passes before opening a PR. State in the PR what you ran. CI
+- Run the suite with `docker compose exec api python -m pytest` (back-end) and
+  `docker compose exec web npm test` (front-end) and make sure it passes
+  before opening a PR. State in the PR what you ran. CI
   (`.github/workflows/tests.yml`) runs it again on every PR; a red check must
   not be merged.
-- Tests use a real Postgres test database (rolled back per test). Mock only
-  what is external: Gemini (stub the `run_*` agent functions) and Google token
-  verification. Never call the real Gemini API; an autouse fixture blocks it.
+- Back-end tests use a real Postgres test database (rolled back per test). Mock
+  only what is external: Gemini (stub the `run_*` agent functions) and Google
+  token verification. Never call the real Gemini API; an autouse fixture blocks
+  it.
+- Front-end tests act like a user (find things by role, label or text) and
+  mock `fetch` with `mockApi`; no test may reach a real server.
 - Check behavior, not just status codes: assert on the returned data, on who
   owns it (one user must never see another's data) and on the error paths.
 - If a test exposes a bug you are not fixing now, keep the test, mark it
-  `@pytest.mark.skip(reason="TKT-<n>: what is wrong")`, and open a ticket that
+  `@pytest.mark.skip(reason="TKT-<n>: what is wrong")` (front-end:
+  `it.skip('TKT-<n>: what should happen', ...)`), and open a ticket that
   lists the skipped tests and says they must be unskipped. Find them with
-  `grep -rn "TKT-" back-end/tests`.
+  `grep -rn "TKT-" back-end/tests front-end/src`.
 - Quality over coverage: a few tests that fail when the code is wrong beat many
   that only exercise it.
 - If you add fixtures, folders or conventions, update
-  `back-end/tests/README.md`.
+  `back-end/tests/README.md` or `front-end/src/test/README.md`.
 
 ## Conventions
 
