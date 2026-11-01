@@ -137,14 +137,15 @@ def test_delete_cannot_remove_another_users_transaction(client, db, user, other_
 
     response = client.delete(f"/transactions/{theirs.id}", headers=headers_for(user))
 
-    assert response.json()["data"] == {"message": "Transaction not found"}
+    assert response.status_code == 404
     assert db.query(TransactionDB).filter_by(id=theirs.id).count() == 1
 
 
 def test_delete_of_an_unknown_id_reports_not_found(client, auth_headers):
     response = client.delete("/transactions/999999", headers=auth_headers)
 
-    assert response.json()["data"] == {"message": "Transaction not found"}
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Transaction not found"
 
 
 def test_delete_requires_authentication(client, user, make_transaction, category_ids):
@@ -155,12 +156,10 @@ def test_delete_requires_authentication(client, user, make_transaction, category
 
 # --- error codes (TKT-28) ------------------------------------------------
 
-@pytest.mark.skip(reason="TKT-28: deleting a missing transaction answers 202 instead of 404")
 def test_deleting_an_unknown_transaction_is_not_found(client, auth_headers):
     assert client.delete("/transactions/999999", headers=auth_headers).status_code == 404
 
 
-@pytest.mark.skip(reason="TKT-28: deleting someone else's transaction answers 202 instead of 404")
 def test_deleting_another_users_transaction_is_not_found(client, user, other_user, headers_for,
                                                          make_transaction, category_ids):
     theirs = make_transaction(other_user, category_ids["Alimentação"])
@@ -168,7 +167,6 @@ def test_deleting_another_users_transaction_is_not_found(client, user, other_use
     assert client.delete(f"/transactions/{theirs.id}", headers=headers_for(user)).status_code == 404
 
 
-@pytest.mark.skip(reason="TKT-28: an unknown category makes the API return a 500")
 def test_creating_with_an_unknown_category_is_a_client_error(db, user, auth_headers):
     from fastapi.testclient import TestClient
 
@@ -179,7 +177,8 @@ def test_creating_with_an_unknown_category_is_a_client_error(db, user, auth_head
         "/transactions/create", json={"label": "x", "value": 100, "category_id": 999999}, headers=auth_headers
     )
 
-    assert response.status_code in (400, 404, 422)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Category not found"
 
 
 # --- known bugs (TKT-26) ---------------------------------------------------
