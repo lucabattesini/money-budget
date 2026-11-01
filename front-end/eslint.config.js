@@ -27,8 +27,9 @@ export default defineConfig([
     },
   },
   {
-    // Test helpers export functions next to components; hot reload does not apply to tests
-    files: ['src/test/**', '**/*.test.{js,jsx}'],
+    // Test helpers and the Chakra UI snippets in components/ui export hooks and helpers next to
+    // components; hot reload of those files is not a concern
+    files: ['src/test/**', '**/*.test.{js,jsx}', 'src/components/ui/**'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

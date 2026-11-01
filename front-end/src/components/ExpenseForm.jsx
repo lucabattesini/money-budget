@@ -41,17 +41,13 @@ export default function ExpenseForm() {
         fetchcategories();
     }, []);
 
-    const filter = () => {
+    useEffect(() => {
         if (searchQuery.trim() === "") {
             setFilteredCategories(categories)
         } else {
             const filtered = categories.filter(category => category.name.toLowerCase().includes(searchQuery.toLowerCase()));
             setFilteredCategories(filtered);
         }
-    }
-
-    useEffect(() => {
-        filter()
     }, [searchQuery, categories]);
 
     const handleSubmit = () => {

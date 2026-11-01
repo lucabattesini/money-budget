@@ -275,7 +275,8 @@ sequenceDiagram
   `fetch` is replaced per test, so no test reaches a real server. Google sign-in
   is stubbed.
 - **CI:** `.github/workflows/tests.yml` runs both suites on every pull request
-  and on pushes to `main` (the back-end against a Postgres service container).
+  and on pushes to `main` (the back-end against a Postgres service container;
+  the front-end job also runs the linter and a production build).
   The checks are named "Back-end tests" and "Front-end tests"; a branch rule
   requiring them blocks merges when they fail.
 - Run commands and conventions: `back-end/tests/README.md`.

@@ -6,7 +6,8 @@ the compose stack is up, because `front-end/node_modules` is a root-owned mount)
     docker compose exec web npm test          # run once
     docker compose exec web npm run test:watch
 
-CI runs `npm test` on every pull request (job **Front-end tests**).
+CI runs the linter (`npm run lint`), `npm test` and a production build on every pull
+request (job **Front-end tests**).
 
 ## Stack
 

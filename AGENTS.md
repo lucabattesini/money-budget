@@ -128,6 +128,7 @@ Changes come with tests, in the same PR (back-end and front-end):
   `grep -rn "TKT-" back-end/tests front-end/src`.
 - Quality over coverage: a few tests that fail when the code is wrong beat many
   that only exercise it.
+- Front-end code must also pass `docker compose exec web npm run lint` (CI runs it).
 - If you add fixtures, folders or conventions, update
   `back-end/tests/README.md` or `front-end/src/test/README.md`.
 
