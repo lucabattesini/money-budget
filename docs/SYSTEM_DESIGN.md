@@ -271,4 +271,8 @@ sequenceDiagram
 - **External services:** Gemini calls are blocked by default and agents are
   stubbed per test; Google token verification is monkeypatched. Nothing in the
   suite reaches the network.
+- **CI:** `.github/workflows/tests.yml` runs the suite on every pull request
+  and on pushes to `main`, against a Postgres service container. The check is
+  named "Back-end tests"; a branch rule requiring it blocks merges when it
+  fails.
 - Run commands and conventions: `back-end/tests/README.md`.

@@ -83,7 +83,8 @@ created automatically:
 
     docker compose exec api python -m pytest
 
-See `back-end/tests/README.md` for how it works.
+They also run automatically on every pull request (GitHub Actions). See
+`back-end/tests/README.md` for how it works.
 
 ## 📚Documentation
 See `docs/SYSTEM_DESIGN.md` for the architecture and `AGENTS.md` for the

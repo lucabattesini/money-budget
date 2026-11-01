@@ -109,7 +109,9 @@ Back-end changes come with tests, in the same PR:
 
 - New behavior gets a test; a bug fix gets a test that fails without the fix.
 - Run the suite with `docker compose exec api python -m pytest` and make sure
-  it passes before opening a PR. State in the PR what you ran.
+  it passes before opening a PR. State in the PR what you ran. CI
+  (`.github/workflows/tests.yml`) runs it again on every PR; a red check must
+  not be merged.
 - Tests use a real Postgres test database (rolled back per test). Mock only
   what is external: Gemini (stub the `run_*` agent functions) and Google token
   verification. Never call the real Gemini API; an autouse fixture blocks it.

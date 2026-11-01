@@ -8,6 +8,14 @@ Run them inside Docker (from the repo root, with the stack up):
 The Docker image already contains pytest. Running them from your own machine
 also works if a Postgres matching `TEST_DB_URL` is reachable; see below.
 
+## In CI
+
+`.github/workflows/tests.yml` runs the same suite on every pull request and on
+pushes to `main`, using a Postgres service container (no Docker Compose). The
+check is called **Back-end tests**. To make it block merges, a repository admin
+must require that check in a branch rule (Settings -> Rules -> Rulesets, or
+Branches -> Branch protection) for `main`.
+
 ## How it works
 
 - **Real Postgres, separate database.** Tests use `<POSTGRES_DB>_test`
