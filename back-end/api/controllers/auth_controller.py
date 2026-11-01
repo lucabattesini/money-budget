@@ -1,12 +1,14 @@
 import logging
 import os
-import jwt
 from datetime import datetime, timedelta, timezone
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
-from sqlalchemy.orm import Session
+
+import jwt
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from sqlalchemy.orm import Session
+
 from api.controllers.users_controller import upsert_user_ctrl
 
 security = HTTPBearer()
@@ -41,12 +43,7 @@ JWT_EXPIRY_DAYS = 7
 def verify_google_token(token: str) -> dict:
     """Verify a Google ID token and return its payload."""
     client_id = os.getenv("GOOGLE_CLIENT_ID")
-    payload = id_token.verify_oauth2_token(
-        token,
-        google_requests.Request(),
-        client_id,
-        clock_skew_in_seconds=60
-    )
+    payload = id_token.verify_oauth2_token(token, google_requests.Request(), client_id, clock_skew_in_seconds=60)
     return payload
 
 
@@ -78,7 +75,6 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
         raise HTTPException(status_code=401, detail="Authorization header malformed")
 
 
-
 def login_with_google(db: Session, id_token_str: str, whatsapp_phone: str = None) -> dict:
     """
     Full Google login flow:
@@ -105,5 +101,5 @@ def login_with_google(db: Session, id_token_str: str, whatsapp_phone: str = None
             "email": user.email,
             "picture": user.picture,
             "whatsapp_phone": user.whatsapp_phone,
-        }
+        },
     }

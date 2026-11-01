@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from contextlib import contextmanager
 import os
+from contextlib import contextmanager
+
 from dotenv import find_dotenv, load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)

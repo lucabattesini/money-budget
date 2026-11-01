@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from datetime import date
+
 from schemas.agents_schemas import ToolCall
 
 WEEKDAY_NAMES = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]

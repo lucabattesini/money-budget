@@ -4,6 +4,7 @@ The data below is chosen around boundaries: the last second of a day, midnight
 of the next day, Sundays (weekday 0), ties on value, and a label with a '%'.
 2026-03-01 and 2026-03-15 are Sundays, 2026-04-10 is a Friday, 2025-12-25 a Thursday.
 """
+
 from datetime import date, datetime
 
 import pytest
@@ -38,6 +39,7 @@ def run(db, user, order_by="date", order_dir="desc", limit=50, offset=0, **filte
 
 # --- dates -------------------------------------------------------------------
 
+
 def test_end_date_includes_the_whole_last_day(db, user, seeded):
     rows = run(db, user, start_date=date(2026, 3, 1), end_date=date(2026, 3, 1))
 
@@ -58,6 +60,7 @@ def test_date_range_spanning_months(db, user, seeded):
 
 # --- search ------------------------------------------------------------------
 
+
 def test_search_is_case_insensitive(db, user, seeded):
     assert labels(run(db, user, search="CAFÉ COM")) == {"Café com Leite"}
 
@@ -73,6 +76,7 @@ def test_search_treats_underscore_literally(db, user, seeded):
 
 # --- values ------------------------------------------------------------------
 
+
 def test_value_bounds_are_inclusive(db, user, seeded):
     rows = run(db, user, min_value=1500, max_value=4000)
 
@@ -80,6 +84,7 @@ def test_value_bounds_are_inclusive(db, user, seeded):
 
 
 # --- categories --------------------------------------------------------------
+
 
 def test_filter_by_categories(db, user, seeded, category_ids):
     rows = run(db, user, category_ids=[category_ids["Alimentação"], category_ids["Transporte"]])
@@ -116,25 +121,35 @@ def test_transaction_without_a_category_is_still_listed(db, user, make_transacti
 
 # --- weekdays (0 = Sunday) ---------------------------------------------------
 
-@pytest.mark.parametrize("weekdays, expected", [
-    ([0], {"Café com Leite", "Jantar 100%", "Mercado"}),
-    ([1], {"Uber centro"}),
-    ([4], {"Presente"}),
-    ([5], {"Aluguel abril"}),
-    ([0, 5], {"Café com Leite", "Jantar 100%", "Mercado", "Aluguel abril"}),
-    ([2, 3, 6], set()),
-])
+
+@pytest.mark.parametrize(
+    "weekdays, expected",
+    [
+        ([0], {"Café com Leite", "Jantar 100%", "Mercado"}),
+        ([1], {"Uber centro"}),
+        ([4], {"Presente"}),
+        ([5], {"Aluguel abril"}),
+        ([0, 5], {"Café com Leite", "Jantar 100%", "Mercado", "Aluguel abril"}),
+        ([2, 3, 6], set()),
+    ],
+)
 def test_weekday_filter(db, user, seeded, weekdays, expected):
     assert labels(run(db, user, weekdays=weekdays)) == expected
 
 
 # --- ordering and pagination -------------------------------------------------
 
+
 def test_default_order_is_newest_first(db, user, seeded):
     rows = run(db, user)
 
     assert [r.label for r in rows] == [
-        "Aluguel abril", "Mercado", "Uber centro", "Jantar 100%", "Café com Leite", "Presente",
+        "Aluguel abril",
+        "Mercado",
+        "Uber centro",
+        "Jantar 100%",
+        "Café com Leite",
+        "Presente",
     ]
 
 
@@ -171,7 +186,9 @@ def test_limit_has_a_floor_of_one(db, user, seeded):
 
 def test_limit_is_capped_at_200(db, user, category_ids):
     db.add_all(
-        TransactionDB(user_id=user.id, label=f"t{i}", value=1, date=datetime(2026, 1, 1), category_id=category_ids["Outros"])
+        TransactionDB(
+            user_id=user.id, label=f"t{i}", value=1, date=datetime(2026, 1, 1), category_id=category_ids["Outros"]
+        )
         for i in range(205)
     )
     db.commit()
@@ -185,6 +202,7 @@ def test_negative_offset_is_treated_as_zero(db, user, seeded):
 
 # --- scoping -----------------------------------------------------------------
 
+
 def test_other_users_rows_are_never_returned(db, user, other_user, seeded, make_transaction, category_ids):
     make_transaction(other_user, category_ids["Outros"], "Not yours", 1, datetime(2026, 3, 1, 10))
 
@@ -193,6 +211,7 @@ def test_other_users_rows_are_never_returned(db, user, other_user, seeded, make_
 
 
 # --- known bugs (TKT-26) -----------------------------------------------------
+
 
 @pytest.mark.skip(reason="TKT-26: the day filter compares only the day of the month, ignoring year and month")
 def test_day_filter_matches_only_the_given_date(db, user, make_transaction, category_ids):

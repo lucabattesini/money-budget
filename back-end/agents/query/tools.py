@@ -1,4 +1,5 @@
 from typing import get_args
+
 from schemas.agents_schemas import CategoryType
 
 LIST_TRANSACTIONS = "list_transactions"
@@ -28,7 +29,7 @@ FILTER_PROPERTIES = {
     },
     "search": {
         "type": "string",
-        "description": "Text to look for in the transaction description (case-insensitive), e.g. \"uber\".",
+        "description": 'Text to look for in the transaction description (case-insensitive), e.g. "uber".',
     },
     "min_amount": {
         "type": "number",
@@ -57,7 +58,7 @@ QUERY_TOOLS = {
                     "order_by": {
                         "type": "string",
                         "enum": ["date", "amount"],
-                        "description": "Sort field. Use \"amount\" for the biggest/smallest expenses. Default: date.",
+                        "description": 'Sort field. Use "amount" for the biggest/smallest expenses. Default: date.',
                     },
                     "order_dir": {
                         "type": "string",
@@ -73,7 +74,7 @@ QUERY_TOOLS = {
         },
         {
             "name": SUMMARIZE_TRANSACTIONS,
-            "description": "Returns totals (sum, count, average and maximum) of the matching expenses, either overall or grouped. Use it for \"how much\" questions.",
+            "description": 'Returns totals (sum, count, average and maximum) of the matching expenses, either overall or grouped. Use it for "how much" questions.',
             "parameters": {
                 "type": "object",
                 "properties": {

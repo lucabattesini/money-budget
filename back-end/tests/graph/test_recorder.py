@@ -1,5 +1,4 @@
-from datetime import date, datetime, timedelta
-from types import SimpleNamespace
+from datetime import date, timedelta
 
 import pytest
 
@@ -16,6 +15,7 @@ def item(amount=10.0, category="Alimentação", description="Almoço", when=None
 @pytest.fixture
 def recorder(monkeypatch):
     """Stub the Gemini-backed recorder agent with a canned response."""
+
     def _set(items=(), reply=None):
         monkeypatch.setattr(nodes, "run_recorder", lambda message: RecorderResponse(items=list(items), reply=reply))
 
@@ -49,7 +49,12 @@ def test_the_expense_is_saved_for_the_right_user_and_category(db, user, other_us
 
 
 def test_the_reply_confirms_each_expense_in_brazilian_format(db, user, recorder):
-    recorder([item(1234.56, "Aluguel", "Aluguel de março", date(2026, 3, 5)), item(7.0, "Transporte", "Ônibus", date(2026, 3, 6))])
+    recorder(
+        [
+            item(1234.56, "Aluguel", "Aluguel de março", date(2026, 3, 5)),
+            item(7.0, "Transporte", "Ônibus", date(2026, 3, 6)),
+        ]
+    )
 
     reply = run(user)["final_response"]
 

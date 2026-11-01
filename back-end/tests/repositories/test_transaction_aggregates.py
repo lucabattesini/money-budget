@@ -9,11 +9,11 @@ from schemas.tables_schemas import TransactionFilters
 @pytest.fixture
 def seeded(user, make_transaction, category_ids):
     c = category_ids
-    make_transaction(user, c["Alimentação"], "a", 1000, datetime(2026, 3, 1, 9))    # Sunday
-    make_transaction(user, c["Alimentação"], "b", 3000, datetime(2026, 3, 1, 20))   # Sunday
-    make_transaction(user, c["Transporte"], "c", 500, datetime(2026, 3, 2, 8))      # Monday
-    make_transaction(user, c["Aluguel"], "d", 150000, datetime(2026, 4, 10, 12))    # Friday
-    make_transaction(user, c["Outros"], "e", 2000, datetime(2025, 12, 25, 12))      # Thursday
+    make_transaction(user, c["Alimentação"], "a", 1000, datetime(2026, 3, 1, 9))  # Sunday
+    make_transaction(user, c["Alimentação"], "b", 3000, datetime(2026, 3, 1, 20))  # Sunday
+    make_transaction(user, c["Transporte"], "c", 500, datetime(2026, 3, 2, 8))  # Monday
+    make_transaction(user, c["Aluguel"], "d", 150000, datetime(2026, 4, 10, 12))  # Friday
+    make_transaction(user, c["Outros"], "e", 2000, datetime(2025, 12, 25, 12))  # Thursday
 
 
 def agg(db, user, group_by=None, **filters):
@@ -72,7 +72,9 @@ def test_group_by_weekday_uses_sunday_as_zero(db, user, seeded):
 
 
 def test_filters_apply_to_aggregates(db, user, seeded, category_ids):
-    [row] = agg(db, user, start_date=date(2026, 3, 1), end_date=date(2026, 3, 31), category_ids=[category_ids["Alimentação"]])
+    [row] = agg(
+        db, user, start_date=date(2026, 3, 1), end_date=date(2026, 3, 31), category_ids=[category_ids["Alimentação"]]
+    )
 
     assert (row.total, row.count) == (4000, 2)
 

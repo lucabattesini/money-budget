@@ -14,12 +14,13 @@ directly instead.
 Idempotent: transactions are only inserted if the user has none, unless
 --reset is given (which deletes that user's transactions first).
 """
+
 import argparse
 import random
 from datetime import datetime, timedelta
 
-from db.connection import LocalSession
 from db import seed  # noqa: F401  (ensures default categories exist)
+from db.connection import LocalSession
 from schemas.tables import Categories, TransactionDB, Users
 
 DEMO_EMAIL = "demo@example.com"
@@ -81,19 +82,22 @@ def main():
             for label, category, low, high, count in TEMPLATES:
                 for _ in range(count):
                     day = today - timedelta(days=month_offset * 30 + rng.randint(0, 29))
-                    rows.append(TransactionDB(
-                        user_id=user.id,
-                        label=label,
-                        value=rng.randint(low // 10, high // 10) * 10,
-                        date=day,
-                        category_id=categories[category],
-                    ))
+                    rows.append(
+                        TransactionDB(
+                            user_id=user.id,
+                            label=label,
+                            value=rng.randint(low // 10, high // 10) * 10,
+                            date=day,
+                            category_id=categories[category],
+                        )
+                    )
         db.add_all(rows)
         db.commit()
         print(f"Inserted {len(rows)} transactions for {args.email} (user id {user.id})")
 
         if args.email == DEMO_EMAIL:
             from api.controllers.auth_controller import create_jwt
+
             print(f"JWT for API testing: {create_jwt(user.id)}")
     finally:
         db.close()

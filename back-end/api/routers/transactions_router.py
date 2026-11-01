@@ -1,25 +1,19 @@
-from fastapi import APIRouter, status, HTTPException, Header
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, status
 from fastapi.encoders import jsonable_encoder
-from schemas.tables_schemas import Transaction, GetTransactionsParams
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+
+from api.controllers.auth_controller import get_current_user_id
 from api.controllers.transactions_controller import (
-    get_transactions_summed_by_category,
     create_transaction,
     delete_transaction,
     get_transactions,
+    get_transactions_summed_by_category,
 )
-from api.controllers.auth_controller import get_current_user_id
-from fastapi import Depends
-from sqlalchemy.orm import Session
 from db.connection import get_db
+from schemas.tables_schemas import GetTransactionsParams, Transaction
 
-
-router = APIRouter(
-    prefix="/transactions",
-    tags=["transactions"],
-    responses={404: {"description": "Not found"}}
-)
-
+router = APIRouter(prefix="/transactions", tags=["transactions"], responses={404: {"description": "Not found"}})
 
 
 @router.post("/")

@@ -4,6 +4,7 @@ Tests run against a separate Postgres database (never the dev one). Every test
 runs inside a transaction that is rolled back at the end, so tests cannot
 affect each other. Gemini calls are blocked.
 """
+
 import os
 
 # These must be set before the app is imported: db.connection builds the engine
@@ -41,8 +42,7 @@ TEST_CATEGORIES = ["Alimentação", "Transporte", "Supermercado", "Aluguel", "Ou
 def _create_test_database_if_missing():
     url = make_url(TEST_DB_URL)
     assert url.database and url.database.endswith("_test"), (
-        f"Refusing to run tests against '{url.database}': "
-        "the test database name must end with '_test'."
+        f"Refusing to run tests against '{url.database}': the test database name must end with '_test'."
     )
     admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     try:
@@ -113,6 +113,7 @@ def block_network(monkeypatch):
     The Postgres driver talks to the database through libpq, not Python sockets,
     so database access is unaffected.
     """
+
     def blocked(self, address, *args, **kwargs):
         raise RuntimeError(f"Network access is blocked in tests (tried to connect to {address!r}).")
 
@@ -170,6 +171,7 @@ def make_user(db):
 @pytest.fixture
 def make_transaction(db):
     """Insert a transaction directly (the create endpoint always stamps the current time)."""
+
     def _make(user, category_id, label="Almoço", value=2500, when=None):
         row = TransactionDB(
             user_id=user.id, label=label, value=value, date=when or datetime.now(), category_id=category_id

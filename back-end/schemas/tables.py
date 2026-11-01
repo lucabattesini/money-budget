@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, func, ForeignKey
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
+
 from db.connection import Base
+
 
 class TransactionDB(Base):
     __tablename__ = "transactions"
@@ -10,6 +12,7 @@ class TransactionDB(Base):
     value = Column(Integer)
     date = Column(DateTime)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+
 
 class Users(Base):
     __tablename__ = "users"

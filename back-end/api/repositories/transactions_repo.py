@@ -1,9 +1,11 @@
 from datetime import datetime, time, timedelta
 from typing import Literal, Optional
+
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
-from schemas.tables import TransactionDB, Categories
-from schemas.tables_schemas import Transaction, TransactionFilters, TransactionOut, TransactionAggregate
+
+from schemas.tables import Categories, TransactionDB
+from schemas.tables_schemas import Transaction, TransactionAggregate, TransactionFilters, TransactionOut
 
 MAX_LIST_LIMIT = 200
 
@@ -20,34 +22,37 @@ PERIOD_PARTS = {
 
 GroupBy = Literal["category", "day", "month", "year", "weekday"]
 
+
 def create_transaction(db: Session, t: Transaction, user_id: int):
     try:
         transaction = TransactionDB(**t.dict(), user_id=user_id)
         db.add(transaction)
         db.commit()
         return t
-    except Exception as e:
+    except Exception:
         db.rollback()
         raise
+
 
 def get_transactions(db: Session, datetype, date, user_id: int):
     query = db.query(TransactionDB).filter(TransactionDB.user_id == user_id)
     if datetype is None:
         return query.order_by(TransactionDB.date.desc()).all()
-    return query.filter(
-        extract(datetype, TransactionDB.date) == date
-    ).order_by(TransactionDB.date.desc()).all()
+    return query.filter(extract(datetype, TransactionDB.date) == date).order_by(TransactionDB.date.desc()).all()
+
 
 def get_transactions_summed_by_category(db: Session, datetype, date, user_id: int):
-    query = db.query(
-        TransactionDB.category_id,
-        func.sum(TransactionDB.value).label("total")
-    ).filter(TransactionDB.user_id == user_id).group_by(TransactionDB.category_id)
+    query = (
+        db.query(TransactionDB.category_id, func.sum(TransactionDB.value).label("total"))
+        .filter(TransactionDB.user_id == user_id)
+        .group_by(TransactionDB.category_id)
+    )
 
     if datetype is not None:
         query = query.filter(extract(datetype, TransactionDB.date) == date)
 
     return query.all()
+
 
 def _apply_filters(query, user_id: int, f: TransactionFilters):
     """Scope the query to the user and apply every filter that was set."""
@@ -73,6 +78,7 @@ def _apply_filters(query, user_id: int, f: TransactionFilters):
 
     return query
 
+
 def list_transactions(
     db: Session,
     user_id: int,
@@ -85,9 +91,7 @@ def list_transactions(
     order_column = ORDER_COLUMNS[order_by]
     order_column = order_column.asc() if order_dir == "asc" else order_column.desc()
 
-    query = db.query(TransactionDB, Categories.name).outerjoin(
-        Categories, TransactionDB.category_id == Categories.id
-    )
+    query = db.query(TransactionDB, Categories.name).outerjoin(Categories, TransactionDB.category_id == Categories.id)
     rows = (
         _apply_filters(query, user_id, filters)
         .order_by(order_column, TransactionDB.id.desc())
@@ -107,6 +111,7 @@ def list_transactions(
         )
         for t, category_name in rows
     ]
+
 
 def aggregate_transactions(
     db: Session,
@@ -148,6 +153,7 @@ def aggregate_transactions(
         results.append(TransactionAggregate(**data))
     return results
 
+
 def delete_transaction(db: Session, id, user_id: int):
     transaction = db.query(TransactionDB).filter_by(id=id, user_id=user_id).first()
     if transaction:
@@ -155,6 +161,7 @@ def delete_transaction(db: Session, id, user_id: int):
         db.commit()
         return True
     return False
+
 
 def category_exists(db: Session, category_id: int) -> bool:
     return db.query(Categories.id).filter_by(id=category_id).first() is not None

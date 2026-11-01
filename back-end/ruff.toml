@@ -1,0 +1,11 @@
+# Python 3.12, same as the Docker image and CI
+target-version = "py312"
+line-length = 120
+extend-exclude = [".venv"]
+
+[lint]
+# Errors and pyflakes (unused imports/variables, undefined names), import order
+select = ["E", "F", "I"]
+# E402: several modules call load_dotenv() before importing the rest on purpose.
+# E501: the formatter wraps code; long lines left are prompt text and test data.
+ignore = ["E402", "E501"]
