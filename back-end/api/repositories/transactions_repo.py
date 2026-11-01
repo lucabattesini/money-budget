@@ -153,5 +153,8 @@ def delete_transaction(db: Session, id, user_id: int):
     if transaction:
         db.delete(transaction)
         db.commit()
-        return transaction
-    return {"message": "Transaction not found"}
+        return True
+    return False
+
+def category_exists(db: Session, category_id: int) -> bool:
+    return db.query(Categories.id).filter_by(id=category_id).first() is not None

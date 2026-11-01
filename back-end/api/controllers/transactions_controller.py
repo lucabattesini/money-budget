@@ -1,8 +1,10 @@
 from datetime import datetime
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from api.repositories.transactions_repo import (
     create_transaction as create_transaction_repo,
     get_transactions_summed_by_category as get_transactions_summed_by_category_repo,
+    category_exists,
     delete_transaction as delete_transaction_repo,
     get_transactions as get_transactions_repo,
 )
@@ -22,6 +24,8 @@ def _parse_date(transaction: GetTransactionsParams):
 
 
 def create_transaction(db: Session, transaction: Transaction, user_id: int):
+    if transaction.category_id is not None and not category_exists(db, transaction.category_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
     transaction.date = datetime.now()
     return create_transaction_repo(db, transaction, user_id)
 
@@ -38,4 +42,7 @@ def get_transactions_summed_by_category(db: Session, transaction: GetTransaction
 
 
 def delete_transaction(db: Session, id, user_id: int):
-    return delete_transaction_repo(db, id, user_id)
+    # Same answer for "missing" and "someone else's", so other users' ids are not revealed
+    if not delete_transaction_repo(db, id, user_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return {"message": "Transaction deleted"}
