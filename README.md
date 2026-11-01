@@ -77,6 +77,14 @@ From the `front-end` folder:
 
 Open the URL printed in the terminal, usually http://localhost:5173/.
 
+## ✅Tests
+Back-end tests run inside Docker, against a separate Postgres database that is
+created automatically:
+
+    docker compose exec api python -m pytest
+
+See `back-end/tests/README.md` for how it works.
+
 ## 📚Documentation
 See `docs/SYSTEM_DESIGN.md` for the architecture and `AGENTS.md` for the
 contribution conventions (branches, commits and pull requests).

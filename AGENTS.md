@@ -107,6 +107,9 @@ for humans:
 
 - Keep the router -> controller -> repository layering in the backend; don't
   query the DB directly from a router or controller.
+- Back-end changes should come with tests under `back-end/tests/`. Run them
+  with `docker compose exec api python -m pytest`; details in
+  `back-end/tests/README.md`. Never call the real Gemini API in tests.
 - Never keep a module-level database session. Routers get one with
   `Depends(get_db)` and pass it down to controllers and repositories; code
   outside a request (e.g. graph nodes) uses `with session_scope() as db:`.

@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-money}
       POSTGRES_DB: ${POSTGRES_DB:-money_budget}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -30,6 +30,8 @@ services:
         required: false
     environment:
       DB_URL: postgresql+psycopg2://${POSTGRES_USER:-money}:${POSTGRES_PASSWORD:-money}@db:5432/${POSTGRES_DB:-money_budget}
+      # Separate database used by `pytest` (created automatically, never the dev one)
+      TEST_DB_URL: postgresql+psycopg2://${POSTGRES_USER:-money}:${POSTGRES_PASSWORD:-money}@db:5432/${POSTGRES_DB:-money_budget}_test
     ports:
       - "8000:8000"
     volumes:

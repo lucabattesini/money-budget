@@ -244,6 +244,9 @@ sequenceDiagram
   `VITE_API_URL`.
 - Config: one `.env` at the repo root (see `.env.example`) feeds compose, the
   back-end (`find_dotenv` walks up to it) and Vite (`envDir: '..'`).
+- Tests: `pytest` runs inside the `api` container against a separate
+  `<db>_test` Postgres database (transaction rolled back per test); see
+  `back-end/tests/README.md`.
 - Local dev: `docker compose up --build` (root `docker-compose.yml`) runs
   three services: `db` (Postgres 16, named volume), `api` (FastAPI with
   `--reload`; runs `db.migrations` and `db.seed` before starting) and `web`
