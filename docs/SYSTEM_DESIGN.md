@@ -257,3 +257,18 @@ sequenceDiagram
   gitignored) for local dev when `DB_URL` is unset.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
   calls), Meta WhatsApp Cloud API (chat channel).
+
+## 6. Testing
+- **Scope today:** back-end only (`back-end/tests/`), run with `pytest`. There
+  are no front-end tests yet.
+- **Database:** a real Postgres database named `<POSTGRES_DB>_test`, created
+  automatically and separate from the dev one. Each test runs in a transaction
+  that is rolled back; the app's sessions (`get_db`, `session_scope`) are bound
+  to it, so commits become savepoints.
+- **Layers covered:** HTTP endpoints through FastAPI's `TestClient`
+  (router -> controller -> repository -> DB), the LangGraph database node, and
+  the login secret loading.
+- **External services:** Gemini calls are blocked by default and agents are
+  stubbed per test; Google token verification is monkeypatched. Nothing in the
+  suite reaches the network.
+- Run commands and conventions: `back-end/tests/README.md`.

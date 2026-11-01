@@ -10,6 +10,7 @@ labels: ""
 
 ## Done when
 - [ ]
+- [ ] Tests added or updated (if code changes)
 
 ## Technical notes
 <!-- Details for whoever implements this (human or AI): relevant files, current behavior, constraints, suggested approach. -->

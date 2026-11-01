@@ -103,13 +103,31 @@ for humans:
   short "Good to know" note and explain it in a sentence.
 - Keep bullets short, one idea each. Say plainly what was and was not tested.
 
+## Testing
+
+Back-end changes come with tests, in the same PR:
+
+- New behavior gets a test; a bug fix gets a test that fails without the fix.
+- Run the suite with `docker compose exec api python -m pytest` and make sure
+  it passes before opening a PR. State in the PR what you ran.
+- Tests use a real Postgres test database (rolled back per test). Mock only
+  what is external: Gemini (stub the `run_*` agent functions) and Google token
+  verification. Never call the real Gemini API; an autouse fixture blocks it.
+- Check behavior, not just status codes: assert on the returned data, on who
+  owns it (one user must never see another's data) and on the error paths.
+- If a test exposes a bug you are not fixing now, keep the test, mark it
+  `@pytest.mark.skip(reason="TKT-<n>: what is wrong")`, and open a ticket that
+  lists the skipped tests and says they must be unskipped. Find them with
+  `grep -rn "TKT-" back-end/tests`.
+- Quality over coverage: a few tests that fail when the code is wrong beat many
+  that only exercise it.
+- If you add fixtures, folders or conventions, update
+  `back-end/tests/README.md`.
+
 ## Conventions
 
 - Keep the router -> controller -> repository layering in the backend; don't
   query the DB directly from a router or controller.
-- Back-end changes should come with tests under `back-end/tests/`. Run them
-  with `docker compose exec api python -m pytest`; details in
-  `back-end/tests/README.md`. Never call the real Gemini API in tests.
 - Never keep a module-level database session. Routers get one with
   `Depends(get_db)` and pass it down to controllers and repositories; code
   outside a request (e.g. graph nodes) uses `with session_scope() as db:`.

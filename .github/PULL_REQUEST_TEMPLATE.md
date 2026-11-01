@@ -11,4 +11,6 @@ Closes #
 - [ ] Updated `docs/SYSTEM_DESIGN.md` (see `AGENTS.md`)
 
 ## Testing
-<!-- How did you verify this? -->
+- [ ] Tests added or updated (`docker compose exec api python -m pytest`)
+- [ ] N/A — no code behavior changed
+<!-- How did you verify this? What did you run, and what did you not check? -->

@@ -10,6 +10,7 @@ labels: enhancement
 
 ## Done when
 - [ ]
+- [ ] Tests added or updated (if code changes)
 
 ## Docs
 - [ ] N/A — no architecture/system-design impact
