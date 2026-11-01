@@ -1,9 +1,12 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getToken } from '../lib/auth'
+import customToaster from '../utils/customToaster'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
+
+vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
 
 // The real button loads Google's script; stand in for it with one that "signs in" on click.
 vi.mock('@react-oauth/google', () => ({
@@ -29,6 +32,7 @@ async function renderLogin(route = '/login-google') {
 describe('login with Google', () => {
   beforeEach(() => {
     vi.resetModules() // the page reads VITE_GOOGLE_CLIENT_ID once, when it is loaded
+    vi.mocked(customToaster).mockClear()
   })
 
   it('welcomes the user and offers the Google button', async () => {
@@ -70,24 +74,29 @@ describe('login with Google', () => {
 
   it('stays on the login page and saves nothing when the back-end refuses the login', async () => {
     const api = mockApi({ 'POST /auth/google': [{ detail: 'Invalid Google token' }, 401] })
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     await renderLogin()
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
 
-    await waitFor(() => expect(requestsMade(api)).toEqual(['POST /auth/google']))
+    // wait until the failure has been handled (the API client logs it), then let the page react
+    await waitFor(() => expect(log).toHaveBeenCalled())
+    await act(async () => {})
+    expect(requestsMade(api)).toEqual(['POST /auth/google'])
     expect(getToken()).toBeNull()
     expect(screen.queryByText('Dashboard page')).not.toBeInTheDocument()
   })
 
   it.skip('TKT-32: tells the user when the login fails', async () => {
     mockApi({ 'POST /auth/google': [{ detail: 'Invalid Google token' }, 401] })
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     await renderLogin()
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
 
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await waitFor(() => expect(log).toHaveBeenCalled())
+    await act(async () => {})
+    expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.any(String))
   })
 
   it('does not break when Google itself reports an error', async () => {

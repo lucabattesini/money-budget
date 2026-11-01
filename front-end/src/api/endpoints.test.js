@@ -9,7 +9,7 @@ import {
   loginWithGoogle,
   updatePhone,
 } from './endpoints'
-import { jsonResponse, mockApi } from '../test/helpers'
+import { mockApi, networkDown } from '../test/helpers'
 
 const lastCall = (mock) => {
   const [url, options] = mock.mock.calls.at(-1)
@@ -41,6 +41,7 @@ describe('loginWithGoogle', () => {
   })
 
   it('returns nothing, and logs, when the network fails', async () => {
+    networkDown()
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     expect(await loginWithGoogle('t', null)).toBeUndefined()
@@ -130,27 +131,30 @@ describe('insertNewTransaction', () => {
   })
 
   it.skip('TKT-32: tells the caller when the request failed instead of returning nothing', async () => {
+    networkDown()
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    const result = await insertNewTransaction(payload, 'tok') // fetch rejects: network down
+    const result = await insertNewTransaction(payload, 'tok')
 
-    expect(result).toMatchObject({ status: expect.any(Number) })
+    expect(result).toBeDefined() // some value the caller can inspect, not undefined
   })
 })
 
-describe('API address', () => {
-  it('uses VITE_API_URL', async () => {
-    const api = mockApi({ 'GET /categories': { data: [] } })
+describe('error responses from the read calls', () => {
+  it('returns nothing, and logs, when the server answers with a page that is not JSON', async () => {
+    mockApi({ 'GET /user/me': () => Promise.resolve(new Response('<h1>502 Bad Gateway</h1>', { status: 502 })) })
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    await getAllCategories('t')
-
-    expect(lastCall(api).url.startsWith('http://api.test/')).toBe(true)
+    expect(await getMe('tok')).toBeUndefined()
+    expect(log).toHaveBeenCalled()
   })
 
-  it('jsonResponse helper round-trips', async () => {
-    const res = await jsonResponse({ a: 1 }, 201)
+  it.skip('TKT-32: does not hand an expired-token error to the caller as if it were data', async () => {
+    mockApi({ 'POST /transactions': [{ detail: 'Token expired' }, 401] })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    expect(res.status).toBe(201)
-    expect(await res.json()).toEqual({ a: 1 })
+    const result = await getTransactions({ organized_by: null, date: null }, 'old')
+
+    expect(result).toBeUndefined() // or a rejection / an explicit error the page can handle
   })
 })

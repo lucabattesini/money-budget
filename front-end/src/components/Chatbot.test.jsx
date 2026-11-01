@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
-import { jsonResponse, mockApi, renderApp } from '../test/helpers'
+import { jsonResponse, mockApi, networkDown, renderApp } from '../test/helpers'
 import Chatbot from './Chatbot'
 
 const input = () => screen.getByPlaceholderText('Digite sua mensagem...')
@@ -106,6 +106,7 @@ describe('chatbot', () => {
   })
 
   it('reports a connection problem when the network is down', async () => {
+    networkDown()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     renderApp(<Chatbot />)
 
@@ -123,7 +124,23 @@ describe('chatbot', () => {
     await userEvent.type(input(), 'primeira{Enter}')
     await screen.findByText('resposta')
 
-    const order = ['Olá! Como posso te ajudar hoje?', 'primeira', 'resposta'].map((s) => document.body.textContent.indexOf(s))
-    expect(order).toEqual([...order].sort((a, b) => a - b))
+    const [greeting, mine, reply] = ['Olá! Como posso te ajudar hoje?', 'primeira', 'resposta'].map((t) => screen.getByText(t))
+    expect(greeting.compareDocumentPosition(mine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(mine.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it.skip('TKT-32: pressing Enter while waiting for a reply does not send a second message', async () => {
+    let answer
+    const api = mockApi({
+      'POST /webhook/': () => new Promise((resolve) => { answer = () => resolve(new Response(JSON.stringify({ reply: 'pronto' }))) }),
+    })
+    renderApp(<Chatbot />)
+    await userEvent.type(input(), 'primeira{Enter}')
+
+    await userEvent.type(input(), 'segunda{Enter}')
+
+    expect(api).toHaveBeenCalledTimes(1)
+    answer()
+    await screen.findByText('pronto')
   })
 })

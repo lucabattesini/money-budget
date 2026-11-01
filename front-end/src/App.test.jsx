@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { Provider } from './components/ui/provider'
 import { saveToken } from './lib/auth'
@@ -24,20 +24,30 @@ describe('routing', () => {
     mockApi({ 'GET /user/me': { data: { name: 'Clara', email: 'c@example.com' } } })
   })
 
+  afterEach(() => {
+    window.location.hash = '' // the router reads the real URL, so do not leak it into the next test
+  })
+
   it.each(['#/', '#/transactions', '#/report-expense', '#/investments', '#/account'])(
     'sends a logged-out visitor from %s to the login page',
     (hash) => {
       renderAt(hash)
 
-      expect(screen.getByText('Bem-vindo de volta!')).toBeInTheDocument()
+      // the Google login page, not the legacy /login page that has the same heading
+      expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument()
       expect(window.location.hash).toBe('#/login-google')
     },
   )
 
-  it.each(['#/login', '#/login-google', '#/create-account'])('keeps %s public', (hash) => {
+  it.each([
+    ['#/login', () => screen.getByPlaceholderText(/e-?mail/i)],
+    ['#/login-google', () => screen.getByRole('button', { name: 'Sign in with Google' })],
+    ['#/create-account', () => screen.getByText('Criar conta')],
+  ])('keeps %s public and shows its own page', (hash, pageMarker) => {
     renderAt(hash)
 
     expect(window.location.hash).toBe(hash)
+    expect(pageMarker()).toBeInTheDocument()
   })
 
   it('shows a logged-in user the page they asked for, inside the layout', () => {

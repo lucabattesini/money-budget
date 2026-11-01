@@ -1,9 +1,12 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { getToken, saveToken } from '../lib/auth'
+import customToaster from '../utils/customToaster'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
 import Account from './account'
+
+vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
 
 const ME = { data: { name: 'Clara Batt', email: 'clara@example.com', picture: null, whatsapp_phone: '5511999990000' } }
 
@@ -59,26 +62,31 @@ describe('account page', () => {
   it('does not say "Salvo!" when the number was not saved', async () => {
     saveToken('tok')
     mockApi({ 'GET /user/me': ME, 'PATCH /user/me/phone': [{ detail: 'taken' }, 409] })
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     renderApp(<Account />)
     await screen.findByText('Clara Batt')
 
     await userEvent.click(screen.getByRole('button', { name: 'Salvar número' }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Salvar número' })).toBeInTheDocument())
+    // wait until the failure has been handled (the API client logs it), then let the page react
+    await waitFor(() => expect(log).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Salvar número' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Salvo!' })).not.toBeInTheDocument()
   })
 
   it.skip('TKT-32: tells the user why the number was not saved', async () => {
     saveToken('tok')
     mockApi({ 'GET /user/me': ME, 'PATCH /user/me/phone': [{ detail: 'taken' }, 409] })
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     renderApp(<Account />)
     await screen.findByText('Clara Batt')
 
     await userEvent.click(screen.getByRole('button', { name: 'Salvar número' }))
 
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await waitFor(() => expect(log).toHaveBeenCalled())
+    await act(async () => {})
+    expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.any(String))
   })
 
   it('logs out: forgets the token and goes back to the start', async () => {

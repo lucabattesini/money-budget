@@ -10,18 +10,25 @@ describe('TopCategoriesBarList', () => {
   it('lists the categories with the highest spending first', () => {
     renderApp(<TopCategoriesBarList categories={categories} transactions={[tx(1, 1000), tx(2, 5000), tx(3, 3000)]} />)
 
-    const text = document.body.textContent
-    const order = ['Categoria 2', 'Categoria 3', 'Categoria 1'].map((name) => text.indexOf(name))
-    expect(order.every((i) => i >= 0)).toBe(true)
-    expect(order).toEqual([...order].sort((a, b) => a - b))
+    const [first, second, third] = ['Categoria 2', 'Categoria 3', 'Categoria 1'].map((name) => screen.getByText(name))
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(second.compareDocumentPosition(third) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows each category\'s total in reais, not in cents', () => {
+    renderApp(<TopCategoriesBarList categories={categories} transactions={[tx(1, 123456), tx(2, 2550)]} />)
+
+    // the chart library prints compact numbers: 1234.56 -> "1.23K", 25.50 -> "25.5"
+    expect(screen.getByText('1.23K')).toBeInTheDocument()
+    expect(screen.getByText('25.5')).toBeInTheDocument()
   })
 
   it('adds up several transactions of the same category', () => {
     renderApp(<TopCategoriesBarList categories={categories} transactions={[tx(1, 1000), tx(1, 2000), tx(2, 2500)]} />)
 
-    // 1 + 2 = 30,00 beats 25,00, even though no single transaction does
-    const text = document.body.textContent
-    expect(text.indexOf('Categoria 1')).toBeLessThan(text.indexOf('Categoria 2'))
+    // 10 + 20 = 30,00 beats 25,00, even though no single transaction does
+    const [one, two] = ['Categoria 1', 'Categoria 2'].map((name) => screen.getByText(name))
+    expect(one.compareDocumentPosition(two) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('shows only the top 5', () => {

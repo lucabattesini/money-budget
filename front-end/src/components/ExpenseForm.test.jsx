@@ -144,16 +144,40 @@ describe('expense form', () => {
   })
 
   describe('known bugs', () => {
-    it.skip('TKT-32: keeps the cents of an amount like 12.50', async () => {
+    // Binary floating point: 19.99 * 100 is 1998.9999999999998 and 0.29 * 100 is 28.999999999999996,
+    // so a fix that truncates instead of rounding still loses a cent.
+    it.skip.each([
+      ['12.50', 1250],
+      ['19.99', 1999],
+      ['0.29', 29],
+    ])('TKT-32: keeps the cents of %s', async (typed, cents) => {
       const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
-      await userEvent.type(amount(), '12.50')
+      await userEvent.type(amount(), typed)
       await userEvent.type(description(), 'Café')
       await pickCategory('Alimentação')
 
       await userEvent.click(submit())
 
       await waitFor(() => expect(created(api)).toBeTruthy())
-      expect(created(api).value).toBe(1250)
+      expect(created(api).value).toBe(cents)
+    })
+
+    it.skip('TKT-32: after saving, a second transaction without a category is rejected', async () => {
+      const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
+      await userEvent.type(amount(), '25')
+      await userEvent.type(description(), 'Almoço')
+      await pickCategory('Alimentação')
+      await userEvent.click(submit())
+      await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Accepted', 'success', expect.any(String)))
+      customToaster.mockClear()
+      api.mockClear()
+
+      await userEvent.type(amount(), '10')
+      await userEvent.type(description(), 'Café')
+      await userEvent.click(submit()) // no category chosen this time
+
+      expect(customToaster).toHaveBeenCalledWith('Error', 'error', 'You need to select a category to your transaction')
+      expect(created(api)).toBeUndefined()
     })
 
     it.skip('TKT-32: rejects an amount of zero', async () => {

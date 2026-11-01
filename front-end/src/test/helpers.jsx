@@ -1,4 +1,8 @@
 import { vi } from 'vitest'
+
+// Requests the test did not declare. setup.js fails the test in afterEach if any were made,
+// because the app swallows network errors and would otherwise carry on as if the server were down.
+export const strayRequests = []
 import { render } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Provider } from '../components/ui/provider'
@@ -39,12 +43,20 @@ export function mockApi(routes) {
     const path = String(url).replace('http://api.test', '')
     const handler = routes[`${method} ${path}`]
     if (handler === undefined) {
+      strayRequests.push(`${method} ${path}`)
       return Promise.reject(new Error(`Unexpected request in test: ${method} ${path}`))
     }
     if (typeof handler === 'function') return handler(url, options)
     if (Array.isArray(handler)) return jsonResponse(handler[0], handler[1])
     return jsonResponse(handler)
   })
+  vi.stubGlobal('fetch', mock)
+  return mock
+}
+
+/** Simulate the back-end being unreachable: every request fails, and that is expected. */
+export function networkDown() {
+  const mock = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')))
   vi.stubGlobal('fetch', mock)
   return mock
 }

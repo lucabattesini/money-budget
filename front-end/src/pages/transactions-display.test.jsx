@@ -9,14 +9,20 @@ import TransactionsDisplay from './transactions-display'
 const CATEGORIES = { data: [{ id: 1, name: 'Alimentação' }, { id: 2, name: 'Transporte' }] }
 const t = (id, label, cents, date, category_id = 1) => ({ id, label, value: cents, date, category_id })
 
+// Deliberately NOT in group order: the page itself must put today first and the oldest last.
 const TRANSACTIONS = {
   data: [
-    t(1, 'Almoço', 2550, '2026-03-15T09:00:00'),
-    t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2),
-    t(3, 'Mercado', 12000, '2026-03-02T10:00:00'),
     t(4, 'Presente', 5000, '2026-02-20T10:00:00', 99), // category that no longer exists
+    t(3, 'Mercado', 12000, '2026-03-02T10:00:00'),
+    t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2),
+    t(1, 'Almoço', 2550, '2026-03-15T09:00:00'),
   ],
 }
+
+const GROUP_TITLES = ['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto']
+const cardOf = (label) => screen.getByText(label).closest('.chakra-card__root')
+const groupOf = (label) => GROUP_TITLES.find((title) => within(cardOf(label).parentElement).queryByText(title))
+const cardsOnPage = () => [...document.querySelectorAll('.chakra-card__root')]
 
 const routes = (transactions = TRANSACTIONS) => ({
   'GET /categories': CATEGORIES,
@@ -48,8 +54,9 @@ describe('transactions page', () => {
 
     renderApp(<TransactionsDisplay />)
 
-    const card = (await screen.findByText('Almoço')).closest('.chakra-card__root')
-    expect(within(card).getByText('- 25.5 R$')).toBeInTheDocument()
+    await screen.findByText('Almoço')
+    const card = cardOf('Almoço')
+    expect(within(card).getByText(/25[.,]5/)).toBeInTheDocument() // 2550 cents, shown in reais (format: see TKT-32)
     expect(within(card).getByText('Alimentação')).toBeInTheDocument()
     expect(within(card).getByText('15/03/2026')).toBeInTheDocument()
   })
@@ -60,11 +67,9 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Almoço')
 
-    const text = document.body.textContent
-    const order = ['Almoço', 'Uber', 'Mercado', 'Presente'].map((label) => text.indexOf(label))
-    expect(order).toEqual([...order].sort((a, b) => a - b))
-    expect(screen.getByText('Todo o Resto')).toBeInTheDocument()
-    expect(screen.getByText('Esta Semana')).toBeInTheDocument()
+    const labels = ['Almoço', 'Uber', 'Mercado', 'Presente']
+    expect(cardsOnPage().map((card) => labels.find((l) => card.textContent.includes(l)))).toEqual(labels)
+    expect(labels.map(groupOf)).toEqual(['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto'])
   })
 
   it.each([
@@ -89,10 +94,9 @@ describe('transactions page', () => {
 
     renderApp(<TransactionsDisplay />)
 
-    const gift = (await screen.findByText('Presente')).closest('.chakra-card__root')
-    expect(within(gift).getByText('Categoria não encontrada')).toBeInTheDocument()
-    const uber = screen.getByText('Uber').closest('.chakra-card__root')
-    expect(within(uber).getByText('Transporte')).toBeInTheDocument()
+    await screen.findByText('Presente')
+    expect(within(cardOf('Presente')).getByText('Categoria não encontrada')).toBeInTheDocument()
+    expect(within(cardOf('Uber')).getByText('Transporte')).toBeInTheDocument()
   })
 
   it('only shows the groups that have transactions', async () => {
@@ -106,12 +110,29 @@ describe('transactions page', () => {
   })
 
   it('shows no cards when there are no transactions', async () => {
-    mockApi(routes({ data: [] }))
+    const api = mockApi(routes({ data: [] }))
 
     renderApp(<TransactionsDisplay />)
 
-    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
-    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    expect(document.querySelector('.chakra-spinner')).toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument())
+    expect(api).toHaveBeenCalledTimes(2) // the data really arrived: this is not just the loading state
+    expect(cardsOnPage()).toHaveLength(0)
+    for (const title of ['Esta Semana', 'Todo o Resto']) expect(screen.queryByText(title)).not.toBeInTheDocument()
+  })
+
+  it('puts a transaction in the last 7 days even when that window reaches into the previous month', async () => {
+    vi.setSystemTime(new Date(2026, 2, 4, 12, 0, 0)) // Wednesday 4 March
+    mockApi(routes({ data: [
+      t(1, 'hoje', 100, '2026-03-04T09:00:00'),
+      t(2, 'na semana', 100, '2026-02-27T10:00:00'),
+      t(3, 'antes da semana', 100, '2026-02-24T23:59:00'),
+    ] }))
+
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('hoje')
+
+    expect(['hoje', 'na semana', 'antes da semana'].map(groupOf)).toEqual(['Hoje', 'Esta Semana', 'Todo o Resto'])
   })
 
   it('deletes a transaction and then shows the refreshed list', async () => {
@@ -159,5 +180,28 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
 
     expect(screen.getAllByRole('button', { name: /excluir|remover|delete/i })).toHaveLength(4)
+  })
+
+  it.skip('TKT-32: shows the amount like the rest of the app (R$ 25,50), not as "- 25.5 R$"', async () => {
+    mockApi(routes())
+
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('Almoço')
+
+    expect(within(cardOf('Almoço')).getByText(/R\$\s*25,50/)).toBeInTheDocument()
+    expect(within(cardOf('Uber')).getByText(/R\$\s*18,00/)).toBeInTheDocument()
+  })
+
+  it.skip('TKT-32: survives an expired session instead of showing a blank page', async () => {
+    mockApi({
+      'GET /categories': [{ detail: 'Token expired' }, 401],
+      'POST /transactions': [{ detail: 'Token expired' }, 401],
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderApp(<TransactionsDisplay />)
+
+    await waitFor(() => expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument())
+    expect(cardsOnPage()).toHaveLength(0)
   })
 })

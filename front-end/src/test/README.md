@@ -18,10 +18,12 @@ Vitest + jsdom, React Testing Library, `@testing-library/user-event` and
 - **Behavior, not implementation.** Find things the way a user would: by role,
   label, placeholder or text. Assert on what the user sees and on the requests
   the page makes.
-- **No real network.** `src/test/setup.js` replaces `fetch` with a function that
-  fails; each test that needs the API calls `mockApi({ 'METHOD /path': body })`
+- **No real network, and no surprise requests.** `src/test/setup.js` replaces
+  `fetch`; each test that needs the API calls `mockApi({ 'METHOD /path': body })`
   from `src/test/helpers.jsx` (a body, `[body, status]`, or a function returning a
-  Promise). Requests that were not declared fail the test.
+  Promise). The app swallows network errors, so a request the test did not declare
+  would otherwise go unnoticed: `afterEach` fails the test if there was one. To
+  simulate the server being down on purpose, call `networkDown()`.
 - **Fixed environment.** `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` are set in
   `vite.config.js`, so a developer's own `.env` cannot change results. To test a
   missing variable use `vi.stubEnv(...)` and `vi.resetModules()`.
@@ -35,6 +37,13 @@ Vitest + jsdom, React Testing Library, `@testing-library/user-event` and
 - Typing into the category box of the expense form needs a small delay between
   keys (`userEvent.setup({ delay: 20 })`), see TKT-32.
 - Local storage is cleared before each test.
+- **Testing a failure that changes nothing** (for example "must not say Salvo!"):
+  the check must not run before the app has handled the response. Wait for a
+  signal that only happens afterwards (the API client logs failures with
+  `console.error`, so spy on it) and then `await act(async () => {})`.
+- Assert order with `compareDocumentPosition` or by reading cards in order, not by
+  `textContent.indexOf`; and make fixtures deliberately out of order so a list that
+  is not sorted by the page cannot pass.
 
 ## Known bugs: skipped tests
 
@@ -44,7 +53,8 @@ Find them with:
 
     grep -rn "TKT-" front-end/src
 
-Currently skipped: TKT-32 (money and error messages in the web app).
+Currently skipped: TKT-32 (cents and amounts, missing error messages, expired
+session, delete timing, double send in the chatbot, amount display).
 
 ## Not covered yet
 

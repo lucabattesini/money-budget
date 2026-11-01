@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
-import { mockApi, renderApp, requestsMade } from '../test/helpers'
+import { mockApi, networkDown, renderApp, requestsMade } from '../test/helpers'
 import Dashboard from './dashboard'
 
 // Sunday 15 March 2026, noon.
@@ -67,7 +67,7 @@ describe('dashboard', () => {
 
   it('still shows the page, with zero spending and no greeting, when the back-end cannot be reached', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    // every request fails (the default test fetch rejects)
+    networkDown()
 
     renderApp(<Dashboard />)
 
@@ -81,7 +81,23 @@ describe('dashboard', () => {
 
     renderApp(<Dashboard />)
 
+    expect(document.querySelector('.chakra-spinner')).toBeInTheDocument()
     expect(screen.queryByText('Gastos de março')).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Gastos de março')).toBeInTheDocument())
+    expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument()
+  })
+
+  it.skip('TKT-32: survives an expired session instead of showing a blank page', async () => {
+    mockApi({
+      'GET /categories': [{ detail: 'Token expired' }, 401],
+      'POST /transactions': [{ detail: 'Token expired' }, 401],
+      'GET /user/me': [{ detail: 'Token expired' }, 401],
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderApp(<Dashboard />)
+
+    // either the page still renders (with zero spending) or the user is sent to log in again
+    await waitFor(() => expect(screen.queryByText('Gastos de março') || screen.queryByText('Bem-vindo de volta!')).toBeTruthy())
   })
 })
