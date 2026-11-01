@@ -36,6 +36,13 @@ services:
       - "8000:8000"
     volumes:
       - ./back-end:/app
+    healthcheck:
+      # No curl in the slim image, so use Python; /docs is served without login
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     depends_on:
       db:
         condition: service_healthy
@@ -51,7 +58,8 @@ services:
       - ./front-end:/app
       - web_node_modules:/app/node_modules
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

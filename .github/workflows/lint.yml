@@ -1,0 +1,63 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend-lint:
+    # This job name is what a branch rule must require to block merges
+    name: Back-end lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    defaults:
+      run:
+        working-directory: back-end
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      # Same version as requirements-dev.txt
+      - name: Install ruff
+        run: pip install "$(grep '^ruff==' requirements-dev.txt)"
+
+      - name: Check style
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
+  commit-messages:
+    # This job name is what a branch rule must require to block merges
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Check that every commit starts with MB-NNNN
+        run: |
+          git log --no-merges --format=%s \
+            "origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}" \
+            | python back-end/scripts/check_commit_msg.py --stdin
