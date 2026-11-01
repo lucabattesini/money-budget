@@ -63,6 +63,20 @@ The code is the `MB-0000` prefix of the current branch (e.g. branch
 `MB-0123-whatsapp-category-filter` -> `MB-0123`). Keep the subject short and
 in the imperative mood; use the body to explain the why when it isn't obvious.
 
+## Pull request descriptions
+
+PR descriptions are read by people who may not know the code, so write them
+for humans:
+
+- Fill in every section of `.github/PULL_REQUEST_TEMPLATE.md`.
+- Describe what changed and why in plain language, from the point of view of
+  someone using or running the project. Lead with the outcome ("you can now
+  start everything with one command"), not the implementation.
+- Avoid jargon, library or flag names, file paths and function names unless
+  they are essential. If a technical detail matters to reviewers, put it in a
+  short "Good to know" note and explain it in a sentence.
+- Keep bullets short, one idea each. Say plainly what was and was not tested.
+
 ## Conventions
 
 - Keep the router -> controller -> repository layering in the backend; don't
