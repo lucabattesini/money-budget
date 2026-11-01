@@ -99,6 +99,9 @@ the front-end uses ESLint:
     docker compose exec api ruff format .         # format the code
     docker compose exec web npm run lint
 
+Editors pick up indentation and line-ending rules from `.editorconfig`; VS Code
+will suggest the ruff, ESLint and EditorConfig extensions.
+
 To get these checks (and the rule that every commit message starts with its
 `MB-NNNN` code) on each commit, install the hooks once on your machine:
 
