@@ -109,6 +109,8 @@ To get these checks (and the rule that every commit message starts with its
     pre-commit install
 
 GitHub runs the same checks on every pull request, plus the front-end build.
+The commit-message check is a nice-to-have there: it reports a problem but never
+blocks a pull request.
 
 ## 📚Documentation
 See `docs/SYSTEM_DESIGN.md` for the architecture and `AGENTS.md` for the
