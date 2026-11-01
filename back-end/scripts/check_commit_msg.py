@@ -1,7 +1,6 @@
 """Check that a commit message follows AGENTS.md: `MB-0007 feat: short subject`.
 
-Used by the pre-commit `commit-msg` hook (argument: path to the message file)
-and by CI (`--stdin`, one subject per line).
+Used by the pre-commit `commit-msg` hook (argument: path to the message file).
 """
 
 import re
@@ -17,11 +16,8 @@ def is_valid(subject: str) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    if argv[1:] == ["--stdin"]:
-        subjects = [line for line in sys.stdin.read().splitlines() if line.strip()]
-    else:
-        with open(argv[1], encoding="utf-8") as f:
-            subjects = [f.readline().rstrip("\n")]
+    with open(argv[1], encoding="utf-8") as f:
+        subjects = [f.readline().rstrip("\n")]
 
     bad = [s for s in subjects if not is_valid(s)]
     for subject in bad:

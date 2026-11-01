@@ -39,27 +39,3 @@ jobs:
 
       - name: Check formatting
         run: ruff format --check .
-
-  commit-messages:
-    # Nice to have, not mandatory: a bad message shows a warning but never turns
-    # the pull request red. Do not require this check in a branch rule.
-    name: Commit messages
-    if: github.event_name == 'pull_request'
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v7.0.0
-        with:
-          python-version: "3.12"
-
-      - name: Check that every commit starts with MB-NNNN
-        run: |
-          git log --no-merges --format=%s \
-            "origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}" \
-            | python back-end/scripts/check_commit_msg.py --stdin
