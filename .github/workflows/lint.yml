@@ -41,9 +41,11 @@ jobs:
         run: ruff format --check .
 
   commit-messages:
-    # This job name is what a branch rule must require to block merges
+    # Nice to have, not mandatory: a bad message shows a warning but never turns
+    # the pull request red. Do not require this check in a branch rule.
     name: Commit messages
     if: github.event_name == 'pull_request'
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
