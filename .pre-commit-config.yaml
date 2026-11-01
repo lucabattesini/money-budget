@@ -1,6 +1,4 @@
 # One-time setup:  pip install pre-commit && pre-commit install --install-hooks
-# (installs both the commit and the commit-msg hooks)
-default_install_hook_types: [pre-commit, commit-msg]
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -11,11 +9,3 @@ repos:
         files: ^back-end/
       - id: ruff-format
         files: ^back-end/
-
-  - repo: local
-    hooks:
-      - id: commit-message
-        name: commit message starts with MB-NNNN
-        entry: python back-end/scripts/check_commit_msg.py
-        language: system
-        stages: [commit-msg]

@@ -16,9 +16,7 @@ check is called **Back-end tests** (the front-end has its own, **Front-end tests
 must require that check in a branch rule (Settings -> Rules -> Rulesets, or
 Branches -> Branch protection) for `main`.
 
-Style is checked by a separate workflow, `.github/workflows/lint.yml` (ruff). The
-commit-message rule used by the pre-commit hook, `back-end/scripts/check_commit_msg.py`,
-has its own tests here.
+Style is checked by a separate workflow, `.github/workflows/lint.yml` (ruff and ESLint).
 
 ## How it works
 

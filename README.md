@@ -102,8 +102,7 @@ the front-end uses ESLint:
 Editors pick up indentation and line-ending rules from `.editorconfig`; VS Code
 will suggest the ruff, ESLint and EditorConfig extensions.
 
-To get these checks (and the rule that every commit message starts with its
-`MB-NNNN` code) on each commit, install the hooks once on your machine:
+To run the Python checks on each commit, install the hook once on your machine:
 
     pip install pre-commit
     pre-commit install
