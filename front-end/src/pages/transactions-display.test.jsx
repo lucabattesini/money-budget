@@ -67,6 +67,23 @@ describe('transactions page', () => {
     expect(screen.getByText('Esta Semana')).toBeInTheDocument()
   })
 
+  it.each([
+    // [label, date, group it must appear in]
+    ['today start', '2026-03-15T00:00:00', 'Hoje'],
+    ['just before today', '2026-03-14T23:59:00', 'Esta Semana'],
+    ['week start', '2026-03-08T00:00:00', 'Esta Semana'],
+    ['just before the week', '2026-03-07T23:59:00', 'Este Mês'],
+    ['month start', '2026-03-01T00:00:00', 'Este Mês'],
+    ['just before the month', '2026-02-28T23:59:00', 'Todo o Resto'],
+  ])('puts the "%s" transaction (%s) in "%s"', async (label, date, group) => {
+    mockApi(routes({ data: [t(1, label, 1000, date)] }))
+
+    renderApp(<TransactionsDisplay />)
+
+    const card = (await screen.findByText(label)).closest('.chakra-card__root')
+    expect(within(card.parentElement).getByText(group)).toBeInTheDocument()
+  })
+
   it('names the category, or says it was not found', async () => {
     mockApi(routes())
 
