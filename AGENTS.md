@@ -52,6 +52,17 @@ is the ticket/issue number and `feature-name` is a short kebab-case
 description (e.g. `MB-0123-whatsapp-category-filter`). Branch off `main`
 (this repo's default branch).
 
+## Commit messages
+
+Every commit message must start with the ticket code from the branch name,
+followed by the usual conventional-commit type:
+
+    MB-0123 feat: add whatsapp category filter
+
+The code is the `MB-0000` prefix of the current branch (e.g. branch
+`MB-0123-whatsapp-category-filter` -> `MB-0123`). Keep the subject short and
+in the imperative mood; use the body to explain the why when it isn't obvious.
+
 ## Conventions
 
 - Keep the router -> controller -> repository layering in the backend; don't
