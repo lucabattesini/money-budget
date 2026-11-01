@@ -1,11 +1,8 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
-from db.connection import LocalSession
 from schemas.tables import Users
 
-db: Session = LocalSession()
-
-def upsert_user_repo(google_id: str, name: str, email: str, picture: str = None, whatsapp_phone: str = None):
+def upsert_user_repo(db: Session, google_id: str, name: str, email: str, picture: str = None, whatsapp_phone: str = None):
     """Insert a new user or update name/picture/last_login if they already exist."""
     now = datetime.now()
     user = db.query(Users).filter(Users.google_id == google_id).first()
@@ -36,16 +33,16 @@ def upsert_user_repo(google_id: str, name: str, email: str, picture: str = None,
 
     return user
 
-def get_user_by_google_id_repo(google_id: str):
+def get_user_by_google_id_repo(db: Session, google_id: str):
     return db.query(Users).filter(Users.google_id == google_id).first()
 
-def get_user_by_id_repo(user_id: int):
+def get_user_by_id_repo(db: Session, user_id: int):
     return db.query(Users).filter(Users.id == user_id).first()
 
-def get_user_by_whatsapp_phone(phone: str):
+def get_user_by_whatsapp_phone(db: Session, phone: str):
     return db.query(Users).filter(Users.whatsapp_phone == phone).first()
 
-def update_user_phone_repo(user_id: int, whatsapp_phone: str):
+def update_user_phone_repo(db: Session, user_id: int, whatsapp_phone: str):
     user = db.query(Users).filter(Users.id == user_id).first()
     if user:
         user.whatsapp_phone = whatsapp_phone
@@ -55,4 +52,4 @@ def update_user_phone_repo(user_id: int, whatsapp_phone: str):
         except Exception as e:
             db.rollback()
             raise e
-    return user
+    return user

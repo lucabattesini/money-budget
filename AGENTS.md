@@ -107,6 +107,9 @@ for humans:
 
 - Keep the router -> controller -> repository layering in the backend; don't
   query the DB directly from a router or controller.
+- Never keep a module-level database session. Routers get one with
+  `Depends(get_db)` and pass it down to controllers and repositories; code
+  outside a request (e.g. graph nodes) uses `with session_scope() as db:`.
 - New agents follow the existing per-agent folder pattern (`prompt.py`,
   `run.py`, optional `tools.py`) and are wired into `graph/graph.py` +
   `graph/state.py`.

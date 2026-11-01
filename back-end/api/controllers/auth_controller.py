@@ -4,6 +4,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.controllers.users_controller import upsert_user_ctrl
@@ -78,7 +79,7 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
 
 
 
-def login_with_google(id_token_str: str, whatsapp_phone: str = None) -> dict:
+def login_with_google(db: Session, id_token_str: str, whatsapp_phone: str = None) -> dict:
     """
     Full Google login flow:
     1. Verify the Google ID token
@@ -92,7 +93,7 @@ def login_with_google(id_token_str: str, whatsapp_phone: str = None) -> dict:
     email = google_payload.get("email", "")
     picture = google_payload.get("picture", None)
 
-    user = upsert_user_ctrl(google_id, name, email, picture, whatsapp_phone)
+    user = upsert_user_ctrl(db, google_id, name, email, picture, whatsapp_phone)
 
     token = create_jwt(user.id)
 

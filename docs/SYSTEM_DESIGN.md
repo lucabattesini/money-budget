@@ -108,10 +108,13 @@ flowchart TB
 Layered FastAPI app: **router -> controller -> repository -> DB**.
 - `routers/` — HTTP route declarations only.
 - `controllers/` — request orchestration / business rules.
-- `repositories/` — SQLAlchemy queries against the Postgres tables.
+- `repositories/` — SQLAlchemy queries against the Postgres tables. Every
+  function takes the database session as its first argument.
 - `services/whatsapp_service.py` — outbound calls to the Meta Cloud API.
 - `db/connection.py` — SQLAlchemy engine/session (`DB_URL`, defaults to a
-  local SQLite file for dev).
+  local SQLite file for dev). Each request gets its own session from the
+  `get_db` dependency, closed when the request ends. Code outside a request
+  (the LangGraph nodes) opens a short-lived one with `session_scope()`.
 
 ### 3.3 Auth
 - Frontend obtains a Google ID token (`@react-oauth/google`).

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy.orm import Session
+from db.connection import get_db
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
@@ -19,13 +21,13 @@ class GoogleTokenRequest(BaseModel):
 
 
 @router.post("/google")
-async def auth_google(request: GoogleTokenRequest):
+async def auth_google(request: GoogleTokenRequest, db: Session = Depends(get_db)):
     """
     Receive a Google ID token from the frontend,
     verify it, upsert the user, and return a JWT.
     """
     try:
-        result = login_with_google(request.id_token, request.whatsapp_phone)
+        result = login_with_google(db, request.id_token, request.whatsapp_phone)
         return JSONResponse(
             content={"data": jsonable_encoder(result)},
             status_code=status.HTTP_200_OK
