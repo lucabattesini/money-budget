@@ -523,3 +523,19 @@ def test_undoing_the_family_revision_gives_every_row_its_user_back(url, engine):
     assert categories == {1: None, 2: 1, 3: 2}
     assert jobs == {1: 1, 2: 2}
     assert "families" not in inspect(engine).get_table_names()
+
+
+def test_a_transaction_that_used_another_persons_category_loses_it_instead_of_showing_it_to_the_wrong_family(
+    url, engine
+):
+    _database_before_families(url, engine)
+    with engine.begin() as conn:  # Ana's transaction 1 now points at Bia's private category (3)
+        conn.execute(text("UPDATE transactions SET category_id = 3 WHERE id = 1"))
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        categories = dict(conn.execute(text("SELECT id, category_id FROM transactions")).all())
+    assert categories[1] is None  # was Bia's private category
+    assert categories[2] is not None  # Ana's own category is kept
+    assert categories[3] == 3  # Bia's own is kept

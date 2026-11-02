@@ -280,7 +280,8 @@ renamed to `transactioned_at` with `created_at` back-filled from it (before the 
 `date` was always the save time) and `updated_at` empty, `0005` the `export_jobs` table, `0006` a unique
 `users.whatsapp_phone` (numbers are cleaned to digits first; when several users shared one, the
 oldest account keeps it), `0007` families (one per existing user; rows move from `user_id` to
-`family_id` (and `requested_by` on exports; transactions keep `user_id` as the author); transactions with no user, which nobody could read, are deleted).
+`family_id` (and `requested_by` on exports; transactions keep `user_id` as the author); transactions with no user, which nobody could read, are deleted; a transaction that pointed at another
+person's category becomes uncategorised).
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,

@@ -2,7 +2,8 @@
 
 Every existing user gets a family of their own. Transactions and export jobs move to that family
 (`transactions.user_id` stays and now means "who entered it"; export jobs get `requested_by`), and categories a user owned move to the user's family.
-Default categories (no owner) stay shared. The old `user_id` columns of categories and export jobs are dropped.
+Default categories (no owner) stay shared. A transaction that pointed at another person's category loses
+that category (it becomes uncategorised), so no family keeps seeing a category it cannot use. The old `user_id` columns of categories and export jobs are dropped.
 
 Transactions with no user at all (`user_id` NULL) belonged to nobody and could never be read through the
 API, so there is no family to give them: they are deleted. The app never wrote such rows.
@@ -50,6 +51,12 @@ def upgrade() -> None:
     op.add_column("categories", sa.Column("family_id", sa.Integer(), sa.ForeignKey("families.id")))
     op.execute("UPDATE categories SET family_id = users.family_id FROM users WHERE users.id = categories.user_id")
     op.drop_column("categories", "user_id")
+    # A transaction could point at a category of someone else (nothing used to stop it). It must not keep
+    # showing another family's private category, so it loses the category (a default one is fine).
+    op.execute(
+        "UPDATE transactions SET category_id = NULL FROM categories WHERE categories.id = transactions.category_id "
+        "AND categories.family_id IS NOT NULL AND categories.family_id <> transactions.family_id"
+    )
 
     # Export jobs
     op.add_column("export_jobs", sa.Column("family_id", sa.Integer(), sa.ForeignKey("families.id")))
