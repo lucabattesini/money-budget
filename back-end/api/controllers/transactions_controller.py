@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -34,12 +34,17 @@ def _parse_date(transaction: GetTransactionsParams):
         return None, None
     d = transaction.date
     if datetype == "year":
-        return datetime(d.year, 1, 1), datetime(d.year + 1, 1, 1)
-    if datetype == "month":
-        end = datetime(d.year + 1, 1, 1) if d.month == 12 else datetime(d.year, d.month + 1, 1)
-        return datetime(d.year, d.month, 1), end
-    start = datetime(d.year, d.month, d.day)
-    return start, start + timedelta(days=1)
+        start, end = datetime(d.year, 1, 1), (d.year + 1, 1, 1)
+    elif datetype == "month":
+        start = datetime(d.year, d.month, 1)
+        end = (d.year + 1, 1, 1) if d.month == 12 else (d.year, d.month + 1, 1)
+    else:
+        start = datetime(d.year, d.month, d.day)
+        end = None if start.date() == date.max else start + timedelta(days=1)
+    if isinstance(end, tuple):
+        # Past the last year the calendar has, the period simply has no upper limit
+        end = datetime(*end) if end[0] <= datetime.max.year else None
+    return start, end
 
 
 def create_transaction(db: Session, transaction: Transaction, user_id: int):

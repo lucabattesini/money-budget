@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 from sqlalchemy.exc import IntegrityError
@@ -64,7 +65,8 @@ def get_user_by_id_repo(db: Session, user_id: int):
 
 
 def get_user_by_whatsapp_phone(db: Session, phone: str):
-    return db.query(Users).filter(Users.whatsapp_phone == phone).first()
+    # Numbers are stored as digits only, so look them up the same way
+    return db.query(Users).filter(Users.whatsapp_phone == re.sub(r"\D", "", phone or "")).first()
 
 
 def update_user_phone_repo(db: Session, user_id: int, whatsapp_phone: str):

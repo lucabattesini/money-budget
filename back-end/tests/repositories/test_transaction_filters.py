@@ -278,3 +278,14 @@ def test_no_grouping_returns_everything(db, user, make_transaction, category_ids
     make_transaction(user, cat, "b", when=datetime(2026, 3, 5))
 
     assert len(get_transactions(db, GetTransactionsParams(), user.id)) == 2
+
+
+@pytest.mark.parametrize("organized_by", ["year", "month", "day"])
+def test_the_last_year_the_calendar_has_does_not_crash_the_filter(
+    db, user, make_transaction, category_ids, organized_by
+):
+    make_transaction(user, category_ids["Outros"], "recent", when=datetime(2026, 3, 5, 12))
+
+    rows = get_transactions(db, GetTransactionsParams(organized_by=organized_by, date=datetime(9999, 12, 31)), user.id)
+
+    assert rows == []
