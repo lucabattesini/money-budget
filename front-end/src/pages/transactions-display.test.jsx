@@ -231,7 +231,7 @@ describe('transactions page', () => {
     expect(await screen.findByText('Não foi possível excluir a transação.')).toBeInTheDocument()
   })
 
-  it.skip('TKT-32: survives an expired session instead of showing a blank page', async () => {
+  it('survives an expired session instead of showing a blank page', async () => {
     mockApi({
       'GET /categories': [{ detail: 'Token expired' }, 401],
       'POST /transactions': [{ detail: 'Token expired' }, 401],
@@ -622,5 +622,15 @@ describe('transactions page', () => {
       expect(oldRows()).toHaveLength(10)
       expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
     })
+  })
+
+  it('tells the user when the transactions could not be loaded', async () => {
+    mockApi({ 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500] })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderApp(<TransactionsDisplay />)
+
+    expect(await screen.findByText(/Não foi possível carregar suas transações/)).toBeInTheDocument()
+    expect(await screen.findByText('Nenhuma transação ainda.')).toBeInTheDocument()
   })
 })

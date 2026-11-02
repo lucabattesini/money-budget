@@ -1,4 +1,5 @@
 import { API_URL } from "./config";
+import { removeToken } from "../lib/auth";
 
 const URL_BASE = API_URL;
 
@@ -9,6 +10,23 @@ export const endpoints = {
     user: `${URL_BASE}/user`,
     auth: `${URL_BASE}/auth`,
 };
+
+// An answer of 401 means the login is no longer valid: forget it and go to the login page.
+// (The router listens to the address, so changing it is enough.)
+function checkSession(res) {
+    if (res.status === 401) {
+        removeToken();
+        window.location.hash = "#/login-google";
+    }
+    return res;
+}
+
+// Read calls: the data on success; otherwise log and resolve undefined, so an error answer is never taken for data.
+function readJson(res) {
+    checkSession(res);
+    if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+    return res.json();
+}
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +52,7 @@ export function getMe(token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get current user", error));
 }
 
@@ -61,7 +79,7 @@ export function getAllCategories(token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get categories", error));
 }
 
@@ -76,7 +94,7 @@ export function getSummedTransactionsByCategory(date, token) {
         },
         body: JSON.stringify(date),
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get transactions", error));
 }
 
@@ -89,7 +107,7 @@ export function getTransactions(date, token) {
         },
         body: JSON.stringify(date),
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get transactions", error));
 }
 
@@ -102,11 +120,15 @@ export function insertNewTransaction(payload, token) {
         },
         body: JSON.stringify(payload),
     })
-    .then(res => {
-        const body = res.json();
+    .then(async res => {
+        checkSession(res);
+        const body = await res.json().catch(() => null);
         return { status: res.status, body };
     })
-    .catch(error => console.error("Failed to insert new transaction", error));
+    .catch(error => {
+        console.error("Failed to insert new transaction", error);
+        return { status: 0, body: null }; // 0: the server could not be reached
+    });
 }
 
 // ─── Exports (files built in the background) ──────────────────────────────────

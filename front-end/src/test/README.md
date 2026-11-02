@@ -37,7 +37,7 @@ Vitest + jsdom, React Testing Library, `@testing-library/user-event` and
   current route.
 - **Google sign-in** is replaced by a stub button (`vi.mock('@react-oauth/google')`).
 - Typing into the category box of the expense form needs a small delay between
-  keys (`userEvent.setup({ delay: 20 })`), see TKT-32.
+  keys (`userEvent.setup({ delay: 20 })`).
 - Local storage is cleared before each test.
 - **Testing a failure that changes nothing** (for example "must not say Salvo!"):
   the check must not run before the app has handled the response. Wait for a
@@ -55,8 +55,7 @@ Find them with:
 
     grep -rn "TKT-" front-end/src
 
-Currently skipped: TKT-32 (cents and amounts, missing error messages, expired
-session, delete timing, double send in the chatbot, amount display).
+Nothing is skipped at the moment.
 
 ## Not covered yet
 

@@ -9,6 +9,7 @@ import {
   loginWithGoogle,
   updatePhone,
 } from './endpoints'
+import { saveToken, getToken } from '../lib/auth'
 import { mockApi, networkDown } from '../test/helpers'
 
 const lastCall = (mock) => {
@@ -122,7 +123,7 @@ describe('insertNewTransaction', () => {
     expect(lastCall(api).options.headers.Authorization).toBe('Bearer tok')
   })
 
-  it.skip('TKT-32: returns the parsed response body, not a pending promise', async () => {
+  it('returns the parsed response body, not a pending promise', async () => {
     mockApi({ 'POST /transactions/create': [{ data: { id: 1 } }, 201] })
 
     const result = await insertNewTransaction(payload, 'tok')
@@ -130,7 +131,7 @@ describe('insertNewTransaction', () => {
     expect(result.body).toEqual({ data: { id: 1 } })
   })
 
-  it.skip('TKT-32: tells the caller when the request failed instead of returning nothing', async () => {
+  it('tells the caller when the request failed instead of returning nothing', async () => {
     networkDown()
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
@@ -149,12 +150,41 @@ describe('error responses from the read calls', () => {
     expect(log).toHaveBeenCalled()
   })
 
-  it.skip('TKT-32: does not hand an expired-token error to the caller as if it were data', async () => {
+  it('does not hand an expired-token error to the caller as if it were data', async () => {
     mockApi({ 'POST /transactions': [{ detail: 'Token expired' }, 401] })
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const result = await getTransactions({ organized_by: null, date: null }, 'old')
 
     expect(result).toBeUndefined() // or a rejection / an explicit error the page can handle
+  })
+})
+
+describe('an expired login', () => {
+  it.each([
+    ['getTransactions', () => getTransactions({ organized_by: null, date: null }, 'old'), 'POST /transactions'],
+    ['getAllCategories', () => getAllCategories('old'), 'GET /categories'],
+    ['getMe', () => getMe('old'), 'GET /user/me'],
+    ['insertNewTransaction', () => insertNewTransaction({ label: 'x', value: 1, category_id: 1 }, 'old'), 'POST /transactions/create'],
+  ])('%s forgets the token and sends the user to the login page', async (_name, call, route) => {
+    saveToken('old')
+    window.location.hash = '#/transactions'
+    mockApi({ [route]: [{ detail: 'Token expired' }, 401] })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await call()
+
+    expect(getToken()).toBeNull()
+    expect(window.location.hash).toBe('#/login-google')
+  })
+
+  it('does not log the user out because of another kind of error', async () => {
+    saveToken('good')
+    mockApi({ 'GET /categories': [{ detail: 'boom' }, 500] })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(await getAllCategories('good')).toBeUndefined()
+
+    expect(getToken()).toBe('good')
   })
 })

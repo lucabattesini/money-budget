@@ -17,6 +17,7 @@ import { FcGoogle } from "react-icons/fc";
 import { MdOutlineWhatsapp } from "react-icons/md";
 import { getMe, updatePhone } from "../api/endpoints";
 import { getToken, removeToken } from "../lib/auth";
+import customToaster from "../utils/customToaster";
 
 export default function Account() {
     const [user, setUser] = useState(null);
@@ -46,6 +47,8 @@ export default function Account() {
             if (result) {
                 setSaved(true);
                 setTimeout(() => setSaved(false), 2500);
+            } else {
+                customToaster("Error", "error", "Não foi possível salvar o número. Confira se ele está correto e se não é de outra conta.");
             }
         }
     };

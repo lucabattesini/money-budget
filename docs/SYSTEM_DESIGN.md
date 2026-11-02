@@ -155,6 +155,9 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   `JWT_SECRET`; the API refuses to start without it unless `APP_ENV=development`.
 - Every protected endpoint depends on `get_current_user_id` (FastAPI
   `HTTPBearer` + `decode_jwt`).
+- In the web app, any `401` from the API (expired or invalid token) clears the
+  stored token and sends the user to `#/login-google` (`api/endpoints.js`).
+  Other failed reads show an error message instead of being treated as data.
 - A user can also be matched by `whatsapp_phone`, which is how the chatbot
   resolves an inbound WhatsApp number to an account.
 

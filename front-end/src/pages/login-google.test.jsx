@@ -87,7 +87,7 @@ describe('login with Google', () => {
     expect(screen.queryByText('Dashboard page')).not.toBeInTheDocument()
   })
 
-  it.skip('TKT-32: tells the user when the login fails', async () => {
+  it('tells the user when the login fails', async () => {
     mockApi({ 'POST /auth/google': [{ detail: 'Invalid Google token' }, 401] })
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     await renderLogin()

@@ -36,7 +36,7 @@ export default function Chatbot() {
     }, [messages]);
 
     const handleSendMessage = async () => {
-        if (!inputValue.trim()) return;
+        if (!inputValue.trim() || isLoading) return;
 
         const userMessage = inputValue.trim();
         setMessages(prev => [...prev, { sender: "user", text: userMessage }]);
@@ -146,7 +146,7 @@ export default function Chatbot() {
                     placeholder="Digite sua mensagem..."
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                     bg="transparent"
                     border="1px solid"
                     borderColor="gray.700"

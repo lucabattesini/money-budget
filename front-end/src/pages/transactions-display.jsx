@@ -30,6 +30,9 @@ export default function TransactionsDisplay() {
             getAllCategories(token),
             getTransactions({"organized_by": null, "date": null}, token)
         ]).then(([categoriesData, transactionsData]) => {
+            if (!categoriesData || !transactionsData) {
+                customToaster("Error", "error", "Não foi possível carregar suas transações. Tente novamente mais tarde.");
+            }
             if (categoriesData) setCategories(categoriesData.data);
             if (transactionsData) setTransactions(transactionsData.data);
             setLoading(false);

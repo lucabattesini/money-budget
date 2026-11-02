@@ -129,7 +129,7 @@ describe('chatbot', () => {
     expect(mine.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it.skip('TKT-32: pressing Enter while waiting for a reply does not send a second message', async () => {
+  it('pressing Enter while waiting for a reply does not send a second message', async () => {
     let answer
     const api = mockApi({
       'POST /webhook/': () => new Promise((resolve) => { answer = () => resolve(new Response(JSON.stringify({ reply: 'pronto' }))) }),

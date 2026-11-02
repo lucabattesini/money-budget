@@ -3,6 +3,7 @@ import { Center, Stack, Heading, Text, Box, Alert } from "@chakra-ui/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { loginWithGoogle } from "../api/endpoints";
 import { saveToken } from "../lib/auth";
+import customToaster from "../utils/customToaster";
 
 const hasClientId = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
@@ -17,11 +18,14 @@ function LoginGoogleForm() {
         if (data?.data?.token) {
             saveToken(data.data.token);
             navigate("/");
+        } else {
+            customToaster("Error", "error", "Não foi possível entrar. Tente novamente.");
         }
     };
 
     const onError = () => {
         console.error("Google login failed");
+        customToaster("Error", "error", "O login com o Google falhou. Tente novamente.");
     };
 
     return (

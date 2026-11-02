@@ -51,14 +51,9 @@ export default function ExpenseForm() {
     }, [searchQuery, categories]);
 
     const handleSubmit = () => {
-        const formatedValue = parseInt(value) * 100;
-        const payload = {
-            label: description,
-            value: parseInt(formatedValue),
-            category_id: Number(selectedCategory)
-        };
+        const amount = Number(value);
 
-        if (!value || value === 0 ) {
+        if (!(amount > 0)) {
             customToaster("Error", "error", "The amount value need to be bigger than 0")
             return;
         }
@@ -73,6 +68,13 @@ export default function ExpenseForm() {
             return;
         }
 
+        const payload = {
+            label: description,
+            // Round, don't truncate: 19.99 * 100 is 1998.9999999999998
+            value: Math.round(amount * 100),
+            category_id: Number(selectedCategory)
+        };
+
         insertNewTransaction(payload, getToken())
             .then(data => {
                 if (data.status === 201 || data.status === 200) {
@@ -80,7 +82,8 @@ export default function ExpenseForm() {
 
                     setvalue("");
                     setDescription("");
-                    setSelectedCategory("Select category");
+                    setSelectedCategory("");
+                    setSearchQuery("");
                 } else {
                     customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
                 }
