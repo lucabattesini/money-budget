@@ -17,7 +17,7 @@ def seeded(user, make_transaction, category_ids):
 
 
 def agg(db, user, group_by=None, **filters):
-    return aggregate_transactions(db, user.id, TransactionFilters(**filters), group_by)
+    return aggregate_transactions(db, user.family_id, TransactionFilters(**filters), group_by)
 
 
 def test_overall_totals(db, user, seeded):

@@ -9,7 +9,8 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from sqlalchemy.orm import Session
 
-from api.controllers.users_controller import upsert_user_ctrl
+from api.controllers.users_controller import get_user_by_id_ctrl, upsert_user_ctrl
+from db.connection import get_db
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)
@@ -73,6 +74,14 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
         raise HTTPException(status_code=401, detail="Invalid token")
     except Exception:
         raise HTTPException(status_code=401, detail="Authorization header malformed")
+
+
+def get_current_family_id(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)) -> int:
+    """The family of the logged-in user: the scope of every list, edit, delete and export."""
+    user = get_user_by_id_ctrl(db, user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return user.family_id
 
 
 def login_with_google(db: Session, id_token_str: str, whatsapp_phone: str = None) -> dict:

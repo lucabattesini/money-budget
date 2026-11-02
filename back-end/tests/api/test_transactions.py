@@ -33,7 +33,8 @@ def test_create_stores_the_transaction_for_the_caller(client, db, user, auth_hea
 
     assert response.status_code == 201
     row = db.query(TransactionDB).one()
-    assert (row.user_id, row.label, row.value, row.category_id) == (
+    assert (row.family_id, row.user_id, row.label, row.value, row.category_id) == (
+        user.family_id,
         user.id,
         "Almoço",
         2500,
@@ -300,7 +301,7 @@ def test_update_changes_label_amount_and_category_and_keeps_the_date(
     saved = db.query(TransactionDB).filter_by(id=row.id).one()
     assert (saved.label, saved.value, saved.category_id) == ("Novo", 3050, category_ids["Transporte"])
     assert saved.transactioned_at == original_date
-    assert saved.user_id == user.id
+    assert (saved.family_id, saved.user_id) == (user.family_id, user.id)
 
 
 def test_update_can_switch_between_credit_and_debit_and_keeps_the_type_when_omitted(

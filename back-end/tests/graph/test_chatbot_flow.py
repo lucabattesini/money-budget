@@ -40,7 +40,7 @@ def agents(monkeypatch):
 
 
 def ask(user, message="oi"):
-    return app.invoke({"user_message": message, "user_id": user.id})
+    return app.invoke({"user_message": message, "user_id": user.id, "family_id": user.family_id})
 
 
 @pytest.mark.parametrize(
@@ -68,7 +68,7 @@ def test_registering_an_expense_saves_it_and_confirms(db, user, agents):
     assert result["final_response"].startswith("Registrado!")
     assert "R$ 25,50" in result["final_response"]
     [row] = db.query(TransactionDB).all()
-    assert (row.user_id, row.value, row.label) == (user.id, 2550, "Uber")
+    assert (row.user_id, row.family_id, row.value, row.label) == (user.id, user.family_id, 2550, "Uber")
 
 
 def test_asking_a_question_reads_the_users_data_and_answers_through_the_secretary(

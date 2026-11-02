@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from schemas.tables import Users
+from schemas.tables import Families, Users
 
 PHONE_CONSTRAINT = "uq_users_whatsapp_phone"
 
@@ -41,7 +41,11 @@ def upsert_user_repo(
         if whatsapp_phone:
             user.whatsapp_phone = whatsapp_phone
     else:
+        family = Families()  # everyone starts in a family of their own
+        db.add(family)
+        db.flush()
         user = Users(
+            family_id=family.id,
             google_id=google_id,
             name=name,
             email=email,

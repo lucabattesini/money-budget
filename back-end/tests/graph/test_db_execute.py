@@ -5,7 +5,9 @@ from schemas.agents_schemas import ToolCall
 
 
 def run(user, *calls):
-    return node_db_execute({"user_id": user.id, "query_tool_calls": list(calls)})["db_results"]
+    return node_db_execute({"user_id": user.id, "family_id": user.family_id, "query_tool_calls": list(calls)})[
+        "db_results"
+    ]
 
 
 def summarize(**args):

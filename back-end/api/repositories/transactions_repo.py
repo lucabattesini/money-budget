@@ -4,6 +4,7 @@ from typing import Literal, Optional
 from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
+from api.repositories.categories_repo import category_visible_to_family
 from schemas.tables import Categories, TransactionDB
 from schemas.tables_schemas import (
     Transaction,
@@ -29,9 +30,9 @@ PERIOD_PARTS = {
 GroupBy = Literal["category", "day", "month", "year", "weekday"]
 
 
-def create_transaction(db: Session, t: Transaction, user_id: int):
+def create_transaction(db: Session, t: Transaction, family_id: int, user_id: int):
     try:
-        transaction = TransactionDB(**t.dict(), user_id=user_id)
+        transaction = TransactionDB(**t.dict(), family_id=family_id, user_id=user_id)
         db.add(transaction)
         db.commit()
         return t
@@ -40,9 +41,9 @@ def create_transaction(db: Session, t: Transaction, user_id: int):
         raise
 
 
-def get_transactions(db: Session, start: Optional[datetime], end: Optional[datetime], user_id: int):
-    """The user's transactions, newest first. start is included and end excluded; None means open."""
-    query = db.query(TransactionDB).filter(TransactionDB.user_id == user_id)
+def get_transactions(db: Session, start: Optional[datetime], end: Optional[datetime], family_id: int):
+    """The family's transactions, newest first. start is included and end excluded; None means open."""
+    query = db.query(TransactionDB).filter(TransactionDB.family_id == family_id)
     if start is not None:
         query = query.filter(TransactionDB.transactioned_at >= start)
     if end is not None:
@@ -50,10 +51,12 @@ def get_transactions(db: Session, start: Optional[datetime], end: Optional[datet
     return query.order_by(TransactionDB.transactioned_at.desc()).all()
 
 
-def get_transactions_summed_by_category(db: Session, start: Optional[datetime], end: Optional[datetime], user_id: int):
+def get_transactions_summed_by_category(
+    db: Session, start: Optional[datetime], end: Optional[datetime], family_id: int
+):
     query = (
         db.query(TransactionDB.category_id, func.sum(TransactionDB.value).label("total"))
-        .filter(TransactionDB.user_id == user_id, TransactionDB.type == "debit")  # spending only
+        .filter(TransactionDB.family_id == family_id, TransactionDB.type == "debit")  # spending only
         .group_by(TransactionDB.category_id)
     )
 
@@ -65,9 +68,9 @@ def get_transactions_summed_by_category(db: Session, start: Optional[datetime], 
     return query.all()
 
 
-def _apply_filters(query, user_id: int, f: TransactionFilters):
-    """Scope the query to the user and apply every filter that was set."""
-    query = query.filter(TransactionDB.user_id == user_id)
+def _apply_filters(query, family_id: int, f: TransactionFilters):
+    """Scope the query to the family and apply every filter that was set."""
+    query = query.filter(TransactionDB.family_id == family_id)
 
     if f.start_date:
         query = query.filter(TransactionDB.transactioned_at >= datetime.combine(f.start_date, time.min))
@@ -94,7 +97,7 @@ def _apply_filters(query, user_id: int, f: TransactionFilters):
 
 def list_transactions(
     db: Session,
-    user_id: int,
+    family_id: int,
     filters: TransactionFilters,
     order_by: Literal["date", "value"] = "date",
     order_dir: Literal["asc", "desc"] = "desc",
@@ -106,7 +109,7 @@ def list_transactions(
 
     query = db.query(TransactionDB, Categories.name).outerjoin(Categories, TransactionDB.category_id == Categories.id)
     rows = (
-        _apply_filters(query, user_id, filters)
+        _apply_filters(query, family_id, filters)
         .order_by(order_column, TransactionDB.id.desc())
         .limit(max(1, min(limit, MAX_LIST_LIMIT)))
         .offset(max(0, offset))
@@ -116,11 +119,11 @@ def list_transactions(
     return _to_out(rows)
 
 
-def list_all_transactions(db: Session, user_id: int) -> list[TransactionOut]:
-    """Every transaction of the user, newest first. No page limit: meant for exports."""
+def list_all_transactions(db: Session, family_id: int) -> list[TransactionOut]:
+    """Every transaction of the family, newest first. No page limit: meant for exports."""
     query = db.query(TransactionDB, Categories.name).outerjoin(Categories, TransactionDB.category_id == Categories.id)
     rows = (
-        query.filter(TransactionDB.user_id == user_id)
+        query.filter(TransactionDB.family_id == family_id)
         .order_by(TransactionDB.transactioned_at.desc(), TransactionDB.id.desc())
         .all()
     )
@@ -146,7 +149,7 @@ def _to_out(rows) -> list[TransactionOut]:
 
 def aggregate_transactions(
     db: Session,
-    user_id: int,
+    family_id: int,
     filters: TransactionFilters,
     group_by: Optional[GroupBy] = None,
 ) -> list[TransactionAggregate]:
@@ -159,22 +162,22 @@ def aggregate_transactions(
     ]
 
     if group_by is None:
-        row = _apply_filters(db.query(*metrics), user_id, filters).one()
+        row = _apply_filters(db.query(*metrics), family_id, filters).one()
         return [TransactionAggregate(**row._mapping)]
 
     if group_by == "category":
         keys = [TransactionDB.category_id.label("category_id"), Categories.name.label("category_name")]
         query = db.query(*keys, *metrics).outerjoin(Categories, TransactionDB.category_id == Categories.id)
-        query = _apply_filters(query, user_id, filters).group_by(*keys).order_by(func.sum(TransactionDB.value).desc())
+        query = _apply_filters(query, family_id, filters).group_by(*keys).order_by(func.sum(TransactionDB.value).desc())
         return [TransactionAggregate(**row._mapping) for row in query.all()]
 
     if group_by == "weekday":
         key = extract("dow", TransactionDB.transactioned_at).label("weekday")
-        query = _apply_filters(db.query(key, *metrics), user_id, filters).group_by(key).order_by(key)
+        query = _apply_filters(db.query(key, *metrics), family_id, filters).group_by(key).order_by(key)
         return [TransactionAggregate(**row._mapping) for row in query.all()]
 
     parts = [extract(p, TransactionDB.transactioned_at).label(p) for p in PERIOD_PARTS[group_by]]
-    query = _apply_filters(db.query(*parts, *metrics), user_id, filters).group_by(*parts).order_by(*parts)
+    query = _apply_filters(db.query(*parts, *metrics), family_id, filters).group_by(*parts).order_by(*parts)
 
     results = []
     for row in query.all():
@@ -185,8 +188,8 @@ def aggregate_transactions(
     return results
 
 
-def delete_transaction(db: Session, id, user_id: int):
-    transaction = db.query(TransactionDB).filter_by(id=id, user_id=user_id).first()
+def delete_transaction(db: Session, id, family_id: int):
+    transaction = db.query(TransactionDB).filter_by(id=id, family_id=family_id).first()
     if transaction:
         db.delete(transaction)
         db.commit()
@@ -194,13 +197,14 @@ def delete_transaction(db: Session, id, user_id: int):
     return False
 
 
-def category_exists(db: Session, category_id: int) -> bool:
-    return db.query(Categories.id).filter_by(id=category_id).first() is not None
+def category_exists(db: Session, category_id: int, family_id: int) -> bool:
+    """True if the category is a default one or belongs to the family."""
+    return category_visible_to_family(db, category_id, family_id)
 
 
-def update_transaction(db: Session, id: int, user_id: int, changes: TransactionUpdate):
-    """Update one of the user's transactions. Returns it, or None if it is missing or not theirs."""
-    transaction = db.query(TransactionDB).filter_by(id=id, user_id=user_id).first()
+def update_transaction(db: Session, id: int, family_id: int, changes: TransactionUpdate):
+    """Update one of the family's transactions. Returns it, or None if it is missing or not the family's."""
+    transaction = db.query(TransactionDB).filter_by(id=id, family_id=family_id).first()
     if transaction is None:
         return None
     transaction.label = changes.label
