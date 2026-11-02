@@ -1,5 +1,6 @@
 import csv
 import io
+from datetime import date
 
 from api.gateways.documents.base import Cell, Document, Table
 from api.utils.formatting import format_amount_br, format_date_br, neutralize_formula
@@ -32,6 +33,6 @@ class CsvGateway:
             return ""
         if isinstance(cell, str):
             return neutralize_formula(cell)
-        if hasattr(cell, "year"):  # a date or datetime
+        if isinstance(cell, date):  # a date or a datetime
             return format_date_br(cell)
         return format_amount_br(cell)

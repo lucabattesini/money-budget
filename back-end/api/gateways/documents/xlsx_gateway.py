@@ -1,4 +1,5 @@
 import io
+from datetime import date
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -48,7 +49,7 @@ class XlsxGateway:
 
     @staticmethod
     def _format(cell) -> None:
-        if hasattr(cell.value, "year"):
+        if isinstance(cell.value, date):
             cell.number_format = DATE_FORMAT
         elif cell.value is not None and not isinstance(cell.value, str):
             cell.number_format = AMOUNT_FORMAT
