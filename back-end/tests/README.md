@@ -92,8 +92,8 @@ host is the `db` service.
 
 ## Adding tests
 
-- Every folder here, and every code folder in `back-end/`, has an `__init__.py` (so they are real
-  packages). Add one to any new folder. Test file names must then be unique only per folder.
+- Every folder here, and every package folder in `back-end/`, has an `__init__.py` (so they are real
+  packages; the Alembic `migrations/` folders are the exception, Alembic loads them by path). Add one to any new folder. Test file names must then be unique only per folder.
 
 - Put API tests under `tests/api`, one file per router; chatbot tests under
   `tests/graph`; query logic under `tests/repositories`.
