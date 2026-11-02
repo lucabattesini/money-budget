@@ -119,3 +119,19 @@ def test_several_tool_calls_return_one_result_each_in_order(user, make_transacti
     results = run(user, summarize(), list_())
 
     assert [r["tool"] for r in results] == ["summarize_transactions", "list_transactions"]
+
+
+def test_a_category_name_only_matches_the_askers_own_or_default_categories(
+    db, user, other_user, make_transaction, category_ids
+):
+    from schemas.tables import Categories
+
+    theirs = Categories(name="Pets", family_id=other_user.family_id)
+    db.add(theirs)
+    db.commit()
+    make_transaction(other_user, theirs.id, "Ração", 7000)
+    make_transaction(user, category_ids["Outros"], "mine", 1000)
+
+    [result] = run(user, list_(categories=["Pets"]))
+
+    assert result["result"] == []  # the other family's "Pets" is not theirs to filter by
