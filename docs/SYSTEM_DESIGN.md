@@ -104,9 +104,11 @@ flowchart TB
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
   (a left menu with sections as nested routes: `/account` profile and
-  `/account/data` import/export: the export (Excel or CSV, downloaded through
-  `GET /transactions/export`) works, the import is not built yet and its page
-  documents the expected file columns). The logo in the header links home.
+  `/account/data` import/export: the export queues a job (`POST /exports`), shows a
+  toast, follows the job and downloads the file when it is done, with a second
+  toast; the follow-up lives in `lib/exportJobs.js` (outside React) so it
+  survives leaving the page; the import is not built yet and its page documents
+  the expected file columns). Toasts are mounted once, in the layout. The logo in the header links home.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
   from inside the web app.
 
@@ -193,6 +195,20 @@ erDiagram
         int category_id FK
     }
 
+    EXPORT_JOBS {
+        int id PK
+        int user_id FK
+        string format "csv or xlsx"
+        string status "queued, running, done or failed"
+        string filename
+        string media_type
+        bytes content "the finished file, kept for a day"
+        string error
+        datetime created_at
+        datetime finished_at
+    }
+
+    USERS ||--o{ EXPORT_JOBS : "asks for"
     USERS ||--o{ TRANSACTIONS : "owns"
     USERS ||--o{ CATEGORIES : "owns"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
@@ -220,11 +236,21 @@ the rename, `date` was always the save time); `updated_at` starts empty.
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
 `POST /transactions/create`, `PUT /transactions/{id}` (label, value, category,
 and optionally `type` / `transactioned_at`; omitted fields keep their value) and
-`DELETE /transactions/{id}` and `GET /transactions/export?format=csv|xlsx` (every
-transaction of the caller, newest first, as a download; the page limit of the
-list does not apply). A missing id, another user's id, or an unknown
+and `DELETE /transactions/{id}`. A missing id, another user's id, or an unknown
 category answers `404`, the same for missing and foreign ids so other users' ids
 are not revealed.
+
+**Export jobs** (`export_jobs` table, `/exports`): `POST /exports {format}` records a
+job as `queued`, answers `202` at once and builds the file in a FastAPI background
+task (own session via `session_scope`; no extra service to run). The job goes
+`queued -> running -> done | failed`. `GET /exports/{id}` shows the state and
+`GET /exports/{id}/file` downloads it (`409` until it is done). The file is every
+transaction of the caller, newest first, with no page limit. Finished files are
+kept in the table for a day and deleted when the user queues the next export. A
+failed job stores a generic message (the details go to the log); another user's job
+answers `404`. The task runs inside the API process, so a job that is running when
+the server restarts stays `running` and is never finished; the page gives up
+after two minutes. A separate worker would fix that if exports ever get large.
 
 ## 4. Key request flows
 
