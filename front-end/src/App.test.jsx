@@ -21,7 +21,10 @@ function renderAt(hash) {
 
 describe('routing', () => {
   beforeEach(() => {
-    mockApi({ 'GET /user/me': { data: { name: 'Clara', email: 'c@example.com' } } })
+    mockApi({
+      'GET /user/me': { data: { name: 'Clara', email: 'c@example.com' } },
+      'GET /categories': { data: [] }, // asked by the import page
+    })
   })
 
   afterEach(() => {
@@ -48,6 +51,18 @@ describe('routing', () => {
 
     expect(window.location.hash).toBe(hash)
     expect(pageMarker()).toBeInTheDocument()
+  })
+
+  it.each([
+    ['#/account', 'Minha Conta'],
+    ['#/account/data', 'Importar e exportar'],
+  ])('shows %s inside the app layout and the account menu', (hash, marker) => {
+    saveToken('tok')
+    renderAt(hash)
+
+    expect(screen.getAllByText(marker).length).toBeGreaterThan(0) // the page title (the menu entry has the same name)
+    expect(screen.getByRole('navigation', { name: 'Menu da conta' })).toBeInTheDocument()
+    expect(screen.getByText('Money Budget')).toBeInTheDocument() // header
   })
 
   it('shows a logged-in user the page they asked for, inside the layout', () => {

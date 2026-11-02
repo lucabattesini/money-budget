@@ -102,7 +102,10 @@ flowchart TB
 - Pages: `dashboard` (balance + charts), `report-expense` (manual entry),
   `transactions-display` (table of history with filters in a menu, 10-per-page
   paging for older entries, a side panel to add a transaction via
-  `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`.
+  `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
+  (a left menu with sections as nested routes: `/account` profile and
+  `/account/data` import/export; the import/export itself is not built yet, the
+  page only documents the expected file columns). The logo in the header links home.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
   from inside the web app.
 
