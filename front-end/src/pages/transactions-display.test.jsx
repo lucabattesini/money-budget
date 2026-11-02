@@ -7,7 +7,7 @@ import TransactionsDisplay from './transactions-display'
 
 // Sunday 15 March 2026, noon: "today" starts 15 March 00:00, "this week" 8 March, "this month" 1 March.
 const CATEGORIES = { data: [{ id: 1, name: 'Alimentação' }, { id: 2, name: 'Transporte' }] }
-const t = (id, label, cents, date, category_id = 1) => ({ id, label, value: cents, date, category_id })
+const t = (id, label, cents, date, category_id = 1) => ({ id, label, value: cents, transactioned_at: date, category_id })
 
 // Deliberately NOT in group order: the page itself must put today first and the oldest last.
 const TRANSACTIONS = {

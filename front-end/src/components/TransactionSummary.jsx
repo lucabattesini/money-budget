@@ -15,7 +15,7 @@ export default function TransactionSummary({ transactions }) {
     let monthSum = 0;
 
     transactions.forEach(transaction => {
-        const tDate = new Date(transaction.date);
+        const tDate = new Date(transaction.transactioned_at);
         const value = transaction.value / 100;
 
         if (tDate >= startOfToday) {

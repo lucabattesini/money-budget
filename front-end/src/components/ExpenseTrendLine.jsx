@@ -16,7 +16,7 @@ export default function ExpenseTrendLine({ transactions }) {
         const monthMap = {};
 
         transactions.forEach(t => {
-            const tDate = new Date(t.date);
+            const tDate = new Date(t.transactioned_at);
             const m = tDate.getMonth();
             const y = tDate.getFullYear();
             const key = `${y}-${String(m).padStart(2, '0')}`;

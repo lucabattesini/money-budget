@@ -4,7 +4,7 @@ import { renderApp } from '../test/helpers'
 import TransactionSummary from './TransactionSummary'
 
 // Sunday 15 March 2026, noon. "Last 7 days" starts Sunday 8 March 00:00; the month starts 1 March.
-const tx = (date, cents) => ({ id: Math.random(), date, value: cents, label: 'x' })
+const tx = (date, cents) => ({ id: Math.random(), transactioned_at: date, value: cents, label: 'x' })
 
 const totals = () => {
   const read = (label) => screen.getByText(label).nextElementSibling.textContent.replace(/\s/g, ' ')

@@ -57,7 +57,7 @@ export default function TransactionsDisplay() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     transactions.forEach(transaction => {
-        const tDate = new Date(transaction.date);
+        const tDate = new Date(transaction.transactioned_at);
         if (tDate >= startOfToday) {
             today.push(transaction);
         } else if (tDate >= startOfWeek) {
@@ -81,7 +81,7 @@ export default function TransactionsDisplay() {
 
     const renderRow = (transaction) => (
         <Table.Row key={transaction.id}>
-            <Table.Cell whiteSpace="nowrap">{new Date(transaction.date).toLocaleDateString("pt-BR")}</Table.Cell>
+            <Table.Cell whiteSpace="nowrap">{new Date(transaction.transactioned_at).toLocaleDateString("pt-BR")}</Table.Cell>
             <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
             <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
             <Table.Cell textAlign="end" whiteSpace="nowrap">{formatCents(transaction.value)}</Table.Cell>
