@@ -111,14 +111,14 @@ export function insertNewTransaction(payload, token) {
 
 // ─── Exports (files built in the background) ──────────────────────────────────
 
-// Queue an export. Resolves { ok: true, job } or { ok: false }.
+// Queue an export. Resolves { ok: true, job } or { ok: false, status (HTTP, when the server answered) }.
 export function createExport(format, token) {
     return fetch(endpoints.exports, {
         method: "post",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ format }),
     })
-    .then(async res => (res.ok ? { ok: true, job: (await res.json()).data } : { ok: false }))
+    .then(async res => (res.ok ? { ok: true, job: (await res.json()).data } : { ok: false, status: res.status }))
     .catch(error => {
         console.error("Failed to queue export", error);
         return { ok: false };

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveToken } from './auth'
+import { removeToken, saveToken } from './auth'
 import { jsonResponse, mockApi, requestsMade } from '../test/helpers'
 import customToaster from '../utils/customToaster'
 import { enqueueExport, followExport, GIVE_UP_AFTER_MS, POLL_INTERVAL_MS } from './exportJobs'
@@ -40,6 +40,15 @@ describe('export jobs', () => {
       expect(customToaster).toHaveBeenCalledWith('Exportação na fila', 'info', expect.stringContaining('Excel'))
     })
 
+    it('says an export is already in progress when the server answers 409', async () => {
+      mockApi({ 'POST /exports': () => jsonResponse({ detail: 'Você já tem uma exportação em andamento.' }, 409) })
+
+      expect(await enqueueExport('csv')).toBeNull()
+
+      expect(customToaster).toHaveBeenCalledTimes(1)
+      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.stringContaining('em andamento'))
+    })
+
     it('says it could not queue the export when the server refuses or cannot be reached', async () => {
       mockApi({ 'POST /exports': () => jsonResponse({ detail: 'boom' }, 500) })
       expect(await enqueueExport('csv')).toBeNull()
@@ -49,7 +58,7 @@ describe('export jobs', () => {
       expect(await enqueueExport('csv')).toBeNull()
 
       expect(customToaster).toHaveBeenCalledTimes(2)
-      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String))
+      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.stringContaining('iniciar a exportação'))
       expect(customToaster).not.toHaveBeenCalledWith('Exportação na fila', expect.anything(), expect.anything())
     })
   })
@@ -89,7 +98,7 @@ describe('export jobs', () => {
       await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
       await finished
 
-      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String))
+      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.stringContaining('gerar o arquivo'))
       expect(saved).toEqual([])
     })
 
@@ -116,7 +125,32 @@ describe('export jobs', () => {
       await finished
 
       expect(requestsMade(api)).toEqual(['GET /exports/7'])
-      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String))
+      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.stringContaining('Não encontramos'))
+    })
+
+    it.each([401, 403])('stops and says the session ended when the server answers %i', async (code) => {
+      const api = mockApi({ 'GET /exports/7': () => jsonResponse({ detail: 'Token expired' }, code) })
+
+      const finished = followExport({ id: 7 })
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+      await finished
+
+      expect(requestsMade(api)).toEqual(['GET /exports/7']) // not retried for two minutes
+      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.stringContaining('sessão expirou'))
+    })
+
+    it('stops quietly, without downloading, when the user logs out while waiting', async () => {
+      const api = mockApi({ 'GET /exports/7': () => jsonResponse(job('running')) })
+
+      const finished = followExport({ id: 7 })
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS) // first poll
+      removeToken()
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3)
+      await finished
+
+      expect(requestsMade(api)).toEqual(['GET /exports/7'])
+      expect(saved).toEqual([])
+      expect(customToaster).not.toHaveBeenCalled()
     })
 
     it('tells the user when the file cannot be downloaded', async () => {
@@ -130,7 +164,8 @@ describe('export jobs', () => {
       await finished
 
       expect(saved).toEqual([])
-      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String))
+      expect(customToaster).toHaveBeenCalledTimes(1)
+      expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.stringContaining('não foi possível baixá-lo'))
       expect(customToaster).not.toHaveBeenCalledWith('Exportação concluída', expect.anything(), expect.anything())
     })
 
