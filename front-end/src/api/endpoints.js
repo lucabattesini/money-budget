@@ -108,6 +108,19 @@ export function insertNewTransaction(payload, token) {
     .catch(error => console.error("Failed to insert new transaction", error));
 }
 
+export function updateTransaction(id, payload, token) {
+    return fetch(endpoints.transactions + `/${id}`, {
+        method: "put",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    })
+    .then(res => ({ status: res.status }))
+    .catch(error => console.error("Failed to update transaction", error));
+}
+
 export function deleteTransaction(id, token) {
     return fetch(endpoints.transactions + `/${id}`, {
         method: "delete",

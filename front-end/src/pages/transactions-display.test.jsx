@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
@@ -29,6 +29,8 @@ const groupOf = (label) => {
   const heading = rows.slice(0, rows.indexOf(rowOf(label))).reverse().find((row) => row.children.length === 1)
   return GROUP_TITLES.find((title) => heading?.textContent === title)
 }
+// The side panel (new or edit); the filter popover is a dialog too, so find it by its title
+const drawer = async () => within((await screen.findByText(/^(Nova|Editar) transação$/)).closest('[role="dialog"]'))
 const openMenuOf = async (label) => {
   await userEvent.click(within(rowOf(label)).getByRole('button', { name: /ações/i }))
   return screen.findByRole('menuitem', { name: /excluir/i })
@@ -267,10 +269,11 @@ describe('transactions page', () => {
       await screen.findByText('Almoço')
 
       await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
-      await userEvent.type(await screen.findByLabelText('Valor'), '1234567')
-      await userEvent.type(screen.getByLabelText('Descrição'), 'Cinema')
-      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
-      await userEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+      const form = await drawer()
+      await userEvent.type(form.getByLabelText('Valor'), '1234567')
+      await userEvent.type(form.getByLabelText('Descrição'), 'Cinema')
+      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
       expect(await screen.findByText('Cinema')).toBeInTheDocument()
       expect(rowOf('Cinema').children[3].textContent).toBe('R$ 12.345,67')
@@ -279,4 +282,126 @@ describe('transactions page', () => {
       await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
     })
   })
+
+  describe('editing a transaction', () => {
+    const editRoutes = () => {
+      let rows = TRANSACTIONS.data
+      const api = mockApi({
+        'GET /categories': CATEGORIES,
+        'POST /transactions': () => jsonResponse({ data: rows }),
+        'PUT /transactions/1': (_url, options) => {
+          const body = JSON.parse(options.body)
+          rows = rows.map((row) => (row.id === 1 ? { ...row, ...body } : row))
+          return jsonResponse({ data: {} })
+        },
+        'DELETE /transactions/1': () => jsonResponse({ data: {} }, 202),
+      })
+      return api
+    }
+    const dialog = async () => (await drawer())
+
+    it('opens the sidebar filled with the transaction from the row menu', async () => {
+      editRoutes()
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await userEvent.click(within(rowOf('Almoço')).getByRole('button', { name: /ações/i }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: /editar/i }))
+
+      const form = await dialog()
+      expect(form.getByText('Editar transação')).toBeInTheDocument()
+      expect(form.getByLabelText('Valor')).toHaveValue('25,50')
+      expect(form.getByLabelText('Descrição')).toHaveValue('Almoço')
+      expect(form.getByLabelText('Categoria')).toHaveValue('1')
+    })
+
+    it('shows the date of the transaction in the edit form', async () => {
+      mockApi(routes({ data: [t(1, 'Salário', 150000, '2026-03-02T09:15:00')] }))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Salário')
+
+      await userEvent.click(screen.getByText('Salário'))
+
+      const form = await drawer()
+      expect(form.getByLabelText('Data')).toHaveValue('2026-03-02')
+    })
+
+    it('changes the day but keeps the time of day when the date is edited', async () => {
+      const api = editRoutes()
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await userEvent.click(screen.getByText('Almoço'))
+      const form = await drawer()
+
+      fireEvent.change(form.getByLabelText('Data'), { target: { value: '2026-03-01' } })
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(() => expect(requestsMade(api)).toContain('PUT /transactions/1'))
+      const put = api.mock.calls.find(([, o]) => o.method === 'put')
+      expect(JSON.parse(put[1].body).transactioned_at).toBe('2026-03-01T09:00:00')
+    })
+
+    it('opens the same sidebar when the row is clicked', async () => {
+      editRoutes()
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Uber')
+
+      await userEvent.click(screen.getByText('Uber'))
+
+      const form = await dialog()
+      expect(form.getByLabelText('Descrição')).toHaveValue('Uber')
+      expect(form.getByLabelText('Valor')).toHaveValue('18,00')
+      expect(form.getByLabelText('Categoria')).toHaveValue('2')
+    })
+
+    it('saves the changes with PUT and shows the updated row', async () => {
+      const api = editRoutes()
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await userEvent.click(screen.getByText('Almoço'))
+      const form = await dialog()
+      await userEvent.clear(form.getByLabelText('Valor'))
+      await userEvent.type(form.getByLabelText('Valor'), '3099')
+      await userEvent.clear(form.getByLabelText('Descrição'))
+      await userEvent.type(form.getByLabelText('Descrição'), 'Jantar')
+      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+
+      expect(await screen.findByText('Jantar')).toBeInTheDocument()
+      const put = api.mock.calls.find(([, o]) => o.method === 'put')
+      expect(JSON.parse(put[1].body)).toEqual({
+        label: 'Jantar', value: 3099, category_id: 2, transactioned_at: '2026-03-15T09:00:00',
+      })
+      expect(put[1].headers.Authorization).toBe('Bearer tok')
+      expect(screen.queryByText('Almoço')).not.toBeInTheDocument()
+      expect(rowOf('Jantar').children[3].textContent).toBe('R$ 30,99')
+      await waitFor(() => expect(screen.queryByText(/^(Nova|Editar) transação$/)).not.toBeInTheDocument())
+    })
+
+    it('does not send anything when the edit is cancelled', async () => {
+      const api = editRoutes()
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await userEvent.click(screen.getByText('Almoço'))
+
+      await userEvent.click((await drawer()).getByRole('button', { name: 'Cancelar' }))
+
+      expect(requestsMade(api).filter((r) => r.startsWith('PUT'))).toHaveLength(0)
+    })
+
+    it('does not open the editor when an action in the row menu is used', async () => {
+      editRoutes()
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await userEvent.click(within(rowOf('Almoço')).getByRole('button', { name: /ações/i }))
+      expect(screen.queryByText(/^(Nova|Editar) transação$/)).not.toBeInTheDocument() // opening the menu alone is not an edit
+      await userEvent.click(await screen.findByRole('menuitem', { name: /excluir/i }))
+
+      await waitFor(() => expect(screen.queryByText('Almoço')).toBeInTheDocument())
+      expect(screen.queryByText(/^(Nova|Editar) transação$/)).not.toBeInTheDocument()
+    })
+  })
+
 })

@@ -6,9 +6,9 @@ import { formatCents } from "../lib/money";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
-import AddTransactionDrawer from "../components/AddTransactionDrawer";
+import TransactionDrawer from "../components/TransactionDrawer";
 import { Toaster } from "../components/ui/toaster";
-import { LuEllipsisVertical, LuPlus, LuTrash2 } from "react-icons/lu";
+import { LuEllipsisVertical, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true);
@@ -16,6 +16,7 @@ export default function TransactionsDisplay() {
     const [transactions, setTransactions] = useState([]);
     const [trigger, setTrigger] = useState(0);
     const [adding, setAdding] = useState(false);
+    const [editing, setEditing] = useState(null); // the transaction being edited
 
     useEffect(() => {
         const token = getToken();
@@ -80,12 +81,13 @@ export default function TransactionsDisplay() {
         categories?.find((category) => category.id === transaction.category_id)?.name ?? "Categoria não encontrada";
 
     const renderRow = (transaction) => (
-        <Table.Row key={transaction.id}>
+        <Table.Row key={transaction.id} cursor="pointer" _hover={{ bg: "bg.muted" }} onClick={() => setEditing(transaction)}>
             <Table.Cell whiteSpace="nowrap">{new Date(transaction.transactioned_at).toLocaleDateString("pt-BR")}</Table.Cell>
             <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
             <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
             <Table.Cell textAlign="end" whiteSpace="nowrap">{formatCents(transaction.value)}</Table.Cell>
-            <Table.Cell textAlign="end" width="1%">
+            {/* Clicks here (the menu is rendered elsewhere but still bubbles) must not open the editor */}
+            <Table.Cell textAlign="end" width="1%" onClick={(event) => event.stopPropagation()}>
                 <Menu.Root positioning={{ placement: "bottom-end" }}>
                     <Menu.Trigger asChild>
                         <IconButton variant="ghost" size="xs" aria-label={`Ações para ${transaction.label}`}>
@@ -95,6 +97,9 @@ export default function TransactionsDisplay() {
                     <Portal>
                         <Menu.Positioner>
                             <Menu.Content>
+                                <Menu.Item value="edit" onClick={() => setEditing(transaction)}>
+                                    <LuPencil /> Editar
+                                </Menu.Item>
                                 <Menu.Item value="delete" color="fg.error" onClick={() => onDelete(transaction.id)}>
                                     <LuTrash2 /> Excluir
                                 </Menu.Item>
@@ -153,14 +158,21 @@ export default function TransactionsDisplay() {
                     </Table.ScrollArea>
                 )}
 
-                {!loading && visibleGroups.length === 0 && (
+                {!loading && transactions.length === 0 && (
                     <Text color="fg.muted">Nenhuma transação ainda.</Text>
                 )}
             </Stack>
 
-            <AddTransactionDrawer
+            <TransactionDrawer
                 open={adding}
                 onClose={() => setAdding(false)}
+                categories={categories}
+                onSaved={reload}
+            />
+            <TransactionDrawer
+                open={editing !== null}
+                transaction={editing}
+                onClose={() => setEditing(null)}
                 categories={categories}
                 onSaved={reload}
             />

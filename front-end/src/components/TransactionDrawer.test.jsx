@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
 import { jsonResponse, mockApi, renderApp } from '../test/helpers'
-import AddTransactionDrawer from './AddTransactionDrawer'
+import TransactionDrawer from './TransactionDrawer'
 import customToaster from '../utils/customToaster'
 
 vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
@@ -25,13 +25,15 @@ function renderDrawer(routes = {}, { open = true } = {}) {
   const api = mockApi({ 'POST /transactions/create': () => jsonResponse({ data: {} }, 201), ...routes })
   const onClose = vi.fn()
   const onSaved = vi.fn()
-  renderApp(<AddTransactionDrawer open={open} onClose={onClose} onSaved={onSaved} categories={CATEGORIES} />)
+  renderApp(<TransactionDrawer open={open} onClose={onClose} onSaved={onSaved} categories={CATEGORIES} />)
   return { api, onClose, onSaved }
 }
 
-describe('add transaction sidebar', () => {
+describe('transaction sidebar', () => {
   beforeEach(() => {
     vi.mocked(customToaster).mockClear()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 2, 15, 12, 0, 0))
   })
 
   it('shows nothing until it is opened', () => {
@@ -77,7 +79,9 @@ describe('add transaction sidebar', () => {
     await userEvent.click(save())
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
-    expect(created(api)).toEqual({ label: 'Almoço', value: 2550, category_id: 2 })
+    expect(created(api)).toEqual({
+      label: 'Almoço', value: 2550, category_id: 2, transactioned_at: '2026-03-15T12:00:00',
+    })
     expect(api.mock.calls.find(([url]) => url.endsWith('/transactions/create'))[1].headers.Authorization).toBe('Bearer tok')
     expect(onClose).toHaveBeenCalled()
     expect(customToaster).toHaveBeenCalledWith('Salvo', 'success', expect.any(String))
@@ -132,6 +136,35 @@ describe('add transaction sidebar', () => {
     expect(onSaved).not.toHaveBeenCalled()
   })
 
+  it('starts on today and saves the chosen day with the current time', async () => {
+    const { api } = renderDrawer()
+    expect(screen.getByLabelText('Data')).toHaveValue('2026-03-15')
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-03-01' } })
+    await userEvent.type(amount(), '100')
+    await userEvent.type(description(), 'x')
+    await userEvent.selectOptions(category(), 'Alimentação')
+
+    await userEvent.click(save())
+
+    await waitFor(() => expect(created(api).transactioned_at).toBe('2026-03-01T12:00:00'))
+  })
+
+  it.each([
+    ['no date', '', 'Informe a data'],
+    ['a date in the future', '2026-03-16', 'A data não pode ser no futuro'],
+  ])('does not save with %s', async (_name, value, message) => {
+    const { api } = renderDrawer()
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value } })
+    await userEvent.type(amount(), '100')
+    await userEvent.type(description(), 'x')
+    await userEvent.selectOptions(category(), 'Alimentação')
+
+    await userEvent.click(save())
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(created(api)).toBeUndefined()
+  })
+
   it('closes without saving when cancelled', async () => {
     const { api, onClose } = renderDrawer()
 
@@ -149,7 +182,7 @@ describe('add transaction sidebar', () => {
       return (
         <>
           <button onClick={() => setOpen(true)}>reabrir</button>
-          <AddTransactionDrawer open={open} onClose={() => setOpen(false)} onSaved={() => {}} categories={CATEGORIES} />
+          <TransactionDrawer open={open} onClose={() => setOpen(false)} onSaved={() => {}} categories={CATEGORIES} />
         </>
       )
     }
