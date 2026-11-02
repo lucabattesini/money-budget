@@ -23,6 +23,7 @@ describe('routing', () => {
   beforeEach(() => {
     mockApi({
       'GET /user/me': { data: { name: 'Clara', email: 'c@example.com' } },
+      'GET /categories': { data: [] }, // asked by the import page
     })
   })
 
