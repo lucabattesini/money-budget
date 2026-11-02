@@ -3,11 +3,21 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, Strin
 from db.connection import Base
 
 
+class Families(Base):
+    """The people who share one budget. Transactions, categories and exports belong to a family."""
+
+    __tablename__ = "families"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class TransactionDB(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # who entered it; information, not a permission
     label = Column(String(100))
     value = Column(Integer)  # always positive, in cents; `type` says which way the money went
     type = Column(String(6), nullable=False, default="debit", server_default="debit")  # "debit" | "credit"
@@ -23,6 +33,7 @@ class Users(Base):
     __table_args__ = (UniqueConstraint("whatsapp_phone", name="uq_users_whatsapp_phone"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # a person is in exactly one family
     google_id = Column(String(100), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
@@ -37,17 +48,18 @@ class Categories(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=True)  # NULL = default category, shared by all
     name = Column(String(100))
 
 
 class ExportJobDB(Base):
-    """A request to build a file with the user's data. The file is built in the background."""
+    """A request to build a file with the family's data. The file is built in the background."""
 
     __tablename__ = "export_jobs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # whose data goes in the file
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # only this person can get the file
     format = Column(String(10), nullable=False)  # "csv" | "xlsx"
     status = Column(String(10), nullable=False, default="queued")  # queued -> running -> done | failed
     filename = Column(String(100))

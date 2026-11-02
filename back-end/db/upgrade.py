@@ -49,7 +49,9 @@ def detect_revision(inspector) -> str | None:
         return "0004"
     if "uq_users_whatsapp_phone" not in {u["name"] for u in inspector.get_unique_constraints("users")}:
         return "0005"
-    return "0006"
+    if not inspector.has_table("families"):
+        return "0006"
+    return "0007"
 
 
 def upgrade_database(url: str = DATABASE_URL) -> None:

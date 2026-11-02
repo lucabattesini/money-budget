@@ -12,7 +12,7 @@ cannot log in through Google, so the script prints a JWT for calling the API
 directly instead.
 
 Idempotent: transactions are only inserted if the user has none, unless
---reset is given (which deletes that user's transactions first).
+--reset is given (which deletes the user's family's transactions first).
 """
 
 import argparse
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 from db.connection import LocalSession
 from db.seed import seed_categories
-from schemas.tables import Categories, TransactionDB, Users
+from schemas.tables import Categories, Families, TransactionDB, Users
 
 DEMO_EMAIL = "demo@example.com"
 
@@ -50,7 +50,12 @@ def get_user(db, email: str) -> Users:
         return user
     if email != DEMO_EMAIL:
         raise SystemExit(f"No user with email {email}. Log in with Google once first.")
-    user = Users(google_id="demo-google-id", name="Demo User", email=DEMO_EMAIL, last_login=datetime.now())
+    family = Families()
+    db.add(family)
+    db.flush()
+    user = Users(
+        family_id=family.id, google_id="demo-google-id", name="Demo User", email=DEMO_EMAIL, last_login=datetime.now()
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -68,7 +73,7 @@ def main():
     db = LocalSession()
     try:
         user = get_user(db, args.email)
-        existing = db.query(TransactionDB).filter(TransactionDB.user_id == user.id)
+        existing = db.query(TransactionDB).filter(TransactionDB.family_id == user.family_id)
         if args.reset:
             existing.delete()
             db.commit()
@@ -76,7 +81,7 @@ def main():
             print(f"{args.email} already has transactions; use --reset to replace them.")
             return
 
-        categories = {c.name: c.id for c in db.query(Categories).filter(Categories.user_id.is_(None))}
+        categories = {c.name: c.id for c in db.query(Categories).filter(Categories.family_id.is_(None))}
         today = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
         rows = []
         for month_offset in range(3):
@@ -85,6 +90,7 @@ def main():
                     day = today - timedelta(days=month_offset * 30 + rng.randint(0, 29))
                     rows.append(
                         TransactionDB(
+                            family_id=user.family_id,
                             user_id=user.id,
                             label=label,
                             value=rng.randint(low // 10, high // 10) * 10,
