@@ -6,6 +6,7 @@ import {
   getSummedTransactionsByCategory,
   getTransactions,
   insertNewTransaction,
+  updateTransaction,
   loginWithGoogle,
   updatePhone,
 } from './endpoints'
@@ -156,7 +157,7 @@ describe('error responses from the read calls', () => {
 
     const result = await getTransactions({ organized_by: null, date: null }, 'old')
 
-    expect(result).toBeUndefined() // or a rejection / an explicit error the page can handle
+    expect(result).toBeUndefined()
   })
 })
 
@@ -166,6 +167,9 @@ describe('an expired login', () => {
     ['getAllCategories', () => getAllCategories('old'), 'GET /categories'],
     ['getMe', () => getMe('old'), 'GET /user/me'],
     ['insertNewTransaction', () => insertNewTransaction({ label: 'x', value: 1, category_id: 1 }, 'old'), 'POST /transactions/create'],
+    ['updateTransaction', () => updateTransaction(1, { label: 'x', value: 1, category_id: 1 }, 'old'), 'PUT /transactions/1'],
+    ['deleteTransaction', () => deleteTransaction(1, 'old'), 'DELETE /transactions/1'],
+    ['updatePhone', () => updatePhone('5511999999999', 'old'), 'PATCH /user/me/phone'],
   ])('%s forgets the token and sends the user to the login page', async (_name, call, route) => {
     saveToken('old')
     window.location.hash = '#/transactions'

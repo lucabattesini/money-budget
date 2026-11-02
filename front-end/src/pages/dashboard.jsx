@@ -24,7 +24,8 @@ export default function Dashboard() {
             getTransactions(allTransactionsQuery, token),
             getMe(token)
         ]).then(([categoriesData, transactionsData, userData]) => {
-            if (!categoriesData || !transactionsData) {
+            // After an expired login the token is gone and the user is on the login page: no message there
+            if ((!categoriesData || !transactionsData) && getToken()) {
                 customToaster("Error", "error", "Não foi possível carregar seus dados. Tente novamente mais tarde.");
             }
             if (categoriesData) {

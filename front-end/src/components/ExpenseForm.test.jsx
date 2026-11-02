@@ -204,6 +204,30 @@ describe('expense form', () => {
       expect(created(api)).toBeUndefined()
     })
 
+    it('rejects an amount that rounds to zero cents', async () => {
+      const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
+      await userEvent.type(amount(), '0.001')
+      await userEvent.type(description(), 'Nada')
+      await pickCategory('Alimentação')
+
+      await userEvent.click(submit())
+
+      expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.stringMatching(/bigger than 0/))
+      expect(created(api)).toBeUndefined()
+    })
+
+    it('rejects an amount bigger than the database can hold', async () => {
+      const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
+      await userEvent.type(amount(), '99999999999')
+      await userEvent.type(description(), 'Muito')
+      await pickCategory('Alimentação')
+
+      await userEvent.click(submit())
+
+      expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.stringMatching(/too big/))
+      expect(created(api)).toBeUndefined()
+    })
+
     it('shows an error when the request cannot reach the server', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
       await renderForm({ 'POST /transactions/create': () => Promise.reject(new TypeError('Failed to fetch')) })

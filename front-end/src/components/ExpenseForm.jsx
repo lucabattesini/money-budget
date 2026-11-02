@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Input, Portal, Combobox } from "@chakra-ui/react";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { MAX_CENTS } from "../lib/money";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "./spinnerLoading";
 
@@ -51,10 +52,16 @@ export default function ExpenseForm() {
     }, [searchQuery, categories]);
 
     const handleSubmit = () => {
-        const amount = Number(value);
+        // Round, don't truncate: 19.99 * 100 is 1998.9999999999998
+        const cents = Math.round(Number(value) * 100);
 
-        if (!(amount > 0)) {
+        if (!(cents > 0)) {
             customToaster("Error", "error", "The amount value need to be bigger than 0")
+            return;
+        }
+
+        if (cents > MAX_CENTS) {
+            customToaster("Error", "error", "The amount value is too big")
             return;
         }
 
@@ -70,8 +77,7 @@ export default function ExpenseForm() {
 
         const payload = {
             label: description,
-            // Round, don't truncate: 19.99 * 100 is 1998.9999999999998
-            value: Math.round(amount * 100),
+            value: cents,
             category_id: Number(selectedCategory)
         };
 

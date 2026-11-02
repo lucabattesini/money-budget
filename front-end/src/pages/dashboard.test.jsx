@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveToken } from '../lib/auth'
+import { getToken, saveToken } from '../lib/auth'
 import { mockApi, networkDown, renderApp, requestsMade } from '../test/helpers'
 import Dashboard from './dashboard'
 import customToaster from '../utils/customToaster'
@@ -100,8 +100,10 @@ describe('dashboard', () => {
 
     renderApp(<Dashboard />)
 
-    // either the page still renders (with zero spending) or the user is sent to log in again
-    await waitFor(() => expect(screen.queryByText('Gastos de março') || screen.queryByText('Bem-vindo de volta!')).toBeTruthy())
+    // the login is forgotten and the user is sent to log in again, without an extra error message
+    await waitFor(() => expect(getToken()).toBeNull())
+    expect(window.location.hash).toBe('#/login-google')
+    expect(customToaster).not.toHaveBeenCalled()
   })
 
   it('tells the user when the data could not be loaded', async () => {

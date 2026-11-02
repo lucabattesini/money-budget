@@ -157,7 +157,8 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   `HTTPBearer` + `decode_jwt`).
 - In the web app, any `401` from the API (expired or invalid token) clears the
   stored token and sends the user to `#/login-google` (`api/endpoints.js`).
-  Other failed reads show an error message instead of being treated as data.
+  A failed read is never treated as data; the dashboard and transactions pages
+  show an error message when their data cannot be loaded.
 - A user can also be matched by `whatsapp_phone`, which is how the chatbot
   resolves an inbound WhatsApp number to an account.
 

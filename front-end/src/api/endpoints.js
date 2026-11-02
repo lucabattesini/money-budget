@@ -21,7 +21,8 @@ function checkSession(res) {
     return res;
 }
 
-// Read calls: the data on success; otherwise log and resolve undefined, so an error answer is never taken for data.
+// Read calls: the data on success. An error answer throws, and the call's own catch logs it and
+// resolves undefined, so an error answer is never taken for data.
 function readJson(res) {
     checkSession(res);
     if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
@@ -66,6 +67,7 @@ export function updatePhone(phone, token) {
         body: JSON.stringify({ whatsapp_phone: phone })
     })
     .then(res => {
+        checkSession(res);
         if (!res.ok) throw new Error("Failed to update phone");
         return res.json();
     })
@@ -140,7 +142,7 @@ export function createExport(format, token) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ format }),
     })
-    .then(async res => (res.ok ? { ok: true, job: (await res.json()).data } : { ok: false, status: res.status }))
+    .then(async res => (checkSession(res).ok ? { ok: true, job: (await res.json()).data } : { ok: false, status: res.status }))
     .catch(error => {
         console.error("Failed to queue export", error);
         return { ok: false };
@@ -153,7 +155,7 @@ export function getExport(id, token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(async res => (res.ok ? { ok: true, status: res.status, job: (await res.json()).data } : { ok: false, status: res.status }))
+    .then(async res => (checkSession(res).ok ? { ok: true, status: res.status, job: (await res.json()).data } : { ok: false, status: res.status }))
     .catch(error => {
         console.error("Failed to get export", error);
         return { ok: false };
@@ -166,7 +168,7 @@ export function downloadExport(id, token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(async res => (res.ok ? { ok: true, blob: await res.blob() } : { ok: false }))
+    .then(async res => (checkSession(res).ok ? { ok: true, blob: await res.blob() } : { ok: false }))
     .catch(error => {
         console.error("Failed to download export", error);
         return { ok: false };
@@ -182,7 +184,7 @@ export function updateTransaction(id, payload, token) {
         },
         body: JSON.stringify(payload),
     })
-    .then(res => ({ status: res.status }))
+    .then(res => ({ status: checkSession(res).status }))
     .catch(error => console.error("Failed to update transaction", error));
 }
 
@@ -191,5 +193,6 @@ export function deleteTransaction(id, token) {
         method: "delete",
         headers: { Authorization: `Bearer ${token}` },
     })
+    .then(checkSession)
     .catch(error => console.error("Failed to delete transaction", error));
 }

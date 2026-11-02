@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveToken } from '../lib/auth'
+import { getToken, saveToken } from '../lib/auth'
 import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
 import TransactionsDisplay from './transactions-display'
 
@@ -242,6 +242,9 @@ describe('transactions page', () => {
 
     await waitFor(() => expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument())
     expect(rowsOnPage()).toHaveLength(0)
+    expect(getToken()).toBeNull()
+    expect(window.location.hash).toBe('#/login-google')
+    expect(screen.queryByText(/Não foi possível carregar/)).not.toBeInTheDocument()
   })
 
   describe('adding a transaction', () => {
