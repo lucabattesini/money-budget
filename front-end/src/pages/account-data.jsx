@@ -5,7 +5,6 @@ import { exportTransactions, getAllCategories } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { exportFileName, saveBlob } from "../lib/download";
 import customToaster from "../utils/customToaster";
-import { Toaster } from "../components/ui/toaster";
 
 // The columns a spreadsheet must have to be imported. The first row holds these exact names.
 // The import itself is not built yet; this page already tells people what it will expect.
@@ -53,7 +52,6 @@ export default function AccountData() {
 
     return (
         <Stack gap={6} maxW="3xl">
-            <Toaster />
             <Stack gap={1}>
                 <Heading size="xl">Importar e exportar</Heading>
                 <Text color="fg.muted">Leve suas transações para outro lugar, ou traga-as de uma planilha.</Text>
