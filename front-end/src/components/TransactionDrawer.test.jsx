@@ -42,6 +42,17 @@ describe('transaction sidebar', () => {
     expect(screen.queryByText('Nova transação')).not.toBeInTheDocument()
   })
 
+  it('marks the fields that must be filled in as required, and says so', async () => {
+    renderDrawer()
+
+    expect(amount()).toBeRequired()
+    expect(screen.getByLabelText('Data')).toBeRequired()
+    expect(description()).toBeRequired()
+    expect(category()).toBeRequired()
+    expect(screen.getByRole('radio', { name: 'Débito' })).not.toBeRequired() // always has a value
+    expect(screen.getByText('campo obrigatório')).toBeInTheDocument()
+  })
+
   it('offers the categories to choose from', async () => {
     renderDrawer()
 

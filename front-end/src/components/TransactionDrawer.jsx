@@ -7,6 +7,13 @@ import customToaster from "../utils/customToaster";
 
 const MAX_LABEL = 25;
 
+// A label with a red asterisk. The asterisk is drawn by CSS, so the label text stays just the name.
+function RequiredLabel({ children }) {
+    return (
+        <Field.Label _after={{ content: '" *"', color: "red.500", fontWeight: "bold" }}>{children}</Field.Label>
+    );
+}
+
 const two = (n) => String(n).padStart(2, "0");
 const todayISO = () => {
     const now = new Date();
@@ -93,6 +100,10 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
                         </Drawer.Header>
                         <Drawer.Body>
                             <Stack gap={5}>
+                                <Text fontSize="xs" color="fg.muted">
+                                    <Text as="span" color="red.500" fontWeight="bold">*</Text> campo obrigatório
+                                </Text>
+
                                 <Field.Root>
                                     <Field.Label>Tipo</Field.Label>
                                     <RadioGroup.Root value={type} onValueChange={(e) => setType(e.value)}>
@@ -108,8 +119,8 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
                                     </RadioGroup.Root>
                                 </Field.Root>
 
-                                <Field.Root invalid={!!errors.amount}>
-                                    <Field.Label>Valor</Field.Label>
+                                <Field.Root required invalid={!!errors.amount}>
+                                    <RequiredLabel>Valor</RequiredLabel>
                                     <Input
                                         inputMode="numeric"
                                         placeholder="0,00"
@@ -120,14 +131,14 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
                                     <Field.ErrorText>{errors.amount}</Field.ErrorText>
                                 </Field.Root>
 
-                                <Field.Root invalid={!!errors.date}>
-                                    <Field.Label>Data</Field.Label>
+                                <Field.Root required invalid={!!errors.date}>
+                                    <RequiredLabel>Data</RequiredLabel>
                                     <Input type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} />
                                     <Field.ErrorText>{errors.date}</Field.ErrorText>
                                 </Field.Root>
 
-                                <Field.Root invalid={!!errors.description}>
-                                    <Field.Label>Descrição</Field.Label>
+                                <Field.Root required invalid={!!errors.description}>
+                                    <RequiredLabel>Descrição</RequiredLabel>
                                     <Input
                                         maxLength={MAX_LABEL}
                                         value={description}
@@ -136,8 +147,8 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
                                     <Field.ErrorText>{errors.description}</Field.ErrorText>
                                 </Field.Root>
 
-                                <Field.Root invalid={!!errors.category}>
-                                    <Field.Label>Categoria</Field.Label>
+                                <Field.Root required invalid={!!errors.category}>
+                                    <RequiredLabel>Categoria</RequiredLabel>
                                     <NativeSelect.Root>
                                         <NativeSelect.Field
                                             value={categoryId}
