@@ -41,4 +41,19 @@ def migrate_transaction_category_to_fk():
     print(f"Migrated {len(rows)} transactions to category_id")
 
 
+def migrate_add_transaction_type():
+    """Add transactions.type ("debit" or "credit"). Existing rows were all expenses, so they become debits.
+
+    Idempotent: does nothing when the column exists (including databases created after the change).
+    """
+    columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
+    if "type" in columns:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE transactions ADD COLUMN type VARCHAR(6) NOT NULL DEFAULT 'debit'"))
+    print("Added transactions.type")
+
+
 migrate_transaction_category_to_fk()
+migrate_add_transaction_type()

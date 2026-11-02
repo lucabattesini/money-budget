@@ -72,6 +72,7 @@ def update_transaction(db: Session, id: int, changes: TransactionUpdate, user_id
         "id": transaction.id,
         "label": transaction.label,
         "value": transaction.value,
+        "type": transaction.type,
         "date": transaction.date,
         "category_id": transaction.category_id,
     }

@@ -167,6 +167,49 @@ def test_delete_requires_authentication(client, user, make_transaction, category
     assert client.delete(f"/transactions/{row.id}").status_code == 401
 
 
+# --- credit and debit -------------------------------------------------------
+
+
+def test_a_transaction_is_a_debit_unless_said_otherwise(client, db, auth_headers, category_ids):
+    _create(client, auth_headers, category_ids["Alimentação"])
+
+    assert db.query(TransactionDB).one().type == "debit"
+    assert _list(client, auth_headers)[0]["type"] == "debit"
+
+
+def test_a_credit_is_stored_as_a_positive_amount_in_cents(client, db, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={"label": "Salário", "value": 150000, "category_id": category_ids["Alimentação"], "type": "credit"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    saved = db.query(TransactionDB).one()
+    assert (saved.type, saved.value) == ("credit", 150000)
+    assert _list(client, auth_headers)[0]["type"] == "credit"
+
+
+def test_create_rejects_an_unknown_type(client, db, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={"label": "x", "value": 100, "category_id": category_ids["Alimentação"], "type": "refund"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    assert db.query(TransactionDB).count() == 0
+
+
+def test_spending_totals_by_category_ignore_credits(client, user, auth_headers, make_transaction, category_ids):
+    food = category_ids["Alimentação"]
+    make_transaction(user, food, value=1000, type="debit")
+    make_transaction(user, food, value=300, type="debit")
+    make_transaction(user, food, value=99999, type="credit")
+
+    assert _summed(client, auth_headers) == [{"category_id": food, "total": 1300}]
+
+
 # --- update ----------------------------------------------------------------
 
 
@@ -190,6 +233,29 @@ def test_update_changes_label_amount_and_category_and_keeps_the_date(
     assert (saved.label, saved.value, saved.category_id) == ("Novo", 3050, category_ids["Transporte"])
     assert saved.date == original_date
     assert saved.user_id == user.id
+
+
+def test_update_can_switch_between_credit_and_debit_and_keeps_the_type_when_omitted(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    food = category_ids["Alimentação"]
+    row = make_transaction(user, food, type="debit")
+
+    _update(client, auth_headers, row.id, category_id=food, type="credit")
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().type == "credit"
+
+    _update(client, auth_headers, row.id, category_id=food)  # no type: unchanged
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().type == "credit"
+
+
+def test_update_rejects_an_unknown_type(client, user, auth_headers, make_transaction, category_ids):
+    row = make_transaction(user, category_ids["Alimentação"])
+
+    response = _update(client, auth_headers, row.id, category_id=category_ids["Alimentação"], type="refund")
+
+    assert response.status_code == 422
 
 
 def test_update_cannot_change_another_users_transaction(

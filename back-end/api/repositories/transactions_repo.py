@@ -50,7 +50,7 @@ def get_transactions(db: Session, datetype, date, user_id: int):
 def get_transactions_summed_by_category(db: Session, datetype, date, user_id: int):
     query = (
         db.query(TransactionDB.category_id, func.sum(TransactionDB.value).label("total"))
-        .filter(TransactionDB.user_id == user_id)
+        .filter(TransactionDB.user_id == user_id, TransactionDB.type == "debit")  # spending only
         .group_by(TransactionDB.category_id)
     )
 
@@ -111,6 +111,7 @@ def list_transactions(
             id=t.id,
             label=t.label,
             value=t.value,
+            type=t.type,
             date=t.date,
             category_id=t.category_id,
             category_name=category_name,
@@ -181,5 +182,7 @@ def update_transaction(db: Session, id: int, user_id: int, changes: TransactionU
     transaction.label = changes.label
     transaction.value = changes.value
     transaction.category_id = changes.category_id
+    if changes.type is not None:
+        transaction.type = changes.type
     db.commit()
     return transaction

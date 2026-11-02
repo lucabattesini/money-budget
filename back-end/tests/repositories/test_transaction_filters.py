@@ -187,7 +187,11 @@ def test_limit_has_a_floor_of_one(db, user, seeded):
 def test_limit_is_capped_at_200(db, user, category_ids):
     db.add_all(
         TransactionDB(
-            user_id=user.id, label=f"t{i}", value=1, date=datetime(2026, 1, 1), category_id=category_ids["Outros"]
+            user_id=user.id,
+            label=f"t{i}",
+            value=1,
+            date=datetime(2026, 1, 1),
+            category_id=category_ids["Outros"],
         )
         for i in range(205)
     )
