@@ -76,7 +76,7 @@ describe('transactions page', () => {
       ['Data', 'Descrição', 'Categoria', 'Valor', ''],
     )
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
-    expect(cells.slice(0, 4)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', 'R$ 25,50'])
+    expect(cells.slice(0, 4)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '- R$ 25,50'])
   })
 
   it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
@@ -92,7 +92,7 @@ describe('transactions page', () => {
 
     const amountOf = (label) => rowOf(label).children[3].textContent
     expect(['inteiro', 'centavos', 'mil', 'milhão'].map(amountOf)).toEqual(
-      ['R$ 18,00', 'R$ 0,05', 'R$ 1.234,56', 'R$ 1.000.000,00'],
+      ['- R$ 18,00', '- R$ 0,05', '- R$ 1.234,56', '- R$ 1.000.000,00'],
     )
   })
 
@@ -281,7 +281,7 @@ describe('transactions page', () => {
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
       expect(await screen.findByText('Cinema')).toBeInTheDocument()
-      expect(rowOf('Cinema').children[3].textContent).toBe('R$ 12.345,67')
+      expect(rowOf('Cinema').children[3].textContent).toBe('- R$ 12.345,67')
       expect(within(rowOf('Cinema')).getByText('Transporte')).toBeInTheDocument()
       expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/create'))[1].body).value).toBe(1234567)
       await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
@@ -320,8 +320,8 @@ describe('transactions page', () => {
       expect(form.getByLabelText('Categoria')).toHaveValue('1')
     })
 
-    it('shows the date of the transaction in the edit form', async () => {
-      mockApi(routes({ data: [t(1, 'Salário', 150000, '2026-03-02T09:15:00')] }))
+    it('shows the date and the type of the transaction in the edit form', async () => {
+      mockApi(routes({ data: [{ ...t(1, 'Salário', 150000, '2026-03-02T09:15:00'), type: 'credit' }] }))
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Salário')
 
@@ -329,6 +329,7 @@ describe('transactions page', () => {
 
       const form = await drawer()
       expect(form.getByLabelText('Data')).toHaveValue('2026-03-02')
+      expect(form.getByRole('radio', { name: 'Crédito' })).toBeChecked()
     })
 
     it('changes the day but keeps the time of day when the date is edited', async () => {
@@ -376,11 +377,11 @@ describe('transactions page', () => {
       expect(await screen.findByText('Jantar')).toBeInTheDocument()
       const put = api.mock.calls.find(([, o]) => o.method === 'put')
       expect(JSON.parse(put[1].body)).toEqual({
-        label: 'Jantar', value: 3099, category_id: 2, transactioned_at: '2026-03-15T09:00:00',
+        label: 'Jantar', value: 3099, category_id: 2, type: 'debit', transactioned_at: '2026-03-15T09:00:00',
       })
       expect(put[1].headers.Authorization).toBe('Bearer tok')
       expect(screen.queryByText('Almoço')).not.toBeInTheDocument()
-      expect(rowOf('Jantar').children[3].textContent).toBe('R$ 30,99')
+      expect(rowOf('Jantar').children[3].textContent).toBe('- R$ 30,99')
       await waitFor(() => expect(screen.queryByText(/^(Nova|Editar) transação$/)).not.toBeInTheDocument())
     })
 
@@ -407,6 +408,21 @@ describe('transactions page', () => {
       await waitFor(() => expect(screen.queryByText('Almoço')).toBeInTheDocument())
       expect(screen.queryByText(/^(Nova|Editar) transação$/)).not.toBeInTheDocument()
     })
+  })
+
+  it('marks credits with a plus and debits with a minus', async () => {
+    mockApi(routes({ data: [
+      { ...t(1, 'Salário', 150000, '2026-03-15T09:00:00'), type: 'credit' },
+      { ...t(2, 'Mercado', 3000, '2026-03-15T08:00:00'), type: 'debit' },
+      t(3, 'Antigo sem tipo', 1000, '2026-03-14T08:00:00'), // rows without a type are expenses
+    ] }))
+
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('Salário')
+
+    expect(['Salário', 'Mercado', 'Antigo sem tipo'].map((l) => rowOf(l).children[3].textContent)).toEqual(
+      ['+ R$ 1.500,00', '- R$ 30,00', '- R$ 10,00'],
+    )
   })
 
   describe('categories', () => {
@@ -488,6 +504,21 @@ describe('transactions page', () => {
       await userEvent.type(screen.getByLabelText('Valor máximo'), '6000')
 
       expect(labelsShown()).toEqual(['Almoço', 'Presente'])
+    })
+
+    it('narrows by credit or debit', async () => {
+      mockApi(routes({ data: [
+        { ...t(1, 'Salário', 150000, '2026-03-15T09:00:00'), type: 'credit' },
+        t(2, 'Mercado', 3000, '2026-03-15T08:00:00'),
+      ] }))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Salário')
+      await openFilters()
+
+      await userEvent.selectOptions(screen.getByLabelText('Tipo'), 'Crédito')
+      expect(labelsShown()).toEqual(['Salário'])
+      await userEvent.selectOptions(screen.getByLabelText('Tipo'), 'Débito')
+      expect(labelsShown()).toEqual(['Mercado'])
     })
 
     it('hides the filters in a menu and counts how many are set', async () => {

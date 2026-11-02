@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Drawer, Field, Input, NativeSelect, Portal, Stack, Text, CloseButton } from "@chakra-ui/react";
+import { Button, Drawer, Field, Input, NativeSelect, Portal, RadioGroup, Stack, Text, CloseButton } from "@chakra-ui/react";
 import { insertNewTransaction, updateTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { digitsToCents, maskAmount } from "../lib/money";
@@ -21,6 +21,7 @@ const nowTime = () => {
 // Calls onSaved() after the API accepted it.
 export default function TransactionDrawer({ open, onClose, categories, onSaved, transaction = null }) {
     const editing = transaction !== null;
+    const [type, setType] = useState("debit");
     const [amount, setAmount] = useState("");
     const [date, setDate] = useState(todayISO());
     const [description, setDescription] = useState("");
@@ -31,6 +32,7 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
     // Start from the transaction being edited (or empty) every time the panel is opened
     useEffect(() => {
         if (open) {
+            setType(editing ? transaction.type ?? "debit" : "debit");
             setAmount(editing ? maskAmount(String(transaction.value)) : "");
             setDate(editing ? String(transaction.transactioned_at).slice(0, 10) : todayISO());
             setDescription(editing ? transaction.label ?? "" : "");
@@ -63,6 +65,7 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
             label: description.trim(),
             value: digitsToCents(amount),
             category_id: Number(categoryId),
+            type,
             transactioned_at: `${date}T${time}`,
         };
         const result = editing
@@ -90,6 +93,21 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
                         </Drawer.Header>
                         <Drawer.Body>
                             <Stack gap={5}>
+                                <Field.Root>
+                                    <Field.Label>Tipo</Field.Label>
+                                    <RadioGroup.Root value={type} onValueChange={(e) => setType(e.value)}>
+                                        <Stack direction="row" gap={6}>
+                                            {[["debit", "Débito"], ["credit", "Crédito"]].map(([value, label]) => (
+                                                <RadioGroup.Item key={value} value={value}>
+                                                    <RadioGroup.ItemHiddenInput />
+                                                    <RadioGroup.ItemIndicator />
+                                                    <RadioGroup.ItemText>{label}</RadioGroup.ItemText>
+                                                </RadioGroup.Item>
+                                            ))}
+                                        </Stack>
+                                    </RadioGroup.Root>
+                                </Field.Root>
+
                                 <Field.Root invalid={!!errors.amount}>
                                     <Field.Label>Valor</Field.Label>
                                     <Input

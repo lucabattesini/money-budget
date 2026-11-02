@@ -103,7 +103,9 @@ export default function TransactionsDisplay() {
             <Table.Cell whiteSpace="nowrap">{new Date(transaction.transactioned_at).toLocaleDateString("pt-BR")}</Table.Cell>
             <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
             <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
-            <Table.Cell textAlign="end" whiteSpace="nowrap">{formatCents(transaction.value)}</Table.Cell>
+            <Table.Cell textAlign="end" whiteSpace="nowrap" color={transaction.type === "credit" ? "green.400" : undefined}>
+                {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
+            </Table.Cell>
             {/* Clicks here (the menu is rendered elsewhere but still bubbles) must not open the editor */}
             <Table.Cell textAlign="end" width="1%" onClick={(event) => event.stopPropagation()}>
                 <Menu.Root positioning={{ placement: "bottom-end" }}>

@@ -32,6 +32,18 @@ export default function TransactionFilters({ filters, onChange, categories }) {
             </Field.Root>
 
             <Field.Root width="full">
+                <Field.Label>Tipo</Field.Label>
+                <NativeSelect.Root size="sm">
+                    <NativeSelect.Field value={filters.type} onChange={(e) => set("type")(e.target.value)}>
+                        <option value="">Todos</option>
+                        <option value="debit">Débito</option>
+                        <option value="credit">Crédito</option>
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                </NativeSelect.Root>
+            </Field.Root>
+
+            <Field.Root width="full">
                 <Field.Label>De</Field.Label>
                 <Input size="sm" type="date" value={filters.from} max={filters.to || undefined}
                     onChange={(e) => set("from")(e.target.value)} />

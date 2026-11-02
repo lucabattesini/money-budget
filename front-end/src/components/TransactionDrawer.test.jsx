@@ -80,7 +80,7 @@ describe('transaction sidebar', () => {
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     expect(created(api)).toEqual({
-      label: 'Almoço', value: 2550, category_id: 2, transactioned_at: '2026-03-15T12:00:00',
+      label: 'Almoço', value: 2550, category_id: 2, type: 'debit', transactioned_at: '2026-03-15T12:00:00',
     })
     expect(api.mock.calls.find(([url]) => url.endsWith('/transactions/create'))[1].headers.Authorization).toBe('Bearer tok')
     expect(onClose).toHaveBeenCalled()
@@ -134,6 +134,19 @@ describe('transaction sidebar', () => {
 
     await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String)))
     expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it('is a debit by default and can be saved as a credit', async () => {
+    const { api } = renderDrawer()
+    expect(screen.getByRole('radio', { name: 'Débito' })).toBeChecked()
+    await userEvent.click(screen.getByRole('radio', { name: 'Crédito' }))
+    await userEvent.type(amount(), '150000')
+    await userEvent.type(description(), 'Salário')
+    await userEvent.selectOptions(category(), 'Alimentação')
+
+    await userEvent.click(save())
+
+    await waitFor(() => expect(created(api)).toMatchObject({ type: 'credit', value: 150000 }))
   })
 
   it('starts on today and saves the chosen day with the current time', async () => {

@@ -1,6 +1,6 @@
 import { digitsToCents } from "./money";
 
-export const EMPTY_FILTERS = { search: "", category: "", from: "", to: "", min: "", max: "" };
+export const EMPTY_FILTERS = { search: "", category: "", type: "", from: "", to: "", min: "", max: "" };
 
 export function countActiveFilters(filters) {
     return Object.values(filters).filter((value) => value !== "").length;
@@ -31,6 +31,7 @@ export function applyFilters(transactions, filters) {
         const date = new Date(transaction.transactioned_at);
         if (search && !(transaction.label ?? "").toLowerCase().includes(search)) return false;
         if (filters.category && String(transaction.category_id) !== filters.category) return false;
+        if (filters.type && (transaction.type ?? "debit") !== filters.type) return false;
         if (from && date < from) return false;
         if (to && date >= to) return false;
         if (min !== null && transaction.value < min) return false;
