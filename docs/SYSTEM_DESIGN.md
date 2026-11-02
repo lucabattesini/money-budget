@@ -143,8 +143,8 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   in a spreadsheet (leading `'`). The apostrophe is a visible side effect: a
   description that really starts with `=`, `+`, `-` or `@` is exported with it, so
   the import has to remove one leading `'` from such cells.
-- `db/connection.py` — SQLAlchemy engine/session (`DB_URL`, defaults to a
-  local SQLite file for dev). Each request gets its own session from the
+- `db/connection.py` — SQLAlchemy engine/session (`DB_URL` is required and must
+  be a PostgreSQL URL; the app refuses to start without it). Each request gets its own session from the
   `get_db` dependency, closed when the request ends. Code outside a request
   (the LangGraph nodes) opens a short-lived one with `session_scope()`.
 
@@ -355,8 +355,8 @@ sequenceDiagram
   (Vite dev server). Source is bind-mounted for hot reload. The compose
   `DB_URL` must use `postgresql+psycopg2://` (SQLAlchemy 2.1 defaults a bare
   `postgresql://` to psycopg v3, which is not installed).
-- DB: Postgres in production, falls back to local SQLite (`test.db`,
-  gitignored) for local dev when `DB_URL` is unset.
+- DB: PostgreSQL everywhere (local dev, tests, production). `DB_URL` is required; there
+  is no SQLite fallback.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
   calls), Meta WhatsApp Cloud API (chat channel). Libraries: `openpyxl` (writes
   Excel files in the document gateway) and `alembic` (database migrations).

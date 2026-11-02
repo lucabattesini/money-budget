@@ -10,7 +10,12 @@ from config import SQL_ECHO
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 
-DATABASE_URL = os.getenv("DB_URL", "sqlite:///./test.db")
+DATABASE_URL = os.getenv("DB_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DB_URL is not set. Set it in .env to a PostgreSQL URL such as "
+        "postgresql+psycopg2://money:money@localhost:5432/money_budget (docker compose sets it for you)."
+    )
 
 engine = create_engine(DATABASE_URL, echo=SQL_ECHO)
 
