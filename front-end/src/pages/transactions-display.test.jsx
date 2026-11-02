@@ -533,4 +533,65 @@ describe('transactions page', () => {
     })
   })
 
+  describe('pagination of "Todo o Resto"', () => {
+    // 23 old transactions, named "antigo 01" (newest) ... "antigo 23"; plus one from today
+    const old = Array.from({ length: 23 }, (_, i) =>
+      t(100 + i, `antigo ${String(i + 1).padStart(2, '0')}`, 1000, new Date(2026, 0, 20 - i % 5, 10 - (i % 3)).toISOString().slice(0, 19), 1))
+    const DATA = { data: [t(1, 'hoje', 500, '2026-03-15T09:00:00'), ...old] }
+    const oldRows = () => rowsOnPage().map((row) => row.children[1].textContent).filter((l) => l.startsWith('antigo'))
+
+    it('shows 10 per page with a page indicator, and the recent groups are never paginated', async () => {
+      mockApi(routes(DATA))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('hoje')
+
+      expect(oldRows()).toHaveLength(10)
+      expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
+      expect(screen.getByText('hoje')).toBeInTheDocument()
+    })
+
+    it('moves between pages and stops at the ends', async () => {
+      mockApi(routes(DATA))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('hoje')
+      const previous = screen.getByRole('button', { name: 'Anterior' })
+      const next = screen.getByRole('button', { name: 'Próxima' })
+      expect(previous).toBeDisabled()
+      const firstPage = oldRows()
+
+      await userEvent.click(next)
+      expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
+      expect(oldRows()).toHaveLength(10)
+      expect(oldRows()).not.toEqual(firstPage)
+      await userEvent.click(next)
+      expect(screen.getByText('Página 3 de 3')).toBeInTheDocument()
+      expect(oldRows()).toHaveLength(3) // 23 = 10 + 10 + 3
+      expect(next).toBeDisabled()
+      await userEvent.click(previous)
+      expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
+    })
+
+    it('goes back to page 1 when a filter changes, and hides the controls when one page is enough', async () => {
+      mockApi(routes(DATA))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('hoje')
+      await userEvent.click(screen.getByRole('button', { name: 'Próxima' }))
+
+      await openFilters()
+      await userEvent.type(screen.getByLabelText('Buscar'), 'antigo 2')
+
+      expect(oldRows()).toHaveLength(4) // antigo 20 to 23
+      expect(screen.queryByText(/Página \d/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
+    })
+
+    it('has no page controls with 10 or fewer old transactions', async () => {
+      mockApi(routes({ data: DATA.data.slice(0, 11) }))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('hoje')
+
+      expect(oldRows()).toHaveLength(10)
+      expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
+    })
+  })
 })

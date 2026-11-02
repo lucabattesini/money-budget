@@ -12,6 +12,9 @@ import TransactionFilters from "../components/TransactionFilters";
 import { Toaster } from "../components/ui/toaster";
 import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
+// "Todo o Resto" can be long, so it is shown in pages
+const PAGE_SIZE = 10;
+
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
@@ -20,6 +23,7 @@ export default function TransactionsDisplay() {
     const [adding, setAdding] = useState(false);
     const [editing, setEditing] = useState(null); // the transaction being edited
     const [filters, setFilters] = useState(EMPTY_FILTERS);
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
         const token = getToken();
@@ -35,6 +39,11 @@ export default function TransactionsDisplay() {
 
     // Alphabetical, so categories are easy to find in every list
     const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+    const changeFilters = (next) => {
+        setFilters(next);
+        setPage(1);
+    };
 
     const reload = () => setTrigger((current) => current + 1);
 
@@ -120,7 +129,14 @@ export default function TransactionsDisplay() {
         </Table.Row>
     );
 
-    const visibleGroups = groups.filter((group) => group.data.length > 0);
+    // Only the oldest group is paginated
+    const pageCount = Math.max(1, Math.ceil(older.length / PAGE_SIZE));
+    const currentPage = Math.min(page, pageCount);
+    const visibleGroups = groups
+        .map((group) => group.data === older
+            ? { ...group, data: older.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) }
+            : group)
+        .filter((group) => group.data.length > 0);
 
     return(
         <Center>
@@ -143,7 +159,7 @@ export default function TransactionsDisplay() {
                                         <Popover.Body>
                                             <TransactionFilters
                                                 filters={filters}
-                                                onChange={setFilters}
+                                                onChange={changeFilters}
                                                 categories={sortedCategories}
                                             />
                                         </Popover.Body>
@@ -187,6 +203,20 @@ export default function TransactionsDisplay() {
                             </Table.Body>
                         </Table.Root>
                     </Table.ScrollArea>
+                )}
+
+                {!loading && pageCount > 1 && (
+                    <Flex align="center" gap={3}>
+                        <Button size="xs" variant="outline" disabled={currentPage === 1}
+                            onClick={() => setPage(currentPage - 1)}>
+                            Anterior
+                        </Button>
+                        <Text fontSize="sm">Página {currentPage} de {pageCount}</Text>
+                        <Button size="xs" variant="outline" disabled={currentPage === pageCount}
+                            onClick={() => setPage(currentPage + 1)}>
+                            Próxima
+                        </Button>
+                    </Flex>
                 )}
 
                 {!loading && filtered.length === 0 && (
