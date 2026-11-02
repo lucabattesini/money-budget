@@ -210,7 +210,9 @@ def test_an_export_file_is_only_offered_to_the_person_who_asked_even_inside_the_
 def test_a_family_has_one_export_at_a_time(client, user, partner, auth_headers, headers_for, other_user, export_queue):
     assert client.post("/exports", json={"format": "csv"}, headers=auth_headers).status_code == 202
 
-    assert client.post("/exports", json={"format": "csv"}, headers=headers_for(partner)).status_code == 409
+    blocked = client.post("/exports", json={"format": "csv"}, headers=headers_for(partner))
+    assert blocked.status_code == 409
+    assert "família" in blocked.json()["detail"]  # says whose export is running, not "you already have one"
     assert client.post("/exports", json={"format": "csv"}, headers=headers_for(other_user)).status_code == 202
 
 

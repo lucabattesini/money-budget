@@ -34,7 +34,9 @@ def enqueue_export(db: Session, family_id: int, user_id: int, file_format: str) 
     delete_old_export_jobs(db)
     fail_stuck_export_jobs(db, family_id, STUCK_MESSAGE)
     if has_active_export_job(db, family_id):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Você já tem uma exportação em andamento.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Já existe uma exportação em andamento na sua família."
+        )
     return create_export_job(db, family_id, user_id, file_format)
 
 
