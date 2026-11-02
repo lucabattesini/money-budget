@@ -356,3 +356,40 @@ def test_undoing_the_revisions_on_a_database_with_data_drops_only_what_the_old_s
     assert (row.label, row.value, row.date, row.category_id) == ("salário", 5000, datetime(2026, 3, 1, 10, 0), 1)
     columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
     assert not columns & {"type", "created_at", "updated_at", "transactioned_at"}  # these did not exist then
+
+
+def test_a_large_old_table_is_upgraded_with_a_handful_of_statements(url, engine):
+    """One statement per distinct category text, not one per row (it used to be one per row)."""
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    _old_database(url, engine, "0001")
+    with engine.begin() as conn:
+        _seed_users_and_categories(conn)
+        conn.execute(
+            text(
+                "INSERT INTO transactions (user_id, label, value, date, category) "
+                "SELECT 1, 'row ' || n, n, '2026-01-01', (ARRAY['1', 'transporte', 'Pets', ' 2 ', ''])[1 + n % 5] "
+                "FROM generate_series(1, 5000) AS n"
+            )
+        )
+    _forget_history(engine)
+    updates = []
+
+    def count(conn, cursor, statement, *args):
+        if statement.lstrip().upper().startswith("UPDATE TRANSACTIONS SET CATEGORY_ID"):
+            updates.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", count)
+    try:
+        upgrade_database(url)
+    finally:
+        event.remove(Engine, "before_cursor_execute", count)
+
+    assert len(updates) <= 10, f"{len(updates)} category updates for 5000 rows"
+    with engine.connect() as conn:
+        counts = dict(conn.execute(text("SELECT category_id, count(*) FROM transactions GROUP BY category_id")).all())
+        unmapped = conn.execute(text("SELECT count(*) FROM transactions WHERE category_id IS NULL")).scalar()
+    # '1' -> 1, 'transporte' and ' 2 ' -> 2, 'Pets' (unknown) and '' -> Outros (3)
+    assert counts == {1: 1000, 2: 2000, 3: 2000}
+    assert unmapped == 0

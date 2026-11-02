@@ -29,22 +29,33 @@ def upgrade() -> None:
         ids_by_name = {c.name.lower(): c.id for c in categories}
         fallback_id = ids_by_name.get("outros")
 
-        for row in connection.execute(sa.text("SELECT id, category FROM transactions")).all():
-            raw = (row.category or "").strip()
+        def category_for(raw: str) -> int | None:
             if raw.isascii() and raw.isdigit() and int(raw) in ids:
-                category_id = int(raw)
-            else:
-                category_id = ids_by_name.get(raw.lower(), fallback_id)
-            if category_id is None and raw:
+                return int(raw)
+            return ids_by_name.get(raw.lower(), fallback_id)
+
+        # Work per distinct text, not per row: a table has thousands of rows but only a few dozen
+        # different category texts, so this is a handful of UPDATE statements however big the table is.
+        distinct = connection.execute(
+            sa.text("SELECT DISTINCT btrim(category) FROM transactions WHERE btrim(category) <> ''")
+        ).scalars()
+        for raw in distinct.all():
+            category_id = category_for(raw)
+            if category_id is None:
                 # The text is about to be dropped for good, so do not lose it quietly
                 raise RuntimeError(
-                    f"Transaction {row.id} has the category {raw!r}, which matches no category, and there is "
-                    "no 'Outros' category to put it in. Add the default categories (python -m db.seed) and "
+                    f"Some transactions have the category {raw!r}, which matches no category, and there is "
+                    "no 'Outros' category to put them in. Add the default categories (python -m db.seed) and "
                     "run the upgrade again."
                 )
             connection.execute(
-                sa.text("UPDATE transactions SET category_id = :category_id WHERE id = :id"),
-                {"category_id": category_id, "id": row.id},
+                sa.text("UPDATE transactions SET category_id = :category_id WHERE btrim(category) = :raw"),
+                {"category_id": category_id, "raw": raw},
+            )
+        if fallback_id is not None:  # no category at all: Outros
+            connection.execute(
+                sa.text("UPDATE transactions SET category_id = :category_id WHERE btrim(coalesce(category, '')) = ''"),
+                {"category_id": fallback_id},
             )
         op.drop_column("transactions", "category")
 
