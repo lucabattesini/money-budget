@@ -20,9 +20,19 @@ const TRANSACTIONS = {
 }
 
 const GROUP_TITLES = ['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto']
-const cardOf = (label) => screen.getByText(label).closest('.chakra-card__root')
-const groupOf = (label) => GROUP_TITLES.find((title) => within(cardOf(label).parentElement).queryByText(title))
-const cardsOnPage = () => [...document.querySelectorAll('.chakra-card__root')]
+const rowOf = (label) => screen.getByText(label).closest('tr')
+// Rows with transactions have 5 cells; the group headings are one wide cell
+const rowsOnPage = () => [...document.querySelectorAll('tbody tr')].filter((row) => row.children.length > 1)
+// The group of a row is the closest heading row above it
+const groupOf = (label) => {
+  const rows = [...document.querySelectorAll('tbody tr')]
+  const heading = rows.slice(0, rows.indexOf(rowOf(label))).reverse().find((row) => row.children.length === 1)
+  return GROUP_TITLES.find((title) => heading?.textContent === title)
+}
+const openMenuOf = async (label) => {
+  await userEvent.click(within(rowOf(label)).getByRole('button', { name: /ações/i }))
+  return screen.findByRole('menuitem', { name: /excluir/i })
+}
 
 const routes = (transactions = TRANSACTIONS) => ({
   'GET /categories': CATEGORIES,
@@ -49,16 +59,34 @@ describe('transactions page', () => {
     expect(post[1].headers.Authorization).toBe('Bearer tok')
   })
 
-  it('shows each transaction with its label, amount in reais and category name', async () => {
+  it('shows a table row per transaction with date, description, category and amount', async () => {
     mockApi(routes())
 
     renderApp(<TransactionsDisplay />)
 
     await screen.findByText('Almoço')
-    const card = cardOf('Almoço')
-    expect(within(card).getByText(/25[.,]5/)).toBeInTheDocument() // 2550 cents, shown in reais (format: see TKT-32)
-    expect(within(card).getByText('Alimentação')).toBeInTheDocument()
-    expect(within(card).getByText('15/03/2026')).toBeInTheDocument()
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
+      ['Data', 'Descrição', 'Categoria', 'Valor', ''],
+    )
+    const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
+    expect(cells.slice(0, 4)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', 'R$ 25,50'])
+  })
+
+  it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
+    mockApi(routes({ data: [
+      t(1, 'inteiro', 1800, '2026-03-15T09:00:00'),
+      t(2, 'centavos', 5, '2026-03-15T09:00:00'),
+      t(3, 'mil', 123456, '2026-03-15T09:00:00'),
+      t(4, 'milhão', 100000000, '2026-03-15T09:00:00'),
+    ] }))
+
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('inteiro')
+
+    const amountOf = (label) => rowOf(label).children[3].textContent
+    expect(['inteiro', 'centavos', 'mil', 'milhão'].map(amountOf)).toEqual(
+      ['R$ 18,00', 'R$ 0,05', 'R$ 1.234,56', 'R$ 1.000.000,00'],
+    )
   })
 
   it('groups transactions into today, this week, this month and older, in that order', async () => {
@@ -68,7 +96,7 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
 
     const labels = ['Almoço', 'Uber', 'Mercado', 'Presente']
-    expect(cardsOnPage().map((card) => labels.find((l) => card.textContent.includes(l)))).toEqual(labels)
+    expect(rowsOnPage().map((row) => labels.find((l) => row.textContent.includes(l)))).toEqual(labels)
     expect(labels.map(groupOf)).toEqual(['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto'])
   })
 
@@ -85,8 +113,8 @@ describe('transactions page', () => {
 
     renderApp(<TransactionsDisplay />)
 
-    const card = (await screen.findByText(label)).closest('.chakra-card__root')
-    expect(within(card.parentElement).getByText(group)).toBeInTheDocument()
+    await screen.findByText(label)
+    expect(groupOf(label)).toBe(group)
   })
 
   it('names the category, or says it was not found', async () => {
@@ -95,8 +123,8 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
 
     await screen.findByText('Presente')
-    expect(within(cardOf('Presente')).getByText('Categoria não encontrada')).toBeInTheDocument()
-    expect(within(cardOf('Uber')).getByText('Transporte')).toBeInTheDocument()
+    expect(within(rowOf('Presente')).getByText('Categoria não encontrada')).toBeInTheDocument()
+    expect(within(rowOf('Uber')).getByText('Transporte')).toBeInTheDocument()
   })
 
   it('only shows the groups that have transactions', async () => {
@@ -109,7 +137,7 @@ describe('transactions page', () => {
     expect(screen.queryByText('Todo o Resto')).not.toBeInTheDocument()
   })
 
-  it('shows no cards when there are no transactions', async () => {
+  it('shows no rows when there are no transactions', async () => {
     const api = mockApi(routes({ data: [] }))
 
     renderApp(<TransactionsDisplay />)
@@ -117,7 +145,8 @@ describe('transactions page', () => {
     expect(document.querySelector('.chakra-spinner')).toBeInTheDocument()
     await waitFor(() => expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument())
     expect(api).toHaveBeenCalledTimes(2) // the data really arrived: this is not just the loading state
-    expect(cardsOnPage()).toHaveLength(0)
+    expect(rowsOnPage()).toHaveLength(0)
+    expect(screen.getByText('Nenhuma transação ainda.')).toBeInTheDocument()
     for (const title of ['Esta Semana', 'Todo o Resto']) expect(screen.queryByText(title)).not.toBeInTheDocument()
   })
 
@@ -135,7 +164,17 @@ describe('transactions page', () => {
     expect(['hoje', 'na semana', 'antes da semana'].map(groupOf)).toEqual(['Hoje', 'Esta Semana', 'Todo o Resto'])
   })
 
-  it('deletes a transaction and then shows the refreshed list', async () => {
+  it('has no delete button visible: it lives in the three-dot menu of each row', async () => {
+    mockApi(routes())
+
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('Almoço')
+
+    expect(screen.getAllByRole('button', { name: /ações/i })).toHaveLength(4)
+    expect(screen.queryByRole('menuitem', { name: /excluir/i })).not.toBeInTheDocument()
+  })
+
+  it('deletes a transaction from its menu and then shows the refreshed list', async () => {
     let remaining = TRANSACTIONS.data
     const api = mockApi({
       'GET /categories': CATEGORIES,
@@ -146,16 +185,16 @@ describe('transactions page', () => {
       },
     })
     renderApp(<TransactionsDisplay />)
-    const card = (await screen.findByText('Almoço')).closest('.chakra-card__root')
+    await screen.findByText('Almoço')
 
-    await userEvent.click(within(card).getByRole('button'))
+    await userEvent.click(await openMenuOf('Almoço'))
 
     await waitFor(() => expect(screen.queryByText('Almoço')).not.toBeInTheDocument())
     expect(requestsMade(api)).toContain('DELETE /transactions/1')
     expect(screen.getByText('Uber')).toBeInTheDocument()
   })
 
-  it.skip('TKT-32: reloads the list only after the delete has finished', async () => {
+  it('reloads the list only after the delete has finished', async () => {
     let finishDelete
     const api = mockApi({
       'GET /categories': CATEGORIES,
@@ -163,33 +202,28 @@ describe('transactions page', () => {
       'DELETE /transactions/1': () => new Promise((resolve) => { finishDelete = () => resolve(new Response('{}', { status: 202 })) }),
     })
     renderApp(<TransactionsDisplay />)
-    const card = (await screen.findByText('Almoço')).closest('.chakra-card__root')
+    await screen.findByText('Almoço')
 
-    await userEvent.click(within(card).getByRole('button'))
+    await userEvent.click(await openMenuOf('Almoço'))
 
     // while the delete is still running, the list must not be reloaded yet
+    await waitFor(() => expect(requestsMade(api)).toContain('DELETE /transactions/1'))
     expect(requestsMade(api).filter((r) => r === 'POST /transactions')).toHaveLength(1)
     finishDelete()
     await waitFor(() => expect(requestsMade(api).filter((r) => r === 'POST /transactions')).toHaveLength(2))
   })
 
-  it.skip('TKT-32: the delete button has a name that screen readers can announce', async () => {
-    mockApi(routes())
-
+  it('tells the user when a delete did not work', async () => {
+    mockApi({
+      ...routes(),
+      'DELETE /transactions/1': [{ detail: 'Transaction not found' }, 404],
+    })
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Almoço')
 
-    expect(screen.getAllByRole('button', { name: /excluir|remover|delete/i })).toHaveLength(4)
-  })
+    await userEvent.click(await openMenuOf('Almoço'))
 
-  it.skip('TKT-32: shows the amount like the rest of the app (R$ 25,50), not as "- 25.5 R$"', async () => {
-    mockApi(routes())
-
-    renderApp(<TransactionsDisplay />)
-    await screen.findByText('Almoço')
-
-    expect(within(cardOf('Almoço')).getByText(/R\$\s*25,50/)).toBeInTheDocument()
-    expect(within(cardOf('Uber')).getByText(/R\$\s*18,00/)).toBeInTheDocument()
+    expect(await screen.findByText('Não foi possível excluir a transação.')).toBeInTheDocument()
   })
 
   it.skip('TKT-32: survives an expired session instead of showing a blank page', async () => {
@@ -202,6 +236,47 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
 
     await waitFor(() => expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument())
-    expect(cardsOnPage()).toHaveLength(0)
+    expect(rowsOnPage()).toHaveLength(0)
+  })
+
+  describe('adding a transaction', () => {
+    it('has an add button that opens the sidebar with the form', async () => {
+      mockApi(routes())
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
+
+      expect(await screen.findByText('Nova transação')).toBeInTheDocument()
+      expect(screen.getByLabelText('Valor')).toBeInTheDocument()
+    })
+
+    it('saves the new transaction and then shows it in the table', async () => {
+      let saved = []
+      const api = mockApi({
+        'GET /categories': CATEGORIES,
+        'POST /transactions': () => jsonResponse({ data: [...TRANSACTIONS.data, ...saved] }),
+        'POST /transactions/create': (_url, options) => {
+          const body = JSON.parse(options.body)
+          saved = [t(9, body.label, body.value, '2026-03-15T11:00:00', body.category_id)]
+          return jsonResponse({ data: body }, 201)
+        },
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
+      await userEvent.type(await screen.findByLabelText('Valor'), '1234567')
+      await userEvent.type(screen.getByLabelText('Descrição'), 'Cinema')
+      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
+      await userEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+
+      expect(await screen.findByText('Cinema')).toBeInTheDocument()
+      expect(rowOf('Cinema').children[3].textContent).toBe('R$ 12.345,67')
+      expect(within(rowOf('Cinema')).getByText('Transporte')).toBeInTheDocument()
+      expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/create'))[1].body).value).toBe(1234567)
+      await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
+    })
   })
 })

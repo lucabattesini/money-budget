@@ -1,16 +1,21 @@
-import { useState, useEffect } from "react";
-import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box, Separator } from "@chakra-ui/react";
+import { Fragment, useState, useEffect } from "react";
+import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Portal } from "@chakra-ui/react";
 import { getTransactions, getAllCategories, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { formatCents } from "../lib/money";
+import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
-import { IoIosCloseCircle } from "react-icons/io";
+import AddTransactionDrawer from "../components/AddTransactionDrawer";
+import { Toaster } from "../components/ui/toaster";
+import { LuEllipsisVertical, LuPlus, LuTrash2 } from "react-icons/lu";
 
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [trigger, setTrigger] = useState(0);
+    const [adding, setAdding] = useState(false);
 
     useEffect(() => {
         const token = getToken();
@@ -24,9 +29,15 @@ export default function TransactionsDisplay() {
         });
     }, [trigger]);
 
-    const onDelete = (id) => {
-        deleteTransaction(id, getToken());
-        setTrigger(trigger + 1);
+    const reload = () => setTrigger((current) => current + 1);
+
+    // Wait for the delete to finish before reloading, otherwise the list can still show the row
+    const onDelete = async (id) => {
+        const response = await deleteTransaction(id, getToken());
+        if (!response || !response.ok) {
+            customToaster("Erro", "error", "Não foi possível excluir a transação.");
+        }
+        reload();
     }
 
     const today = [];
@@ -65,61 +76,94 @@ export default function TransactionsDisplay() {
         { title: "Todo o Resto", data: older },
     ];
 
-    const renderTransactionCard = (transaction) => {
-        const categoryObj = categories?.find((category) => category.id === transaction.category_id);
-        const categoryName = categoryObj ? categoryObj.name : "Categoria não encontrada";
-        const formatedDate = new Date(transaction.date);
+    const categoryName = (transaction) =>
+        categories?.find((category) => category.id === transaction.category_id)?.name ?? "Categoria não encontrada";
 
-        return (
-            <Card.Root width="300px" height="150px" key={transaction.id} mb={4}>
-                <Box alignSelf="end" marginRight="5px">
-                    <IconButton variant="ghost" color="white" size="1px" onClick={() => onDelete(transaction.id)}>
-                        <IoIosCloseCircle size="1.5vh"/>
-                    </IconButton>
-                </Box>
-                <Card.Header paddingTop="0.5vh">
-                    <Flex justify="space-between">
-                        <Text>- {transaction.value /100} R$</Text>
-                        <Text>{categoryName}</Text>
-                    </Flex>
-                </Card.Header>
-                <Card.Body color="fg.muted">
-                    <Flex justify="space-between">
-                        <Text whiteSpace="normal" wordBreak="break-word" maxW="15ch">
-                            {transaction.label}
-                        </Text>
-                        <Text>
-                            {formatedDate.toLocaleDateString("pt-BR")}
-                        </Text>
-                    </Flex>
-                </Card.Body>
-            </Card.Root>
-        );
-    }
+    const renderRow = (transaction) => (
+        <Table.Row key={transaction.id}>
+            <Table.Cell whiteSpace="nowrap">{new Date(transaction.date).toLocaleDateString("pt-BR")}</Table.Cell>
+            <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
+            <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
+            <Table.Cell textAlign="end" whiteSpace="nowrap">{formatCents(transaction.value)}</Table.Cell>
+            <Table.Cell textAlign="end" width="1%">
+                <Menu.Root positioning={{ placement: "bottom-end" }}>
+                    <Menu.Trigger asChild>
+                        <IconButton variant="ghost" size="xs" aria-label={`Ações para ${transaction.label}`}>
+                            <LuEllipsisVertical />
+                        </IconButton>
+                    </Menu.Trigger>
+                    <Portal>
+                        <Menu.Positioner>
+                            <Menu.Content>
+                                <Menu.Item value="delete" color="fg.error" onClick={() => onDelete(transaction.id)}>
+                                    <LuTrash2 /> Excluir
+                                </Menu.Item>
+                            </Menu.Content>
+                        </Menu.Positioner>
+                    </Portal>
+                </Menu.Root>
+            </Table.Cell>
+        </Table.Row>
+    );
+
+    const visibleGroups = groups.filter((group) => group.data.length > 0);
 
     return(
         <Center>
-            <Stack minHeight="100vh" gap={6} w="full" maxW="md" align="center" justify="flex-start" py={10}>
+            <Toaster />
+            <Stack minHeight="100vh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={10} px={4}>
                 <TransactionSummary transactions={transactions} />
 
+                <Flex w="full" justify="space-between" align="center">
+                    <Text fontSize="lg" fontWeight="bold">Transações</Text>
+                    <Button size="sm" onClick={() => setAdding(true)}>
+                        <LuPlus /> Adicionar
+                    </Button>
+                </Flex>
+
                 {loading && <SpinnerLoading/>}
-                
-                {!loading && groups.map(group => {
-                    if (group.data.length === 0) return null;
-                    return (
-                        <Box key={group.title} w="full" display="flex" flexDirection="column" alignItems="center">
-                            <Flex w="full" align="center" mb={6} mt={2}>
-                                <Box color="gray.400" mr={4} fontSize="xs" fontWeight="bold" textTransform="uppercase">
-                                    {group.title}
-                                </Box>
-                                <Separator flex="1" borderColor="gray.700" />
-                            </Flex>
-                            
-                            {group.data.map(renderTransactionCard)}
-                        </Box>
-                    );
-                })}
+
+                {!loading && visibleGroups.length > 0 && (
+                    <Table.ScrollArea w="full">
+                        <Table.Root size="sm">
+                            <Table.Header>
+                                <Table.Row>
+                                    <Table.ColumnHeader>Data</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Descrição</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Categoria</Table.ColumnHeader>
+                                    <Table.ColumnHeader textAlign="end">Valor</Table.ColumnHeader>
+                                    <Table.ColumnHeader />
+                                </Table.Row>
+                            </Table.Header>
+                            <Table.Body>
+                                {visibleGroups.map((group) => (
+                                    <Fragment key={group.title}>
+                                        <Table.Row>
+                                            <Table.Cell colSpan={5} pt={6}>
+                                                <Box color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase">
+                                                    {group.title}
+                                                </Box>
+                                            </Table.Cell>
+                                        </Table.Row>
+                                        {group.data.map(renderRow)}
+                                    </Fragment>
+                                ))}
+                            </Table.Body>
+                        </Table.Root>
+                    </Table.ScrollArea>
+                )}
+
+                {!loading && visibleGroups.length === 0 && (
+                    <Text color="fg.muted">Nenhuma transação ainda.</Text>
+                )}
             </Stack>
+
+            <AddTransactionDrawer
+                open={adding}
+                onClose={() => setAdding(false)}
+                categories={categories}
+                onSaved={reload}
+            />
         </Center>
     )
 }
