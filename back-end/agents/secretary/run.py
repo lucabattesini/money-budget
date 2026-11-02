@@ -1,8 +1,10 @@
+import json
 import os
 import sys
-import json
+
 # pyrefly: ignore [missing-import]
 import google.generativeai as genai
+
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
@@ -16,25 +18,18 @@ from schemas.agents_schemas import SecretaryResponse
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+
 def run_secretary(user_message: str, query_results: str) -> SecretaryResponse:
     model = genai.GenerativeModel("gemini-3.5-flash")
-    
+
     generation_config = genai.GenerationConfig(
-        response_mime_type="application/json",
-        response_schema=SecretaryResponse,
-        temperature=0.0 
+        response_mime_type="application/json", response_schema=SecretaryResponse, temperature=0.0
     )
-    
-    full_prompt = SECRETARY_SYSTEM_PROMPT.format(
-        user_message=user_message,
-        query_results=query_results
-    )
-    
-    response = model.generate_content(
-        full_prompt,
-        generation_config=generation_config
-    )
-    
+
+    full_prompt = SECRETARY_SYSTEM_PROMPT.format(user_message=user_message, query_results=query_results)
+
+    response = model.generate_content(full_prompt, generation_config=generation_config)
+
     try:
         data = json.loads(response.text)
         return SecretaryResponse(**data)

@@ -16,6 +16,8 @@ check is called **Back-end tests** (the front-end has its own, **Front-end tests
 must require that check in a branch rule (Settings -> Rules -> Rulesets, or
 Branches -> Branch protection) for `main`.
 
+Style is checked by a separate workflow, `.github/workflows/lint.yml` (ruff and ESLint).
+
 ## How it works
 
 - **Real Postgres, separate database.** Tests use `<POSTGRES_DB>_test`

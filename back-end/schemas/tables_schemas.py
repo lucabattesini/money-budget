@@ -1,6 +1,8 @@
+from datetime import date, datetime
+from typing import List, Literal, Optional
+
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, Literal, List
-from datetime import datetime, date
+
 
 class Transaction(BaseModel):
     label: str
@@ -8,8 +10,10 @@ class Transaction(BaseModel):
     category_id: int
     date: Optional[datetime] = None
 
+
 class TransactionFilters(BaseModel):
     """Where-clause filters shared by the transaction listing and aggregation queries."""
+
     start_date: Optional[date] = None  # inclusive
     end_date: Optional[date] = None  # inclusive
     category_ids: Optional[List[int]] = None
@@ -29,6 +33,7 @@ class TransactionFilters(BaseModel):
             raise ValueError("weekdays must be between 0 (Sunday) and 6 (Saturday)")
         return self
 
+
 class TransactionOut(BaseModel):
     id: int
     label: Optional[str] = None
@@ -36,6 +41,7 @@ class TransactionOut(BaseModel):
     date: Optional[datetime] = None
     category_id: Optional[int] = None
     category_name: Optional[str] = None
+
 
 class TransactionAggregate(BaseModel):
     # Only the key matching the group_by used is filled
@@ -47,12 +53,14 @@ class TransactionAggregate(BaseModel):
     count: int
     average: float  # cents
     max: int  # cents
- 
+
+
 class UserCreate(BaseModel):
     google_id: str
     name: str
     email: str
     picture: Optional[str] = None
+
 
 class UserResponse(BaseModel):
     id: int
@@ -67,9 +75,11 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class UserUpdatePhone(BaseModel):
     whatsapp_phone: str
 
+
 class GetTransactionsParams(BaseModel):
     organized_by: Optional[Literal["day", "month", "year"]] = None
-    date: Optional[datetime] = None
+    date: Optional[datetime] = None

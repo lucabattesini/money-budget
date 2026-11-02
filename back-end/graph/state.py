@@ -1,5 +1,7 @@
-from typing import TypedDict, Optional, Any, List
+from typing import Any, List, Optional, TypedDict
+
 from schemas.agents_schemas import ExpenseItem, ToolCall
+
 
 class AssistantState(TypedDict):
     user_id: int

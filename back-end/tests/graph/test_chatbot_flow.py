@@ -1,13 +1,20 @@
 """The whole chatbot graph, with only the four Gemini-backed agents stubbed."""
+
 import json
 from datetime import datetime
-from types import SimpleNamespace
 
 import pytest
 
 import graph.nodes as nodes
 from graph.graph import app, route_intent
-from schemas.agents_schemas import ExpenseItem, OrchestratorResponse, QueryResponse, RecorderResponse, SecretaryResponse, ToolCall
+from schemas.agents_schemas import (
+    ExpenseItem,
+    OrchestratorResponse,
+    QueryResponse,
+    RecorderResponse,
+    SecretaryResponse,
+    ToolCall,
+)
 from schemas.tables import TransactionDB
 
 
@@ -36,19 +43,25 @@ def ask(user, message="oi"):
     return app.invoke({"user_message": message, "user_id": user.id})
 
 
-@pytest.mark.parametrize("intent, destination", [
-    ("registry", "recorder"),
-    ("check", "query"),
-    ("off-topic", "off_topic"),
-    ("something-new", "off_topic"),
-    (None, "off_topic"),
-])
+@pytest.mark.parametrize(
+    "intent, destination",
+    [
+        ("registry", "recorder"),
+        ("check", "query"),
+        ("off-topic", "off_topic"),
+        ("something-new", "off_topic"),
+        (None, "off_topic"),
+    ],
+)
 def test_intent_routing(intent, destination):
     assert route_intent({"intent": intent}) == destination
 
 
 def test_registering_an_expense_saves_it_and_confirms(db, user, agents):
-    agents("registry", recorder=RecorderResponse(items=[ExpenseItem(amount=25.5, category="Transporte", description="Uber")]))
+    agents(
+        "registry",
+        recorder=RecorderResponse(items=[ExpenseItem(amount=25.5, category="Transporte", description="Uber")]),
+    )
 
     result = ask(user, "gastei 25,50 de uber")
 
@@ -58,7 +71,9 @@ def test_registering_an_expense_saves_it_and_confirms(db, user, agents):
     assert (row.user_id, row.value, row.label) == (user.id, 2550, "Uber")
 
 
-def test_asking_a_question_reads_the_users_data_and_answers_through_the_secretary(user, other_user, make_transaction, category_ids, agents):
+def test_asking_a_question_reads_the_users_data_and_answers_through_the_secretary(
+    user, other_user, make_transaction, category_ids, agents
+):
     make_transaction(user, category_ids["Alimentação"], "Mercado", 12000, datetime(2026, 3, 1))
     make_transaction(other_user, category_ids["Alimentação"], "Not mine", 99999, datetime(2026, 3, 1))
     agents(

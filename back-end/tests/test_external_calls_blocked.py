@@ -1,4 +1,5 @@
 """Safety nets: the suite must never reach Gemini or the network."""
+
 import google.generativeai as genai
 import pytest
 import requests

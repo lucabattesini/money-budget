@@ -1,33 +1,39 @@
 import json
-from datetime import datetime, date
+from datetime import date, datetime
+
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
-from db.connection import session_scope
-from graph.state import AssistantState
+
 from agents.orchestrator.run import run_orchestrator
 from agents.query.run import run_query
 from agents.query.tools import LIST_TRANSACTIONS, SUMMARIZE_TRANSACTIONS
 from agents.recorder.run import run_recorder
 from agents.secretary.run import run_secretary
-from api.repositories.transactions_repo import create_transaction, list_transactions, aggregate_transactions
 from api.repositories.categories_repo import get_category_by_name
+from api.repositories.transactions_repo import aggregate_transactions, create_transaction, list_transactions
+from db.connection import session_scope
+from graph.state import AssistantState
+from schemas.agents_schemas import ListTransactionsArgs, QueryFiltersArgs, SummarizeTransactionsArgs, ToolCall
 from schemas.tables_schemas import Transaction, TransactionFilters
-from schemas.agents_schemas import ToolCall, QueryFiltersArgs, ListTransactionsArgs, SummarizeTransactionsArgs
 
 # Same order as SQL's day-of-week: 0 = Sunday
 SQL_WEEKDAY_NAMES = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"]
 
+
 def _format_brl(amount: float) -> str:
     return "R$ " + f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+
 def _to_cents(amount: float | None) -> int | None:
     return None if amount is None else round(amount * 100)
+
 
 def _category_ids(db: Session, names: list[str] | None) -> list[int] | None:
     if not names:
         return None
     # An unknown name maps to -1 so it matches nothing instead of silently widening the filter
     return [cat.id if (cat := get_category_by_name(db, name)) else -1 for name in names]
+
 
 def _to_filters(db: Session, args: QueryFiltersArgs) -> TransactionFilters:
     return TransactionFilters(
@@ -40,6 +46,7 @@ def _to_filters(db: Session, args: QueryFiltersArgs) -> TransactionFilters:
         max_value=_to_cents(args.max_amount),
         weekdays=args.weekdays,
     )
+
 
 def _run_query_tool(db: Session, call: ToolCall, user_id: int) -> dict:
     """Execute one query tool call for the user and return its result with amounts in reais."""
@@ -90,9 +97,11 @@ def _run_query_tool(db: Session, call: ToolCall, user_id: int) -> dict:
 
     return {"tool": call.name, "filters": args.model_dump(mode="json", exclude_none=True), "result": result}
 
+
 def node_orchestrator(state: AssistantState):
     response = run_orchestrator(state["user_message"])
     return {"intent": response.type}
+
 
 def node_recorder(state: AssistantState):
     response = run_recorder(state["user_message"])
@@ -124,24 +133,25 @@ def node_recorder(state: AssistantState):
     if not parts:
         parts.append("Não encontrei nenhum gasto com valor na sua mensagem. Pode me dizer quanto foi?")
 
-    return {
-        "extracted_items": response.items,
-        "final_response": "\n\n".join(parts)
-    }
+    return {"extracted_items": response.items, "final_response": "\n\n".join(parts)}
+
 
 def node_query(state: AssistantState):
     response = run_query(state["user_message"])
     return {"query_tool_calls": response.tool_calls}
+
 
 def node_db_execute(state: AssistantState):
     with session_scope() as db:
         db_results = [_run_query_tool(db, call, state["user_id"]) for call in state["query_tool_calls"]]
     return {"db_results": db_results}
 
+
 def node_secretary(state: AssistantState):
     query_results = json.dumps(state["db_results"], ensure_ascii=False)
     response = run_secretary(state["user_message"], query_results)
     return {"final_response": response.reply}
+
 
 def node_off_topic(state: AssistantState):
     return {"final_response": "Desculpe, só consigo te ajudar com suas finanças."}

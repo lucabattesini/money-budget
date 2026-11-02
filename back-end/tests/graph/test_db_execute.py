@@ -24,7 +24,13 @@ def test_summarize_groups_by_category_and_converts_cents_to_reais(user, make_tra
     [result] = run(user, summarize(group_by="category"))
 
     rows = {r["category"]: r for r in result["result"]}
-    assert rows["Alimentação"] == {"category": "Alimentação", "total": 125.5, "count": 2, "average": 62.75, "max": 100.0}
+    assert rows["Alimentação"] == {
+        "category": "Alimentação",
+        "total": 125.5,
+        "count": 2,
+        "average": 62.75,
+        "max": 100.0,
+    }
     assert rows["Transporte"]["total"] == 19.99
     assert [r["category"] for r in result["result"]] == ["Alimentação", "Transporte"]  # biggest total first
 

@@ -1,6 +1,8 @@
-import os
-import requests
 import json
+import os
+
+import requests
+
 
 def send_whatsapp_message(to_number: str, message_body: str):
     token = os.getenv("WHATSAPP_TOKEN")
@@ -13,19 +15,9 @@ def send_whatsapp_message(to_number: str, message_body: str):
 
     url = f"https://graph.facebook.com/v19.0/{phone_id}/messages"
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to_number,
-        "type": "text",
-        "text": {
-            "body": message_body
-        }
-    }
+    payload = {"messaging_product": "whatsapp", "to": to_number, "type": "text", "text": {"body": message_body}}
 
     try:
         response = requests.post(url, headers=headers, data=json.dumps(payload))
@@ -37,5 +29,5 @@ def send_whatsapp_message(to_number: str, message_body: str):
         print("Meta API Response:", response.text)
     except Exception as e:
         print("Error connecting to Meta API:", str(e))
-        
+
     return None

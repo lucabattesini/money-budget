@@ -91,6 +91,26 @@ work while the stack is up):
 Both suites run automatically on every pull request (GitHub Actions). See
 `back-end/tests/README.md` and `front-end/src/test/README.md` for how they work.
 
+## 🧹Code style and commit checks
+Python is checked and formatted with [ruff](https://docs.astral.sh/ruff/);
+the front-end uses ESLint:
+
+    docker compose exec api ruff check .          # style problems (add --fix to repair)
+    docker compose exec api ruff format .         # format the code
+    docker compose exec web npm run lint
+
+Editors pick up indentation and line-ending rules from `.editorconfig`; VS Code
+will suggest the ruff, ESLint and EditorConfig extensions.
+
+To run ruff and ESLint on each commit, install the hooks once on your machine
+(the ESLint hook runs inside the `web` container, so start the stack first with
+`docker compose up -d`):
+
+    pip install pre-commit
+    pre-commit install
+
+GitHub runs the same checks on every pull request, plus the front-end build.
+
 ## 📚Documentation
 See `docs/SYSTEM_DESIGN.md` for the architecture and `AGENTS.md` for the
 contribution conventions (branches, commits and pull requests).

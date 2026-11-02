@@ -1,19 +1,17 @@
-from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy.orm import Session
-from db.connection import get_db
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from api.controllers.auth_controller import login_with_google
+from sqlalchemy.orm import Session
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["auth"],
-    responses={404: {"description": "Not found"}}
-)
+from api.controllers.auth_controller import login_with_google
+from db.connection import get_db
+
+router = APIRouter(prefix="/auth", tags=["auth"], responses={404: {"description": "Not found"}})
 
 
 from typing import Optional
+
 
 class GoogleTokenRequest(BaseModel):
     id_token: str
@@ -28,10 +26,7 @@ async def auth_google(request: GoogleTokenRequest, db: Session = Depends(get_db)
     """
     try:
         result = login_with_google(db, request.id_token, request.whatsapp_phone)
-        return JSONResponse(
-            content={"data": jsonable_encoder(result)},
-            status_code=status.HTTP_200_OK
-        )
+        return JSONResponse(content={"data": jsonable_encoder(result)}, status_code=status.HTTP_200_OK)
     except ValueError as e:
         # google-auth raises ValueError for invalid/expired tokens
         print(f"GOOGLE TOKEN VALIDATION ERROR: {str(e)}")

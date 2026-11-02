@@ -26,6 +26,7 @@ def graph(monkeypatch):
 
 # --- webhook verification (GET) ------------------------------------------------
 
+
 def test_verification_echoes_the_challenge(client):
     response = client.get("/webhook/", params=VERIFY)
 
@@ -53,6 +54,7 @@ def test_verification_without_required_parameters_is_a_bad_request(client, missi
 
 # --- incoming messages (POST) --------------------------------------------------
 
+
 def test_message_from_a_known_number_goes_through_the_chatbot_and_the_reply_is_sent(
     client, make_user, graph, sent_messages
 ):
@@ -65,9 +67,7 @@ def test_message_from_a_known_number_goes_through_the_chatbot_and_the_reply_is_s
     assert sent_messages == [("5511999990000", "resposta do bot")]
 
 
-def test_message_from_an_unknown_number_gets_a_signup_link_and_never_reaches_the_chatbot(
-    client, graph, sent_messages
-):
+def test_message_from_an_unknown_number_gets_a_signup_link_and_never_reaches_the_chatbot(client, graph, sent_messages):
     response = client.post("/webhook/", json=message_payload(sender="5500000000000"))
 
     reply = response.json()["reply"]
@@ -86,12 +86,15 @@ def test_message_is_routed_to_the_user_that_owns_the_number(client, make_user, g
     assert graph[0]["user_id"] == owner.id
 
 
-@pytest.mark.parametrize("body", [
-    {},
-    {"entry": []},
-    {"entry": [{"changes": [{"value": {"statuses": [{"status": "delivered"}]}}]}]},  # delivery receipt, no messages
-    {"entry": [{"changes": [{"value": {"messages": [{"from": "5511", "image": {"id": "1"}}]}}]}]},  # not text
-])
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"entry": []},
+        {"entry": [{"changes": [{"value": {"statuses": [{"status": "delivered"}]}}]}]},  # delivery receipt, no messages
+        {"entry": [{"changes": [{"value": {"messages": [{"from": "5511", "image": {"id": "1"}}]}}]}]},  # not text
+    ],
+)
 def test_payloads_without_a_text_message_are_acknowledged_and_ignored(client, graph, sent_messages, body):
     response = client.post("/webhook/", json=body)
 
@@ -120,6 +123,7 @@ def test_a_chatbot_failure_is_reported_in_the_body_but_the_webhook_still_answers
 
 # --- security and failure handling (TKT-27) -----------------------------------
 
+
 def _signed(body: bytes, secret: str = "test-app-secret") -> str:
     import hashlib
     import hmac
@@ -147,7 +151,8 @@ def test_requests_signed_with_the_wrong_secret_are_rejected(client, make_user, g
     body = json.dumps(message_payload()).encode()
 
     response = client.post(
-        "/webhook/", content=body,
+        "/webhook/",
+        content=body,
         headers={"Content-Type": "application/json", "X-Hub-Signature-256": _signed(body, "not-the-secret")},
     )
 
@@ -164,7 +169,8 @@ def test_correctly_signed_requests_are_accepted(client, make_user, graph, monkey
     body = json.dumps(message_payload()).encode()
 
     response = client.post(
-        "/webhook/", content=body,
+        "/webhook/",
+        content=body,
         headers={"Content-Type": "application/json", "X-Hub-Signature-256": _signed(body)},
     )
 

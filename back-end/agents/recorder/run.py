@@ -1,7 +1,9 @@
 import os
 import sys
+
 # pyrefly: ignore [missing-import]
 import google.generativeai as genai
+
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
@@ -12,10 +14,11 @@ load_dotenv(os.path.join(backend_dir, ".env"))
 
 from agents.common import extract_tool_calls, today_context
 from agents.recorder.prompt import RECORDER_SYSTEM_PROMPT
-from agents.recorder.tools import RECORDER_TOOLS, RECORD_EXPENSES
+from agents.recorder.tools import RECORD_EXPENSES, RECORDER_TOOLS
 from schemas.agents_schemas import RecorderResponse, RecordExpensesArgs
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
 
 def run_recorder(user_input: str) -> RecorderResponse:
     model = genai.GenerativeModel("gemini-3.5-flash", tools=[RECORDER_TOOLS])
@@ -27,11 +30,7 @@ def run_recorder(user_input: str) -> RecorderResponse:
 
     full_prompt = RECORDER_SYSTEM_PROMPT.format(user_message=user_input, **today_context())
 
-    response = model.generate_content(
-        full_prompt,
-        generation_config=generation_config,
-        tool_config=tool_config
-    )
+    response = model.generate_content(full_prompt, generation_config=generation_config, tool_config=tool_config)
 
     try:
         tool_calls, text = extract_tool_calls(response)
@@ -43,4 +42,6 @@ def run_recorder(user_input: str) -> RecorderResponse:
     except Exception as e:
         print("ERROR PARSING TOOL CALL OR VALIDATING:", e)
         print("RAW RESPONSE:", response)
-        return RecorderResponse(items=[], reply="Não consegui registrar esse gasto. Pode mandar de novo, com o valor e o que foi?")
+        return RecorderResponse(
+            items=[], reply="Não consegui registrar esse gasto. Pode mandar de novo, com o valor e o que foi?"
+        )

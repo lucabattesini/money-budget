@@ -1,22 +1,23 @@
 import os
-from fastapi import APIRouter, Depends, Request, Response, status, Query
-from sqlalchemy.orm import Session
-from db.connection import get_db
+
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
+from sqlalchemy.orm import Session
+
 from api.controllers.whatsapp_controller import process_whatsapp_message
 from api.services.whatsapp_service import send_whatsapp_message
-router = APIRouter(
-    prefix="/webhook",
-    tags=["whatsapp"]
-)
+from db.connection import get_db
+
+router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
+
 
 @router.get("/")
 async def verify_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
-    hub_verify_token: str = Query(None, alias="hub.verify_token")
+    hub_verify_token: str = Query(None, alias="hub.verify_token"),
 ):
     if hub_mode and hub_verify_token:
         if hub_mode == "subscribe" and hub_verify_token == VERIFY_TOKEN:
@@ -24,14 +25,15 @@ async def verify_webhook(
             return PlainTextResponse(content=hub_challenge, status_code=200)
         else:
             return Response(status_code=status.HTTP_403_FORBIDDEN)
-    
+
     return Response(status_code=status.HTTP_400_BAD_REQUEST)
+
 
 @router.post("/")
 async def receive_message(request: Request, db: Session = Depends(get_db)):
     try:
         body = await request.json()
-        
+
         msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
         result = process_whatsapp_message(db, msg["from"], msg["text"]["body"])
         print(f"AI RESPONSE TO {msg['from']}:", result["reply"])

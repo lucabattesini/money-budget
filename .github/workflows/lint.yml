@@ -1,0 +1,53 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    # This job name is what a branch rule must require to block merges
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: front-end/package-lock.json
+
+      # Same version as back-end/requirements-dev.txt
+      - name: Install ruff
+        run: pip install "$(grep '^ruff==' back-end/requirements-dev.txt)"
+
+      - name: Back-end style (ruff)
+        working-directory: back-end
+        run: ruff check .
+
+      - name: Back-end formatting (ruff)
+        working-directory: back-end
+        run: ruff format --check .
+
+      - name: Install front-end dependencies
+        working-directory: front-end
+        run: npm ci
+
+      - name: Front-end style (ESLint)
+        working-directory: front-end
+        run: npm run lint

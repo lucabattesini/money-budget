@@ -1,9 +1,7 @@
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
+
+from graph.nodes import node_db_execute, node_off_topic, node_orchestrator, node_query, node_recorder, node_secretary
 from graph.state import AssistantState
-from graph.nodes import (
-    node_orchestrator, node_recorder, node_query, 
-    node_db_execute, node_secretary, node_off_topic
-)
 
 workflow = StateGraph(AssistantState)
 
@@ -14,6 +12,7 @@ workflow.add_node("db_execute", node_db_execute)
 workflow.add_node("secretary", node_secretary)
 workflow.add_node("off_topic", node_off_topic)
 
+
 def route_intent(state: AssistantState):
     intent = state.get("intent")
     if intent == "registry":
@@ -22,16 +21,11 @@ def route_intent(state: AssistantState):
         return "query"
     return "off_topic"
 
+
 workflow.set_entry_point("orchestrator")
 
 workflow.add_conditional_edges(
-    "orchestrator",
-    route_intent,
-    {
-        "recorder": "recorder",
-        "query": "query",
-        "off_topic": "off_topic"
-    }
+    "orchestrator", route_intent, {"recorder": "recorder", "query": "query", "off_topic": "off_topic"}
 )
 
 workflow.add_edge("recorder", END)

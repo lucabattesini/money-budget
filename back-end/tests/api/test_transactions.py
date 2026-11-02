@@ -27,17 +27,25 @@ def _summed(client, headers, body=None):
 
 # --- create ----------------------------------------------------------------
 
+
 def test_create_stores_the_transaction_for_the_caller(client, db, user, auth_headers, category_ids):
     response = _create(client, auth_headers, category_ids["Alimentação"], label="Almoço", value=2500)
 
     assert response.status_code == 201
     row = db.query(TransactionDB).one()
-    assert (row.user_id, row.label, row.value, row.category_id) == (user.id, "Almoço", 2500, category_ids["Alimentação"])
+    assert (row.user_id, row.label, row.value, row.category_id) == (
+        user.id,
+        "Almoço",
+        2500,
+        category_ids["Alimentação"],
+    )
     assert row.date is not None
 
 
 def test_create_requires_authentication(client, db, category_ids):
-    response = client.post("/transactions/create", json={"label": "x", "value": 1, "category_id": category_ids["Outros"]})
+    response = client.post(
+        "/transactions/create", json={"label": "x", "value": 1, "category_id": category_ids["Outros"]}
+    )
 
     assert response.status_code == 401
     assert db.query(TransactionDB).count() == 0
@@ -54,8 +62,10 @@ def test_create_rejects_a_missing_label(client, db, auth_headers, category_ids):
 
 # --- list ------------------------------------------------------------------
 
-def test_list_returns_only_the_callers_transactions(client, user, other_user, auth_headers, headers_for,
-                                                     make_transaction, category_ids):
+
+def test_list_returns_only_the_callers_transactions(
+    client, user, other_user, auth_headers, headers_for, make_transaction, category_ids
+):
     make_transaction(user, category_ids["Alimentação"], label="Mine", value=1000)
     make_transaction(other_user, category_ids["Alimentação"], label="Theirs", value=9999)
 
@@ -97,6 +107,7 @@ def test_list_can_be_filtered_by_month_within_one_year(client, user, auth_header
 
 # --- summed by category ----------------------------------------------------
 
+
 def test_summed_groups_totals_per_category(client, user, auth_headers, make_transaction, category_ids):
     food, transport = category_ids["Alimentação"], category_ids["Transporte"]
     make_transaction(user, food, value=1000)
@@ -122,6 +133,7 @@ def test_summed_is_empty_without_transactions(client, auth_headers):
 
 # --- delete ----------------------------------------------------------------
 
+
 def test_delete_removes_the_callers_transaction(client, db, user, auth_headers, make_transaction, category_ids):
     row = make_transaction(user, category_ids["Alimentação"])
 
@@ -131,8 +143,9 @@ def test_delete_removes_the_callers_transaction(client, db, user, auth_headers, 
     assert db.query(TransactionDB).count() == 0
 
 
-def test_delete_cannot_remove_another_users_transaction(client, db, user, other_user, headers_for,
-                                                         make_transaction, category_ids):
+def test_delete_cannot_remove_another_users_transaction(
+    client, db, user, other_user, headers_for, make_transaction, category_ids
+):
     theirs = make_transaction(other_user, category_ids["Alimentação"], label="Theirs")
 
     response = client.delete(f"/transactions/{theirs.id}", headers=headers_for(user))
@@ -156,12 +169,14 @@ def test_delete_requires_authentication(client, user, make_transaction, category
 
 # --- error codes (TKT-28) ------------------------------------------------
 
+
 def test_deleting_an_unknown_transaction_is_not_found(client, auth_headers):
     assert client.delete("/transactions/999999", headers=auth_headers).status_code == 404
 
 
-def test_deleting_another_users_transaction_is_not_found(client, user, other_user, headers_for,
-                                                         make_transaction, category_ids):
+def test_deleting_another_users_transaction_is_not_found(
+    client, user, other_user, headers_for, make_transaction, category_ids
+):
     theirs = make_transaction(other_user, category_ids["Alimentação"])
 
     assert client.delete(f"/transactions/{theirs.id}", headers=headers_for(user)).status_code == 404
@@ -182,6 +197,7 @@ def test_creating_with_an_unknown_category_is_a_client_error(db, user, auth_head
 
 
 # --- known bugs (TKT-26) ---------------------------------------------------
+
 
 @pytest.mark.skip(reason="TKT-26: a date grouping without a date crashes with a 500 instead of a client error")
 @pytest.mark.parametrize("path", ["/transactions/", "/transactions/summed-by-category"])

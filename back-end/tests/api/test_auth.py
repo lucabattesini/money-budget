@@ -24,6 +24,7 @@ def _future():
 
 # --- bearer tokens ---------------------------------------------------------
 
+
 def test_missing_token_is_unauthorized(client):
     assert _call(client).status_code == 401
 
@@ -72,6 +73,7 @@ def test_token_round_trips_the_user_id():
 
 
 # --- Google login ------------------------------------------------------------
+
 
 @pytest.fixture
 def google(monkeypatch):

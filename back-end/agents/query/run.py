@@ -1,7 +1,9 @@
 import os
 import sys
+
 # pyrefly: ignore [missing-import]
 import google.generativeai as genai
+
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
@@ -17,6 +19,7 @@ from schemas.agents_schemas import QueryResponse
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+
 def run_query(user_question: str) -> QueryResponse:
     model = genai.GenerativeModel("gemini-3.5-flash", tools=[QUERY_TOOLS])
 
@@ -27,11 +30,7 @@ def run_query(user_question: str) -> QueryResponse:
 
     full_prompt = QUERY_SYSTEM_PROMPT.format(user_question=user_question, **today_context())
 
-    response = model.generate_content(
-        full_prompt,
-        generation_config=generation_config,
-        tool_config=tool_config
-    )
+    response = model.generate_content(full_prompt, generation_config=generation_config, tool_config=tool_config)
 
     try:
         tool_calls, _ = extract_tool_calls(response)
