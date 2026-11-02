@@ -104,8 +104,9 @@ flowchart TB
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
   (a left menu with sections as nested routes: `/account` profile and
-  `/account/data` import/export; the import/export itself is not built yet, the
-  page only documents the expected file columns). The logo in the header links home.
+  `/account/data` import/export: the export (Excel or CSV, downloaded through
+  `GET /transactions/export`) works, the import is not built yet and its page
+  documents the expected file columns). The logo in the header links home.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
   from inside the web app.
 
@@ -115,7 +116,20 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
 - `controllers/` — request orchestration / business rules.
 - `repositories/` — SQLAlchemy queries against the Postgres tables. Every
   function takes the database session as its first argument.
-- `services/whatsapp_service.py` — outbound calls to the Meta Cloud API.
+- `services/` — logic that is not a request or a query: `whatsapp_service.py`
+  (outbound calls to the Meta Cloud API) and `export_service.py` (turns a user's
+  transactions into a table of Data / Descrição / Categoria / Valor / Tipo and
+  asks a document gateway for the file).
+- `gateways/documents/` — the **document gateway**: the only place that knows
+  file formats. The app hands it a plain `Table` and gets a `Document` (bytes,
+  media type, extension) back. `CsvGateway` writes UTF-8 with a BOM and `;`
+  between columns (opens correctly in Brazilian Excel); `XlsxGateway` (openpyxl)
+  keeps real dates and numbers. `get_document_gateway("csv" | "xlsx")` picks one,
+  so a new format is a new gateway and nothing else changes.
+- `utils/formatting.py` — pure helpers for how values are shown: `1.234,56`,
+  `DD/MM/YYYY`, Débito / Crédito, and `neutralize_formula`, which stops text a
+  user typed (a description) from running as a formula when the file is opened
+  in a spreadsheet (leading `'`; an importer must strip it).
 - `db/connection.py` — SQLAlchemy engine/session (`DB_URL`, defaults to a
   local SQLite file for dev). Each request gets its own session from the
   `get_db` dependency, closed when the request ends. Code outside a request
@@ -206,7 +220,9 @@ the rename, `date` was always the save time); `updated_at` starts empty.
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
 `POST /transactions/create`, `PUT /transactions/{id}` (label, value, category,
 and optionally `type` / `transactioned_at`; omitted fields keep their value) and
-`DELETE /transactions/{id}`. A missing id, another user's id, or an unknown
+`DELETE /transactions/{id}` and `GET /transactions/export?format=csv|xlsx` (every
+transaction of the caller, newest first, as a download; the page limit of the
+list does not apply). A missing id, another user's id, or an unknown
 category answers `404`, the same for missing and foreign ids so other users' ids
 are not revealed.
 
@@ -290,7 +306,8 @@ sequenceDiagram
 - DB: Postgres in production, falls back to local SQLite (`test.db`,
   gitignored) for local dev when `DB_URL` is unset.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
-  calls), Meta WhatsApp Cloud API (chat channel).
+  calls), Meta WhatsApp Cloud API (chat channel). Library: `openpyxl` (writes
+  Excel files in the document gateway).
 
 ## 6. Testing
 - **Scope:** back-end (`back-end/tests/`, `pytest`) and front-end
