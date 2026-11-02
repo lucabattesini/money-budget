@@ -108,6 +108,19 @@ export function insertNewTransaction(payload, token) {
     .catch(error => console.error("Failed to insert new transaction", error));
 }
 
+// Every transaction of the user as a file. Resolves { ok: true, blob } or { ok: false }.
+export function exportTransactions(format, token) {
+    return fetch(endpoints.transactions + `/export?format=${encodeURIComponent(format)}`, {
+        method: "get",
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(async res => (res.ok ? { ok: true, blob: await res.blob() } : { ok: false }))
+    .catch(error => {
+        console.error("Failed to export transactions", error);
+        return { ok: false };
+    });
+}
+
 export function updateTransaction(id, payload, token) {
     return fetch(endpoints.transactions + `/${id}`, {
         method: "put",

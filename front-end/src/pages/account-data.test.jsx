@@ -1,8 +1,12 @@
-import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
 import AccountData from './account-data'
+import customToaster from '../utils/customToaster'
+
+vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
 
 const CATEGORIES = { data: [{ id: 2, name: 'Transporte' }, { id: 3, name: 'Água' }, { id: 1, name: 'Alimentação' }] }
 
@@ -69,5 +73,72 @@ describe('import and export page', () => {
 
     expect(requestsMade(api)).toEqual([])
     expect(screen.getByRole('table', { name: 'Colunas da planilha de importação' })).toBeInTheDocument()
+  })
+})
+
+describe('exporting', () => {
+  let downloads
+  beforeEach(() => {
+    vi.mocked(customToaster).mockClear()
+    saveToken('tok')
+    downloads = []
+    URL.createObjectURL = vi.fn(() => 'blob:fake')
+    URL.revokeObjectURL = vi.fn()
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+      downloads.push(this.download)
+    })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 2, 15, 12, 0, 0))
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  const fileResponse = () => Promise.resolve(new Response('Data;Valor\r\n', { status: 200 }))
+
+  it('downloads an Excel file by default, asking the server for xlsx with the user token', async () => {
+    const api = mockApi({ 'GET /categories': CATEGORIES, 'GET /transactions/export?format=xlsx': fileResponse })
+    renderApp(<AccountData />)
+    expect(screen.getByRole('radio', { name: 'Excel (.xlsx)' })).toBeChecked()
+
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(downloads).toEqual(['transacoes-2026-03-15.xlsx']))
+    const call = api.mock.calls.find(([url]) => url.includes('/export'))
+    expect(call[1].headers.Authorization).toBe('Bearer tok')
+    expect(customToaster).toHaveBeenCalledWith('Pronto', 'success', expect.any(String))
+  })
+
+  it('downloads a CSV when that format is chosen', async () => {
+    const api = mockApi({ 'GET /categories': CATEGORIES, 'GET /transactions/export?format=csv': fileResponse })
+    renderApp(<AccountData />)
+
+    await userEvent.click(screen.getByRole('radio', { name: 'CSV (.csv)' }))
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(downloads).toEqual(['transacoes-2026-03-15.csv']))
+    expect(requestsMade(api)).toContain('GET /transactions/export?format=csv')
+  })
+
+  it('tells the user and downloads nothing when the server refuses', async () => {
+    mockApi({ 'GET /categories': CATEGORIES, 'GET /transactions/export?format=xlsx': [{ detail: 'boom' }, 500] })
+    renderApp(<AccountData />)
+
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String)))
+    expect(downloads).toEqual([])
+  })
+
+  it('tells the user and downloads nothing when the server cannot be reached', async () => {
+    mockApi({
+      'GET /categories': CATEGORIES,
+      'GET /transactions/export?format=xlsx': () => Promise.reject(new TypeError('Failed to fetch')),
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderApp(<AccountData />)
+
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String)))
+    expect(downloads).toEqual([])
   })
 })
