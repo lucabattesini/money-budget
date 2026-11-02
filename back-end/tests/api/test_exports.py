@@ -5,7 +5,7 @@ while it is still queued and then let it finish.
 """
 
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from openpyxl import load_workbook
@@ -229,17 +229,170 @@ def test_an_unknown_job_is_not_found(client, auth_headers):
     assert _file(client, auth_headers, 999999).status_code == 404
 
 
-def test_old_jobs_and_their_files_are_deleted_when_a_new_one_is_queued(client, db, user, auth_headers, queue):
-    old = ExportJobDB(user_id=user.id, format="csv", status="done", content=b"x", created_at=datetime(2020, 1, 1))
-    db.add(old)
+def test_queueing_deletes_every_expired_job_not_just_the_callers_but_keeps_recent_ones(
+    client, db, user, other_user, auth_headers, queue
+):
+    ancient = datetime(2020, 1, 1)
+    db.add_all(
+        [
+            ExportJobDB(user_id=user.id, format="csv", status="done", content=b"x", created_at=ancient),
+            ExportJobDB(user_id=other_user.id, format="csv", status="done", content=b"y", created_at=ancient),
+            ExportJobDB(user_id=other_user.id, format="csv", status="done", content=b"z", created_at=datetime.now()),
+        ]
+    )
     db.commit()
-    old_id = old.id
 
     _queue(client, auth_headers)
 
     db.expire_all()
-    assert db.query(ExportJobDB).filter_by(id=old_id).count() == 0
-    assert db.query(ExportJobDB).count() == 1
+    remaining = db.query(ExportJobDB).order_by(ExportJobDB.id).all()
+    assert [(j.user_id, j.content) for j in remaining[:1]] == [(other_user.id, b"z")]  # the recent one survives
+    assert len(remaining) == 2  # that one and the job just queued
+
+
+def test_an_expired_job_and_its_file_are_gone_even_if_nobody_queued_anything_since(client, db, user, auth_headers):
+    old = ExportJobDB(
+        user_id=user.id,
+        format="csv",
+        status="done",
+        filename="a.csv",
+        media_type="text/csv",
+        content=b"x",
+        created_at=datetime(2020, 1, 1),
+    )
+    db.add(old)
+    db.commit()
+
+    assert client.get(f"/exports/{old.id}", headers=auth_headers).status_code == 404
+    assert _file(client, auth_headers, old.id).status_code == 404
+
+
+# --- one at a time, stuck jobs ---------------------------------------------------------
+
+
+def test_a_second_export_is_refused_while_one_is_waiting_and_allowed_when_it_finishes(
+    client, db, user, auth_headers, queue
+):
+    first = _queue(client, auth_headers)
+    assert first.status_code == 202
+
+    second = _queue(client, auth_headers)
+
+    assert second.status_code == 409
+    assert "andamento" in second.json()["detail"]
+    assert db.query(ExportJobDB).count() == 1  # nothing extra was stored
+
+    queue.run()
+    assert _queue(client, auth_headers).status_code == 202
+
+
+def test_the_limit_is_per_user(client, db, user, other_user, auth_headers, headers_for, queue):
+    assert _queue(client, auth_headers).status_code == 202
+
+    assert _queue(client, headers_for(other_user)).status_code == 202
+
+
+def test_a_job_stuck_in_queued_or_running_is_cancelled_and_no_longer_blocks_new_exports(
+    client, db, user, auth_headers, queue
+):
+    stuck = ExportJobDB(
+        user_id=user.id, format="csv", status="running", created_at=datetime.now() - timedelta(minutes=10)
+    )
+    db.add(stuck)
+    db.commit()
+
+    job = client.get(f"/exports/{stuck.id}", headers=auth_headers).json()["data"]
+    assert job["status"] == "failed"
+    assert "cancelada" in job["error"]
+    assert _queue(client, auth_headers).status_code == 202
+
+
+def test_a_new_export_is_not_blocked_by_a_stuck_one(client, db, user, auth_headers, queue):
+    db.add(
+        ExportJobDB(user_id=user.id, format="csv", status="queued", created_at=datetime.now() - timedelta(minutes=10))
+    )
+    db.commit()
+
+    assert _queue(client, auth_headers).status_code == 202
+
+
+def test_a_job_that_is_only_a_little_old_is_not_cancelled(client, db, user, auth_headers):
+    recent = ExportJobDB(
+        user_id=user.id, format="csv", status="running", created_at=datetime.now() - timedelta(minutes=1)
+    )
+    db.add(recent)
+    db.commit()
+
+    assert client.get(f"/exports/{recent.id}", headers=auth_headers).json()["data"]["status"] == "running"
+
+
+# --- the runner -------------------------------------------------------------------------
+
+
+def test_the_runner_ignores_a_job_that_no_longer_exists():
+    exports_controller.run_export_job(999999)  # must not raise
+
+
+def test_the_runner_does_not_crash_when_even_recording_the_failure_fails(
+    client, db, user, auth_headers, monkeypatch, queue
+):
+    def boom(*args, **kwargs):
+        raise RuntimeError("database gone")
+
+    job_id = _queue(client, auth_headers).json()["data"]["id"]
+    monkeypatch.setattr(exports_controller, "export_transactions", boom)
+    monkeypatch.setattr(exports_controller, "mark_failed", boom)
+
+    exports_controller.run_export_job(job_id)  # must not raise
+
+    db.expire_all()
+    assert db.query(ExportJobDB).filter_by(id=job_id).one().status == "running"  # reaped later as stuck
+
+
+def test_asking_for_the_status_does_not_load_the_file(db, user):
+    from sqlalchemy import inspect
+
+    from api.repositories.exports_repo import get_export_job
+    from db.connection import session_scope
+
+    job = ExportJobDB(user_id=user.id, format="csv", status="done", content=b"x" * 1000)
+    db.add(job)
+    db.commit()
+
+    with session_scope() as fresh:  # a new session: nothing is cached yet
+        assert "content" in inspect(get_export_job(fresh, job.id)).unloaded
+    with session_scope() as fresh:
+        assert get_export_job(fresh, job.id, with_file=True).content == b"x" * 1000
+
+
+# --- more ownership and formula checks ---------------------------------------------------
+
+
+def test_another_user_cannot_see_a_job_that_is_still_queued(client, user, other_user, auth_headers, headers_for, queue):
+    job_id = _queue(client, auth_headers).json()["data"]["id"]
+
+    assert client.get(f"/exports/{job_id}", headers=headers_for(other_user)).status_code == 404
+
+
+def test_a_category_name_and_the_excel_file_cannot_run_as_a_formula(client, db, user, auth_headers, queue):
+    from schemas.tables import Categories, TransactionDB
+
+    category = Categories(name="=SUM(A1:A9)")
+    db.add(category)
+    db.commit()
+    db.add(
+        TransactionDB(
+            user_id=user.id, label="+cmd", value=100, transactioned_at=datetime(2026, 3, 15), category_id=category.id
+        )
+    )
+    db.commit()
+    job_id = _run(client, queue, auth_headers, "xlsx")
+
+    sheet = load_workbook(io.BytesIO(_file(client, auth_headers, job_id).content)).active
+
+    description, category_cell = sheet["B2"], sheet["C2"]
+    assert (description.value, category_cell.value) == ("'+cmd", "'=SUM(A1:A9)")
+    assert description.data_type == "s" and category_cell.data_type == "s"  # text, never a formula
 
 
 @pytest.mark.parametrize("method, path", [("post", "/exports"), ("get", "/exports/1"), ("get", "/exports/1/file")])
