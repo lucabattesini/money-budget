@@ -278,3 +278,81 @@ def test_a_database_with_only_some_tables_is_reported_not_guessed(url, engine):
 
     with pytest.raises(RuntimeError, match="no 'transactions' table"):
         upgrade_database(url)
+
+
+# --- more of what a real upgrade touches ----------------------------------------------------------
+
+
+def test_defaults_also_match_the_models(url, engine):
+    """A missing or different server default (type = 'debit', created_at = now()) would otherwise go unnoticed."""
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        context = MigrationContext.configure(conn, opts={"compare_type": True, "compare_server_default": True})
+        differences = compare_metadata(context, Base.metadata)
+
+    assert differences == []
+
+
+def test_the_alembic_command_line_works_as_documented(url):
+    """`alembic current` / `alembic check` read the database from DB_URL, like the app does."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    back_end = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "DB_URL": url}
+    upgrade_database(url)
+
+    current = subprocess.run(
+        [sys.executable, "-m", "alembic", "current"], cwd=back_end, env=env, capture_output=True, text=True
+    )
+    check = subprocess.run(
+        [sys.executable, "-m", "alembic", "check"], cwd=back_end, env=env, capture_output=True, text=True
+    )
+
+    assert LATEST in current.stdout, current.stderr
+    assert check.returncode == 0, check.stderr  # the models and the migrations agree
+
+
+def test_a_password_with_special_characters_does_not_break_the_upgrade(url, engine):
+    """Uses its own throwaway role, so the real database user and its password are never touched."""
+    from sqlalchemy.engine import make_url
+
+    database = make_url(url).database
+    with engine.begin() as conn:
+        conn.execute(text("CREATE ROLE migrations_password_test LOGIN PASSWORD 'p%ss:w@rd/1'"))
+        conn.execute(text(f'ALTER DATABASE "{database}" OWNER TO migrations_password_test'))
+    try:
+        special = make_url(url).set(username="migrations_password_test", password="p%ss:w@rd/1")
+
+        upgrade_database(special.render_as_string(hide_password=False))
+
+        with engine.connect() as conn:
+            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == LATEST
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f'ALTER DATABASE "{database}" OWNER TO money'))
+            conn.execute(text("DROP OWNED BY migrations_password_test"))
+            conn.execute(text("DROP ROLE migrations_password_test"))
+
+
+def test_undoing_the_revisions_on_a_database_with_data_drops_only_what_the_old_schema_cannot_hold(url, engine):
+    upgrade_database(url)
+    with engine.begin() as conn:
+        _seed_users_and_categories(conn)
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, user_id, label, value, type, transactioned_at, category_id) "
+                "VALUES (1, 1, 'salário', 5000, 'credit', '2026-03-01 10:00', 1)"
+            )
+        )
+
+    command.downgrade(alembic_config(url), "0002")
+
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT label, value, date, category_id FROM transactions")).one()
+    assert (row.label, row.value, row.date, row.category_id) == ("salário", 5000, datetime(2026, 3, 1, 10, 0), 1)
+    columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
+    assert not columns & {"type", "created_at", "updated_at", "transactioned_at"}  # these did not exist then
