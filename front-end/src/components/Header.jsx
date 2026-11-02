@@ -37,12 +37,14 @@ export default function Header() {
 
             <Flex gap={6} as="nav">
                 {navItems.map((item) => {
-                    const isActive = currentPath === item.path;
+                    // "/" only matches itself; other entries also match their sub-pages (/account/data)
+                    const isActive = item.path === "/" ? currentPath === "/" : currentPath.startsWith(item.path);
                     return (
                         <Link
                             key={item.name}
                             as={RouterLink}
                             to={item.path}
+                            aria-current={isActive ? "page" : undefined}
                             _hover={{ textDecoration: "none", color: "white" }}
                             color={isActive ? "white" : "gray.400"}
                             display="flex"

@@ -20,4 +20,16 @@ describe('header', () => {
 
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
   })
+
+  it.each([
+    ['/', 'Dashboard'],
+    ['/transactions', 'Transações'],
+    ['/account', 'Conta'],
+    ['/account/data', 'Conta'], // a sub-page keeps its section highlighted
+  ])('highlights the current section on %s: %s', (route, name) => {
+    renderApp(<Header />, { route })
+
+    const current = screen.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(current.map((link) => link.textContent)).toEqual([name])
+  })
 })
