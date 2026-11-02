@@ -75,7 +75,8 @@ running:
 
     docker compose exec api alembic revision --autogenerate -m "what changed"
 
-Read the new file in `back-end/migrations/versions/` (and fix anything the
+Read the new file in `back-end/migrations/versions/` (it gets a random id; it is tidied
+with ruff automatically) (and fix anything the
 automatic comparison got wrong, such as data that must be moved), then apply it
 with `docker compose exec api python -m db.upgrade`. The tests fail if the models and
 the migrations disagree. Do not edit a migration that was already merged; add a new one.

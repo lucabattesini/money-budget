@@ -35,3 +35,11 @@ def test_the_seed_command_adds_the_default_categories_once(url, engine):
 
     assert first > 10
     assert second == first
+
+
+def test_the_seed_command_fails_loudly_when_it_cannot_seed(url):
+    # No tables yet (the upgrade was not run): the command must not pretend everything is fine
+    result = _run(url, "-m", "db.seed")
+
+    assert result.returncode != 0
+    assert "categories" in result.stderr

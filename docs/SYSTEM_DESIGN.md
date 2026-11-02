@@ -344,8 +344,15 @@ sequenceDiagram
   ones run; an empty database gets every revision. A change to a model in
   `schemas/tables.py` needs a new revision (`alembic revision --autogenerate`); the tests
   fail if the models and the migrations disagree, and exercise upgrade, downgrade and
-  adopting a pre-Alembic database. Seeding the default categories is a separate command,
-  `python -m db.seed`. PostgreSQL is required (SQLite cannot run these revisions).
+  adopting a pre-Alembic database. Two processes starting at once are safe: a database
+  lock makes the second wait for the first. Each run is one transaction in PostgreSQL, so
+  a failing revision leaves the database as it was. Downgrades exist for development and
+  lose data that the older schema cannot hold (the credit/debit `type`, `created_at`,
+  and the `category_id` links). Seeding the default categories is a separate command,
+  `python -m db.seed`, and a failed seed stops the start-up. Only the Docker Compose file
+  runs these commands: any other way of starting the API (the Dockerfile's plain
+  `uvicorn`) must run `python -m db.upgrade` first. PostgreSQL is required (SQLite cannot
+  run these revisions).
 - Tests: `pytest` runs inside the `api` container against a separate
   `<db>_test` Postgres database (transaction rolled back per test); see
   `back-end/tests/README.md`.
