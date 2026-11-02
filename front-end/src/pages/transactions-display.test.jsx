@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveToken } from '../lib/auth'
+import { getToken, saveToken } from '../lib/auth'
 import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
 import TransactionsDisplay from './transactions-display'
 
@@ -231,7 +231,7 @@ describe('transactions page', () => {
     expect(await screen.findByText('Não foi possível excluir a transação.')).toBeInTheDocument()
   })
 
-  it.skip('TKT-32: survives an expired session instead of showing a blank page', async () => {
+  it('survives an expired session instead of showing a blank page', async () => {
     mockApi({
       'GET /categories': [{ detail: 'Token expired' }, 401],
       'POST /transactions': [{ detail: 'Token expired' }, 401],
@@ -242,6 +242,9 @@ describe('transactions page', () => {
 
     await waitFor(() => expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument())
     expect(rowsOnPage()).toHaveLength(0)
+    expect(getToken()).toBeNull()
+    expect(window.location.hash).toBe('#/login-google')
+    expect(screen.queryByText(/Não foi possível carregar/)).not.toBeInTheDocument()
   })
 
   describe('adding a transaction', () => {
@@ -622,5 +625,15 @@ describe('transactions page', () => {
       expect(oldRows()).toHaveLength(10)
       expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
     })
+  })
+
+  it('tells the user when the transactions could not be loaded', async () => {
+    mockApi({ 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500] })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderApp(<TransactionsDisplay />)
+
+    expect(await screen.findByText(/Não foi possível carregar suas transações/)).toBeInTheDocument()
+    expect(await screen.findByText('Nenhuma transação ainda.')).toBeInTheDocument()
   })
 })

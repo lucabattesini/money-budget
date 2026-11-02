@@ -146,11 +146,11 @@ describe('expense form', () => {
   describe('known bugs', () => {
     // Binary floating point: 19.99 * 100 is 1998.9999999999998 and 0.29 * 100 is 28.999999999999996,
     // so a fix that truncates instead of rounding still loses a cent.
-    it.skip.each([
+    it.each([
       ['12.50', 1250],
       ['19.99', 1999],
       ['0.29', 29],
-    ])('TKT-32: keeps the cents of %s', async (typed, cents) => {
+    ])('keeps the cents of %s', async (typed, cents) => {
       const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
       await userEvent.type(amount(), typed)
       await userEvent.type(description(), 'Café')
@@ -162,7 +162,7 @@ describe('expense form', () => {
       expect(created(api).value).toBe(cents)
     })
 
-    it.skip('TKT-32: after saving, a second transaction without a category is rejected', async () => {
+    it('after saving, a second transaction without a category is rejected', async () => {
       const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
       await userEvent.type(amount(), '25')
       await userEvent.type(description(), 'Almoço')
@@ -180,7 +180,7 @@ describe('expense form', () => {
       expect(created(api)).toBeUndefined()
     })
 
-    it.skip('TKT-32: rejects an amount of zero', async () => {
+    it('rejects an amount of zero', async () => {
       const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
       await userEvent.type(amount(), '0')
       await userEvent.type(description(), 'Nada')
@@ -192,7 +192,7 @@ describe('expense form', () => {
       expect(created(api)).toBeUndefined()
     })
 
-    it.skip('TKT-32: rejects a negative amount', async () => {
+    it('rejects a negative amount', async () => {
       const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
       await userEvent.type(amount(), '-5')
       await userEvent.type(description(), 'Estorno')
@@ -204,7 +204,31 @@ describe('expense form', () => {
       expect(created(api)).toBeUndefined()
     })
 
-    it.skip('TKT-32: shows an error when the request cannot reach the server', async () => {
+    it('rejects an amount that rounds to zero cents', async () => {
+      const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
+      await userEvent.type(amount(), '0.001')
+      await userEvent.type(description(), 'Nada')
+      await pickCategory('Alimentação')
+
+      await userEvent.click(submit())
+
+      expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.stringMatching(/bigger than 0/))
+      expect(created(api)).toBeUndefined()
+    })
+
+    it('rejects an amount bigger than the database can hold', async () => {
+      const api = await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
+      await userEvent.type(amount(), '99999999999')
+      await userEvent.type(description(), 'Muito')
+      await pickCategory('Alimentação')
+
+      await userEvent.click(submit())
+
+      expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.stringMatching(/too big/))
+      expect(created(api)).toBeUndefined()
+    })
+
+    it('shows an error when the request cannot reach the server', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
       await renderForm({ 'POST /transactions/create': () => Promise.reject(new TypeError('Failed to fetch')) })
       await userEvent.type(amount(), '25')

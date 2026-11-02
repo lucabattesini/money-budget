@@ -75,7 +75,7 @@ describe('account page', () => {
     expect(screen.queryByRole('button', { name: 'Salvo!' })).not.toBeInTheDocument()
   })
 
-  it.skip('TKT-32: tells the user why the number was not saved', async () => {
+  it('tells the user why the number was not saved', async () => {
     saveToken('tok')
     mockApi({ 'GET /user/me': ME, 'PATCH /user/me/phone': [{ detail: 'taken' }, 409] })
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading, SimpleGrid, GridItem, Text, Flex } from "@chakra-ui/react";
 import { getAllCategories, getTransactions, getMe } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import CategoryPieChart from "../components/CategoryPieChart";
 import ExpenseTrendLine from "../components/ExpenseTrendLine";
@@ -23,6 +24,10 @@ export default function Dashboard() {
             getTransactions(allTransactionsQuery, token),
             getMe(token)
         ]).then(([categoriesData, transactionsData, userData]) => {
+            // After an expired login the token is gone and the user is on the login page: no message there
+            if ((!categoriesData || !transactionsData) && getToken()) {
+                customToaster("Error", "error", "Não foi possível carregar seus dados. Tente novamente mais tarde.");
+            }
             if (categoriesData) {
                 setCategories(categoriesData.data);
             }

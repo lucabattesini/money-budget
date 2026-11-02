@@ -1,8 +1,11 @@
 import { screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveToken } from '../lib/auth'
+import { getToken, saveToken } from '../lib/auth'
 import { mockApi, networkDown, renderApp, requestsMade } from '../test/helpers'
 import Dashboard from './dashboard'
+import customToaster from '../utils/customToaster'
+
+vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
 
 // Sunday 15 March 2026, noon.
 const t = (id, cents, date, category_id = 1) => ({ id, label: 'x', value: cents, transactioned_at: date, category_id })
@@ -87,7 +90,7 @@ describe('dashboard', () => {
     expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument()
   })
 
-  it.skip('TKT-32: survives an expired session instead of showing a blank page', async () => {
+  it('survives an expired session instead of showing a blank page', async () => {
     mockApi({
       'GET /categories': [{ detail: 'Token expired' }, 401],
       'POST /transactions': [{ detail: 'Token expired' }, 401],
@@ -97,7 +100,19 @@ describe('dashboard', () => {
 
     renderApp(<Dashboard />)
 
-    // either the page still renders (with zero spending) or the user is sent to log in again
-    await waitFor(() => expect(screen.queryByText('Gastos de março') || screen.queryByText('Bem-vindo de volta!')).toBeTruthy())
+    // the login is forgotten and the user is sent to log in again, without an extra error message
+    await waitFor(() => expect(getToken()).toBeNull())
+    expect(window.location.hash).toBe('#/login-google')
+    expect(customToaster).not.toHaveBeenCalled()
+  })
+
+  it('tells the user when the data could not be loaded', async () => {
+    mockApi({ 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500], 'GET /user/me': ROUTES['GET /user/me'] })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderApp(<Dashboard />)
+
+    await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.any(String)))
+    expect(screen.getByText(/^R\$/)).toBeInTheDocument() // the page still shows, with zero spending
   })
 })

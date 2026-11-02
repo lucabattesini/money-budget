@@ -1,4 +1,5 @@
 import { API_URL } from "./config";
+import { removeToken } from "../lib/auth";
 
 const URL_BASE = API_URL;
 
@@ -9,6 +10,24 @@ export const endpoints = {
     user: `${URL_BASE}/user`,
     auth: `${URL_BASE}/auth`,
 };
+
+// An answer of 401 means the login is no longer valid: forget it and go to the login page.
+// (The router listens to the address, so changing it is enough.)
+function checkSession(res) {
+    if (res.status === 401) {
+        removeToken();
+        window.location.hash = "#/login-google";
+    }
+    return res;
+}
+
+// Read calls: the data on success. An error answer throws, and the call's own catch logs it and
+// resolves undefined, so an error answer is never taken for data.
+function readJson(res) {
+    checkSession(res);
+    if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+    return res.json();
+}
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +53,7 @@ export function getMe(token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get current user", error));
 }
 
@@ -48,6 +67,7 @@ export function updatePhone(phone, token) {
         body: JSON.stringify({ whatsapp_phone: phone })
     })
     .then(res => {
+        checkSession(res);
         if (!res.ok) throw new Error("Failed to update phone");
         return res.json();
     })
@@ -61,7 +81,7 @@ export function getAllCategories(token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get categories", error));
 }
 
@@ -76,7 +96,7 @@ export function getSummedTransactionsByCategory(date, token) {
         },
         body: JSON.stringify(date),
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get transactions", error));
 }
 
@@ -89,7 +109,7 @@ export function getTransactions(date, token) {
         },
         body: JSON.stringify(date),
     })
-    .then(res => res.json())
+    .then(readJson)
     .catch(error => console.error("Failed to get transactions", error));
 }
 
@@ -102,11 +122,15 @@ export function insertNewTransaction(payload, token) {
         },
         body: JSON.stringify(payload),
     })
-    .then(res => {
-        const body = res.json();
+    .then(async res => {
+        checkSession(res);
+        const body = await res.json().catch(() => null);
         return { status: res.status, body };
     })
-    .catch(error => console.error("Failed to insert new transaction", error));
+    .catch(error => {
+        console.error("Failed to insert new transaction", error);
+        return { status: 0, body: null }; // 0: the server could not be reached
+    });
 }
 
 // ─── Exports (files built in the background) ──────────────────────────────────
@@ -118,7 +142,7 @@ export function createExport(format, token) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ format }),
     })
-    .then(async res => (res.ok ? { ok: true, job: (await res.json()).data } : { ok: false, status: res.status }))
+    .then(async res => (checkSession(res).ok ? { ok: true, job: (await res.json()).data } : { ok: false, status: res.status }))
     .catch(error => {
         console.error("Failed to queue export", error);
         return { ok: false };
@@ -131,7 +155,7 @@ export function getExport(id, token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(async res => (res.ok ? { ok: true, status: res.status, job: (await res.json()).data } : { ok: false, status: res.status }))
+    .then(async res => (checkSession(res).ok ? { ok: true, status: res.status, job: (await res.json()).data } : { ok: false, status: res.status }))
     .catch(error => {
         console.error("Failed to get export", error);
         return { ok: false };
@@ -144,7 +168,7 @@ export function downloadExport(id, token) {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
-    .then(async res => (res.ok ? { ok: true, blob: await res.blob() } : { ok: false }))
+    .then(async res => (checkSession(res).ok ? { ok: true, blob: await res.blob() } : { ok: false }))
     .catch(error => {
         console.error("Failed to download export", error);
         return { ok: false };
@@ -160,7 +184,7 @@ export function updateTransaction(id, payload, token) {
         },
         body: JSON.stringify(payload),
     })
-    .then(res => ({ status: res.status }))
+    .then(res => ({ status: checkSession(res).status }))
     .catch(error => console.error("Failed to update transaction", error));
 }
 
@@ -169,5 +193,6 @@ export function deleteTransaction(id, token) {
         method: "delete",
         headers: { Authorization: `Bearer ${token}` },
     })
+    .then(checkSession)
     .catch(error => console.error("Failed to delete transaction", error));
 }
