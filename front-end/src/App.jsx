@@ -1,4 +1,3 @@
-import './styles/index.css';
 import {HashRouter, Routes, Route, Navigate} from "react-router-dom";
 import { Box } from '@chakra-ui/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
