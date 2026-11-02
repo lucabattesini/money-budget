@@ -5,6 +5,7 @@ const URL_BASE = API_URL;
 export const endpoints = {
     categories: `${URL_BASE}/categories`,
     transactions: `${URL_BASE}/transactions`,
+    exports: `${URL_BASE}/exports`,
     user: `${URL_BASE}/user`,
     auth: `${URL_BASE}/auth`,
 };
@@ -108,15 +109,44 @@ export function insertNewTransaction(payload, token) {
     .catch(error => console.error("Failed to insert new transaction", error));
 }
 
-// Every transaction of the user as a file. Resolves { ok: true, blob } or { ok: false }.
-export function exportTransactions(format, token) {
-    return fetch(endpoints.transactions + `/export?format=${encodeURIComponent(format)}`, {
+// ─── Exports (files built in the background) ──────────────────────────────────
+
+// Queue an export. Resolves { ok: true, job } or { ok: false }.
+export function createExport(format, token) {
+    return fetch(endpoints.exports, {
+        method: "post",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ format }),
+    })
+    .then(async res => (res.ok ? { ok: true, job: (await res.json()).data } : { ok: false }))
+    .catch(error => {
+        console.error("Failed to queue export", error);
+        return { ok: false };
+    });
+}
+
+// The state of a job. Resolves { ok, status (HTTP), job } and { ok: false } when the server cannot be reached.
+export function getExport(id, token) {
+    return fetch(endpoints.exports + `/${id}`, {
+        method: "get",
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(async res => (res.ok ? { ok: true, status: res.status, job: (await res.json()).data } : { ok: false, status: res.status }))
+    .catch(error => {
+        console.error("Failed to get export", error);
+        return { ok: false };
+    });
+}
+
+// The finished file. Resolves { ok: true, blob } or { ok: false }.
+export function downloadExport(id, token) {
+    return fetch(endpoints.exports + `/${id}/file`, {
         method: "get",
         headers: { Authorization: `Bearer ${token}` },
     })
     .then(async res => (res.ok ? { ok: true, blob: await res.blob() } : { ok: false }))
     .catch(error => {
-        console.error("Failed to export transactions", error);
+        console.error("Failed to download export", error);
         return { ok: false };
     });
 }

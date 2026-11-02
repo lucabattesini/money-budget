@@ -1,12 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
 import AccountData from './account-data'
-import customToaster from '../utils/customToaster'
+import { enqueueExport, followExport } from '../lib/exportJobs'
 
-vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
+vi.mock('../lib/exportJobs', () => ({ enqueueExport: vi.fn(), followExport: vi.fn() }))
 
 const CATEGORIES = { data: [{ id: 2, name: 'Transporte' }, { id: 3, name: 'Água' }, { id: 1, name: 'Alimentação' }] }
 
@@ -77,68 +77,65 @@ describe('import and export page', () => {
 })
 
 describe('exporting', () => {
-  let downloads
   beforeEach(() => {
-    vi.mocked(customToaster).mockClear()
+    vi.mocked(enqueueExport).mockReset()
+    vi.mocked(followExport).mockReset()
     saveToken('tok')
-    downloads = []
-    URL.createObjectURL = vi.fn(() => 'blob:fake')
-    URL.revokeObjectURL = vi.fn()
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
-      downloads.push(this.download)
-    })
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date(2026, 2, 15, 12, 0, 0))
   })
-  afterEach(() => vi.restoreAllMocks())
 
-  const fileResponse = () => Promise.resolve(new Response('Data;Valor\r\n', { status: 200 }))
+  const render = () => {
+    mockApi({ 'GET /categories': CATEGORIES })
+    return renderApp(<AccountData />)
+  }
 
-  it('downloads an Excel file by default, asking the server for xlsx with the user token', async () => {
-    const api = mockApi({ 'GET /categories': CATEGORIES, 'GET /transactions/export?format=xlsx': fileResponse })
-    renderApp(<AccountData />)
+  it('queues an Excel export by default and then follows the job', async () => {
+    const job = { id: 7, status: 'queued' }
+    vi.mocked(enqueueExport).mockResolvedValue(job)
+    render()
     expect(screen.getByRole('radio', { name: 'Excel (.xlsx)' })).toBeChecked()
 
     await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
 
-    await waitFor(() => expect(downloads).toEqual(['transacoes-2026-03-15.xlsx']))
-    const call = api.mock.calls.find(([url]) => url.includes('/export'))
-    expect(call[1].headers.Authorization).toBe('Bearer tok')
-    expect(customToaster).toHaveBeenCalledWith('Pronto', 'success', expect.any(String))
+    await waitFor(() => expect(followExport).toHaveBeenCalledWith(job))
+    expect(enqueueExport).toHaveBeenCalledWith('xlsx')
   })
 
-  it('downloads a CSV when that format is chosen', async () => {
-    const api = mockApi({ 'GET /categories': CATEGORIES, 'GET /transactions/export?format=csv': fileResponse })
-    renderApp(<AccountData />)
+  it('queues a CSV when that format is chosen', async () => {
+    vi.mocked(enqueueExport).mockResolvedValue({ id: 8 })
+    render()
 
     await userEvent.click(screen.getByRole('radio', { name: 'CSV (.csv)' }))
     await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
 
-    await waitFor(() => expect(downloads).toEqual(['transacoes-2026-03-15.csv']))
-    expect(requestsMade(api)).toContain('GET /transactions/export?format=csv')
+    await waitFor(() => expect(enqueueExport).toHaveBeenCalledWith('csv'))
   })
 
-  it('tells the user and downloads nothing when the server refuses', async () => {
-    mockApi({ 'GET /categories': CATEGORIES, 'GET /transactions/export?format=xlsx': [{ detail: 'boom' }, 500] })
-    renderApp(<AccountData />)
+  it('does not follow anything when the export could not be queued', async () => {
+    vi.mocked(enqueueExport).mockResolvedValue(null)
+    render()
 
     await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
 
-    await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String)))
-    expect(downloads).toEqual([])
+    await waitFor(() => expect(enqueueExport).toHaveBeenCalled())
+    expect(followExport).not.toHaveBeenCalled()
   })
 
-  it('tells the user and downloads nothing when the server cannot be reached', async () => {
-    mockApi({
-      'GET /categories': CATEGORIES,
-      'GET /transactions/export?format=xlsx': () => Promise.reject(new TypeError('Failed to fetch')),
-    })
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    renderApp(<AccountData />)
+  it('does not wait for the file: the button is free again as soon as the export is queued', async () => {
+    vi.mocked(enqueueExport).mockResolvedValue({ id: 9 })
+    vi.mocked(followExport).mockReturnValue(new Promise(() => {})) // a job that takes forever
+    render()
 
     await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
 
-    await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Erro', 'error', expect.any(String)))
-    expect(downloads).toEqual([])
+    await waitFor(() => expect(followExport).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: /baixar/i })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i })) // a second export can be queued
+    await waitFor(() => expect(enqueueExport).toHaveBeenCalledTimes(2))
+  })
+
+  it('says the file is built in the background', () => {
+    render()
+
+    expect(screen.getByText(/gerado em segundo plano/i)).toBeInTheDocument()
   })
 })

@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Button, Code, Heading, List, RadioGroup, Separator, Stack, Table, Tag, Text, Wrap } from "@chakra-ui/react";
 import { LuDownload } from "react-icons/lu";
-import { exportTransactions, getAllCategories } from "../api/endpoints";
+import { getAllCategories } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { exportFileName, saveBlob } from "../lib/download";
-import customToaster from "../utils/customToaster";
+import { enqueueExport, followExport } from "../lib/exportJobs";
 
 // The columns a spreadsheet must have to be imported. The first row holds these exact names.
 // The import itself is not built yet; this page already tells people what it will expect.
@@ -25,7 +24,7 @@ const EXPORT_FORMATS = [
 export default function AccountData() {
     const [categories, setCategories] = useState([]);
     const [exportFormat, setExportFormat] = useState("xlsx");
-    const [exporting, setExporting] = useState(false);
+    const [queueing, setQueueing] = useState(false);
 
     useEffect(() => {
         const token = getToken();
@@ -35,17 +34,13 @@ export default function AccountData() {
         });
     }, []);
 
+    // Queue the export and move on: the file is built in the background and downloaded when it is ready,
+    // even if the user goes to another page meanwhile.
     const handleExport = async () => {
-        setExporting(true);
-        const result = await exportTransactions(exportFormat, getToken());
-        setExporting(false);
-
-        if (result && result.ok) {
-            saveBlob(result.blob, exportFileName(exportFormat));
-            customToaster("Pronto", "success", "O arquivo foi baixado.");
-        } else {
-            customToaster("Erro", "error", "Não foi possível exportar as transações. Tente novamente.");
-        }
+        setQueueing(true);
+        const job = await enqueueExport(exportFormat);
+        setQueueing(false);
+        if (job) followExport(job);
     };
 
     const categoryNames = categories.map((category) => category.name).sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -112,6 +107,8 @@ export default function AccountData() {
                 <Text color="fg.muted">
                     Baixe todas as suas transações, da mais nova para a mais antiga, com as mesmas colunas da
                     importação. O valor sai sempre positivo; se foi entrada ou saída está na coluna Tipo.
+                    O arquivo é gerado em segundo plano: você pode continuar usando o app e avisamos quando
+                    estiver pronto.
                 </Text>
 
                 <RadioGroup.Root value={exportFormat} onValueChange={(e) => setExportFormat(e.value)}>
@@ -126,7 +123,7 @@ export default function AccountData() {
                     </Stack>
                 </RadioGroup.Root>
 
-                <Button alignSelf="start" onClick={handleExport} loading={exporting}>
+                <Button alignSelf="start" onClick={handleExport} loading={queueing}>
                     <LuDownload /> Baixar
                 </Button>
             </Stack>

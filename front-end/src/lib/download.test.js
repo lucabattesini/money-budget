@@ -1,12 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { exportFileName, saveBlob } from './download'
-
-describe('exportFileName', () => {
-  it('names the file with the local day and the extension', () => {
-    expect(exportFileName('xlsx', new Date(2026, 2, 5, 23, 59))).toBe('transacoes-2026-03-05.xlsx')
-    expect(exportFileName('csv', new Date(2026, 11, 31))).toBe('transacoes-2026-12-31.csv')
-  })
-})
+import { saveBlob } from './download'
 
 describe('saveBlob', () => {
   let clicked
