@@ -77,8 +77,7 @@ under "Done when" so it gets unskipped. List them with:
 
     grep -rn "TKT-" back-end/tests
 
-or `python -m pytest -rs` to see the reasons. Currently skipped: TKT-26 (date
-filters, phone numbers), TKT-27 (webhook signature and failure reply) and
+or `python -m pytest -rs` to see the reasons. Currently skipped: TKT-27 (webhook signature and failure reply) and
 TKT-28 (error codes of the transactions API).
 
 ## Running outside Docker

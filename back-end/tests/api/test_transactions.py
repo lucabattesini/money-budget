@@ -411,10 +411,9 @@ def test_creating_with_an_unknown_category_is_a_client_error(db, user, auth_head
     assert response.json()["detail"] == "Category not found"
 
 
-# --- known bugs (TKT-26) ---------------------------------------------------
+# --- date grouping validation (TKT-26) ---------------------------------------------------
 
 
-@pytest.mark.skip(reason="TKT-26: a date grouping without a date crashes with a 500 instead of a client error")
 @pytest.mark.parametrize("path", ["/transactions/", "/transactions/summed-by-category"])
 def test_grouping_without_a_date_is_a_client_error(client, auth_headers, path):
     response = client.post(path, json={"organized_by": "day"}, headers=auth_headers)

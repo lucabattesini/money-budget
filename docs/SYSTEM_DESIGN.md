@@ -156,7 +156,9 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
 - Every protected endpoint depends on `get_current_user_id` (FastAPI
   `HTTPBearer` + `decode_jwt`).
 - A user can also be matched by `whatsapp_phone`, which is how the chatbot
-  resolves an inbound WhatsApp number to an account.
+  resolves an inbound WhatsApp number to an account. The number is stored as
+  digits only and is unique (a database constraint); claiming one that belongs
+  to another account, from the login or `PATCH /user/me/phone`, answers `409`.
 
 ### 3.4 WhatsApp agent pipeline (`agents/`, `graph/`)
 A LangGraph `StateGraph` (`graph/graph.py`) over `AssistantState`
@@ -243,7 +245,9 @@ and written by the server, so they follow the server clock.
 first schema (category stored as text), `0002` category as a foreign key (names and
 unknown values go to "Outros"), `0003` `type` (old rows become `debit`), `0004` `date`
 renamed to `transactioned_at` with `created_at` back-filled from it (before the rename,
-`date` was always the save time) and `updated_at` empty, `0005` the `export_jobs` table.
+`date` was always the save time) and `updated_at` empty, `0005` the `export_jobs` table, `0006` a unique
+`users.whatsapp_phone` (numbers are cleaned to digits first; when several users shared one, the
+oldest account keeps it).
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
@@ -251,7 +255,9 @@ renamed to `transactioned_at` with `created_at` back-filled from it (before the 
 and optionally `type` / `transactioned_at`; omitted fields keep their value) and
 `DELETE /transactions/{id}`. A missing id, another user's id, or an unknown
 category answers `404`, the same for missing and foreign ids so other users' ids
-are not revealed.
+are not revealed. The two list endpoints take an optional `{organized_by: day|month|year, date}`:
+the period is the full day, month or year of `date` (March 2026 is not March 2025), and
+`organized_by` without a `date` answers `422`.
 
 **Export jobs** (`export_jobs` table, `/exports`): `POST /exports {format}` records a
 job as `queued`, answers `202` at once and builds the file in a FastAPI background

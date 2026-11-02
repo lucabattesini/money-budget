@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0005"
+LATEST = "0006"
 
 
 def _version(engine):
@@ -132,7 +132,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
 
 @pytest.mark.parametrize(
     ("revision", "expected_detection"),
-    [("0002", "0002"), ("0003", "0003"), ("0004", "0004"), ("0005", "0005")],
+    [("0002", "0002"), ("0003", "0003"), ("0004", "0004"), ("0005", "0005"), ("0006", "0006")],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
     _old_database(url, engine, revision)
@@ -393,3 +393,25 @@ def test_a_large_old_table_is_upgraded_with_a_handful_of_statements(url, engine)
     # '1' -> 1, 'transporte' and ' 2 ' -> 2, 'Pets' (unknown) and '' -> Outros (3)
     assert counts == {1: 1000, 2: 2000, 3: 2000}
     assert unmapped == 0
+
+
+def test_duplicate_and_badly_formatted_phone_numbers_are_cleaned_before_the_number_becomes_unique(url, engine):
+    command.upgrade(alembic_config(url), "0005")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO users (id, google_id, name, email, whatsapp_phone) VALUES "
+                "(1, 'g1', 'Ana', 'a@example.com', '+55 (11) 99999-0000'),"
+                "(2, 'g2', 'Bia', 'b@example.com', '5511999990000'),"  # same number as Ana once cleaned
+                "(3, 'g3', 'Caio', 'c@example.com', '5522888880000'),"
+                "(4, 'g4', 'Dani', 'd@example.com', '--'),"  # no digits at all
+                "(5, 'g5', 'Edu', 'e@example.com', NULL),"
+                "(6, 'g6', 'Fabi', 'f@example.com', NULL)"  # several users without a number are fine
+            )
+        )
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        phones = dict(conn.execute(text("SELECT id, whatsapp_phone FROM users ORDER BY id")).all())
+    assert phones == {1: "5511999990000", 2: None, 3: "5522888880000", 4: None, 5: None, 6: None}

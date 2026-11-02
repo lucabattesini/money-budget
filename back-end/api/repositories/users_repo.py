@@ -1,8 +1,29 @@
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from schemas.tables import Users
+
+PHONE_CONSTRAINT = "uq_users_whatsapp_phone"
+
+
+class PhoneInUseError(Exception):
+    """The WhatsApp number already belongs to another account."""
+
+
+def _commit(db: Session):
+    """Commit; a clash on the WhatsApp number becomes PhoneInUseError, anything else is re-raised."""
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        if PHONE_CONSTRAINT in str(e.orig):
+            raise PhoneInUseError() from e
+        raise
+    except Exception:
+        db.rollback()
+        raise
 
 
 def upsert_user_repo(
@@ -29,13 +50,8 @@ def upsert_user_repo(
         )
         db.add(user)
 
-    try:
-        db.commit()
-        db.refresh(user)
-    except Exception as e:
-        db.rollback()
-        raise e
-
+    _commit(db)
+    db.refresh(user)
     return user
 
 
@@ -55,10 +71,6 @@ def update_user_phone_repo(db: Session, user_id: int, whatsapp_phone: str):
     user = db.query(Users).filter(Users.id == user_id).first()
     if user:
         user.whatsapp_phone = whatsapp_phone
-        try:
-            db.commit()
-            db.refresh(user)
-        except Exception as e:
-            db.rollback()
-            raise e
+        _commit(db)
+        db.refresh(user)
     return user

@@ -101,6 +101,12 @@ class GetTransactionsParams(BaseModel):
     organized_by: Optional[Literal["day", "month", "year"]] = None
     date: Optional[datetime] = None
 
+    @model_validator(mode="after")
+    def _grouping_needs_a_date(self):
+        if self.organized_by is not None and self.date is None:
+            raise ValueError("'date' is required when 'organized_by' is set")
+        return self
+
 
 ExportFormat = Literal["csv", "xlsx"]
 ExportStatus = Literal["queued", "running", "done", "failed"]

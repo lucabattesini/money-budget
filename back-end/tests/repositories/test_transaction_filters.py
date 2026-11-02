@@ -216,10 +216,9 @@ def test_other_users_rows_are_never_returned(db, user, other_user, seeded, make_
     assert "Not yours" not in labels(run(db, user, search="Not yours"))
 
 
-# --- known bugs (TKT-26) -----------------------------------------------------
+# --- day and month filters (TKT-26) ---
 
 
-@pytest.mark.skip(reason="TKT-26: the day filter compares only the day of the month, ignoring year and month")
 def test_day_filter_matches_only_the_given_date(db, user, make_transaction, category_ids):
     cat = category_ids["Outros"]
     make_transaction(user, cat, "march 5th", when=datetime(2026, 3, 5, 12))
@@ -230,7 +229,6 @@ def test_day_filter_matches_only_the_given_date(db, user, make_transaction, cate
     assert [r.label for r in rows] == ["march 5th"]
 
 
-@pytest.mark.skip(reason="TKT-26: the month filter compares only the month number, ignoring the year")
 def test_month_filter_matches_only_the_given_year_and_month(db, user, make_transaction, category_ids):
     cat = category_ids["Outros"]
     make_transaction(user, cat, "march 2026", when=datetime(2026, 3, 5, 12))
@@ -239,3 +237,44 @@ def test_month_filter_matches_only_the_given_year_and_month(db, user, make_trans
     rows = get_transactions(db, GetTransactionsParams(organized_by="month", date=datetime(2026, 3, 1)), user.id)
 
     assert [r.label for r in rows] == ["march 2026"]
+
+
+def test_year_filter_still_matches_the_whole_year(db, user, make_transaction, category_ids):
+    cat = category_ids["Outros"]
+    make_transaction(user, cat, "dec 2025", when=datetime(2025, 12, 31, 23, 59, 59))
+    make_transaction(user, cat, "jan 2026", when=datetime(2026, 1, 1, 0, 0, 0))
+    make_transaction(user, cat, "dec 2026", when=datetime(2026, 12, 31, 23, 59, 59))
+    make_transaction(user, cat, "jan 2027", when=datetime(2027, 1, 1, 0, 0, 0))
+
+    rows = get_transactions(db, GetTransactionsParams(organized_by="year", date=datetime(2026, 6, 1)), user.id)
+
+    assert sorted(r.label for r in rows) == ["dec 2026", "jan 2026"]
+
+
+def test_december_month_filter_does_not_leak_into_january(db, user, make_transaction, category_ids):
+    cat = category_ids["Outros"]
+    make_transaction(user, cat, "dec", when=datetime(2026, 12, 31, 23, 59, 59))
+    make_transaction(user, cat, "jan", when=datetime(2027, 1, 1, 0, 0, 0))
+
+    rows = get_transactions(db, GetTransactionsParams(organized_by="month", date=datetime(2026, 12, 15)), user.id)
+
+    assert [r.label for r in rows] == ["dec"]
+
+
+def test_day_filter_includes_the_whole_day_and_nothing_of_the_next(db, user, make_transaction, category_ids):
+    cat = category_ids["Outros"]
+    make_transaction(user, cat, "midnight", when=datetime(2026, 3, 5, 0, 0, 0))
+    make_transaction(user, cat, "last second", when=datetime(2026, 3, 5, 23, 59, 59))
+    make_transaction(user, cat, "next day", when=datetime(2026, 3, 6, 0, 0, 0))
+
+    rows = get_transactions(db, GetTransactionsParams(organized_by="day", date=datetime(2026, 3, 5, 15)), user.id)
+
+    assert sorted(r.label for r in rows) == ["last second", "midnight"]
+
+
+def test_no_grouping_returns_everything(db, user, make_transaction, category_ids):
+    cat = category_ids["Outros"]
+    make_transaction(user, cat, "a", when=datetime(2025, 1, 1))
+    make_transaction(user, cat, "b", when=datetime(2026, 3, 5))
+
+    assert len(get_transactions(db, GetTransactionsParams(), user.id)) == 2

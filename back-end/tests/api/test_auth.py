@@ -128,6 +128,16 @@ def test_google_login_can_attach_a_whatsapp_number(client, google):
     assert response.json()["data"]["user"]["whatsapp_phone"] == "5511999990000"
 
 
+def test_google_login_with_a_number_that_belongs_to_someone_else_is_a_conflict(client, db, google, make_user):
+    owner = make_user(whatsapp_phone="5511999990000")
+
+    response = client.post("/auth/google", json={"id_token": "t", "whatsapp_phone": "5511999990000"})
+
+    assert response.status_code == 409
+    assert db.query(Users).filter_by(google_id="g-123").count() == 0  # the login did not half-happen
+    assert db.get(Users, owner.id).whatsapp_phone == "5511999990000"
+
+
 def test_invalid_google_token_is_unauthorized(client, google, monkeypatch):
     def invalid(*args, **kwargs):
         raise ValueError("Token expired")
