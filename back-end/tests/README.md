@@ -47,6 +47,7 @@ tests/
   gateways/                # document gateway: CSV and Excel files, built in memory
   utils/                   # formatting helpers (amounts, dates, formula guard)
   repositories/            # transaction filters, ordering, pagination, aggregates
+  db/                      # Alembic migrations on throwaway databases (see below)
   graph/                   # chatbot: database node, recorder node, whole flow
                            #   (only the four Gemini agents are stubbed)
 ```
@@ -104,9 +105,7 @@ host is the `db` service.
   Gemini, so their tests are specified in TKT-19 and should be written before
   the library is replaced.
 - Front-end (TKT-22).
-- Foreign keys and constraints beyond what the endpoints exercise, and the
-  hand-written migration in `db/migrations.py` (the test database is built with
-  `create_all`).
+- Foreign keys and constraints beyond what the endpoints exercise.
 
 ## Later
 
@@ -116,3 +115,10 @@ Export jobs run in a background task. `tests/api/test_exports.py` has its own `q
 fixture that holds the task back and runs it on demand (`queue.run()`), so a test can look
 at a job while it is still queued. (The test database shares one connection, which would
 undo a task's work if it ran inside the request.)
+
+The test database itself is built with `create_all`, which is quick. The migrations are tested
+separately in `tests/db/test_migrations.py`, on a throwaway database named
+`<test database>_migrations_test` that is created and dropped around each test. Those tests check that
+the migrations build exactly what the models describe, that every revision can be undone, that databases
+from before Alembic are upgraded without losing data, and that seeding is a command and not a side effect
+of importing a module.

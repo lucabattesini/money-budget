@@ -46,11 +46,12 @@ def seed_categories():
 
         db.commit()
         print("Default categories created successfully")
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print("Error to insert default categories", e)
+        raise  # a failed seed must stop `db.upgrade && db.seed && uvicorn`, not be hidden
     finally:
         db.close()
 
 
-seed_categories()
+if __name__ == "__main__":
+    seed_categories()

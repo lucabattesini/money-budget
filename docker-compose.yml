@@ -20,9 +20,9 @@ services:
 
   api:
     build: ./back-end
-    # Create tables, run the idempotent migration, seed categories, then serve.
+    # Apply the database migrations (Alembic), seed the default categories, then serve.
     command: >
-      sh -c "python -m db.migrations &&
+      sh -c "python -m db.upgrade &&
              python -m db.seed &&
              uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload"
     env_file:
