@@ -66,15 +66,13 @@ describe('transactions page', () => {
     expect(post[1].headers.Authorization).toBe('Bearer tok')
   })
 
-  it('shows a table row per transaction with date, description, category and amount', async () => {
+  it('shows a table row per transaction with date, description, category and amount, without a header row', async () => {
     mockApi(routes())
 
     renderApp(<TransactionsDisplay />)
 
     await screen.findByText('Almoço')
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
-      ['Data', 'Descrição', 'Categoria', 'Valor', ''],
-    )
+    expect(screen.queryAllByRole('columnheader')).toHaveLength(0) // no header row, just the transactions
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
     expect(cells.slice(0, 4)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '- R$ 25,50'])
   })

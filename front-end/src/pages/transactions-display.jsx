@@ -180,15 +180,6 @@ export default function TransactionsDisplay() {
                 {!loading && visibleGroups.length > 0 && (
                     <Table.ScrollArea w="full">
                         <Table.Root size="sm">
-                            <Table.Header>
-                                <Table.Row>
-                                    <Table.ColumnHeader>Data</Table.ColumnHeader>
-                                    <Table.ColumnHeader>Descrição</Table.ColumnHeader>
-                                    <Table.ColumnHeader>Categoria</Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="end">Valor</Table.ColumnHeader>
-                                    <Table.ColumnHeader />
-                                </Table.Row>
-                            </Table.Header>
                             <Table.Body>
                                 {visibleGroups.map((group) => (
                                     <Fragment key={group.title}>
