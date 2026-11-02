@@ -172,9 +172,14 @@ def make_user(db):
 def make_transaction(db):
     """Insert a transaction directly (the create endpoint always stamps the current time)."""
 
-    def _make(user, category_id, label="Almoço", value=2500, when=None):
+    def _make(user, category_id, label="Almoço", value=2500, when=None, type="debit"):
         row = TransactionDB(
-            user_id=user.id, label=label, value=value, date=when or datetime.now(), category_id=category_id
+            user_id=user.id,
+            label=label,
+            value=value,
+            transactioned_at=when or datetime.now(),
+            category_id=category_id,
+            type=type,
         )
         db.add(row)
         db.commit()

@@ -42,7 +42,7 @@ export default function Dashboard() {
     const now = new Date();
     const monthTotal = transactions
         .filter(t => {
-            const tDate = new Date(t.date);
+            const tDate = new Date(t.transactioned_at);
             return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
         })
         .reduce((sum, t) => sum + t.value / 100, 0);

@@ -3,12 +3,26 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+# Which way the money went. `value` is always a positive amount in cents.
+TransactionType = Literal["credit", "debit"]
+
 
 class Transaction(BaseModel):
     label: str
     value: int
     category_id: int
-    date: Optional[datetime] = None
+    type: TransactionType = "debit"
+    transactioned_at: Optional[datetime] = None  # empty means now
+
+
+class TransactionUpdate(BaseModel):
+    """What a user may change on an existing transaction (the date stays as it was)."""
+
+    label: str = Field(min_length=1, max_length=100)
+    value: int = Field(gt=0, le=2147483647)  # cents, must fit the 32-bit column
+    category_id: int
+    type: Optional[TransactionType] = None  # None keeps the current type
+    transactioned_at: Optional[datetime] = None  # None keeps the current date
 
 
 class TransactionFilters(BaseModel):
@@ -37,8 +51,11 @@ class TransactionFilters(BaseModel):
 class TransactionOut(BaseModel):
     id: int
     label: Optional[str] = None
-    value: int  # cents
-    date: Optional[datetime] = None
+    value: int  # cents, always positive
+    type: TransactionType = "debit"
+    transactioned_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     category_id: Optional[int] = None
     category_name: Optional[str] = None
 

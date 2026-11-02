@@ -41,4 +41,41 @@ def migrate_transaction_category_to_fk():
     print(f"Migrated {len(rows)} transactions to category_id")
 
 
+def migrate_add_transaction_type():
+    """Add transactions.type ("debit" or "credit"). Existing rows were all expenses, so they become debits.
+
+    Idempotent: does nothing when the column exists (including databases created after the change).
+    """
+    columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
+    if "type" in columns:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE transactions ADD COLUMN type VARCHAR(6) NOT NULL DEFAULT 'debit'"))
+    print("Added transactions.type")
+
+
+def migrate_transaction_timestamps():
+    """Rename transactions.date to transactioned_at and add created_at / updated_at.
+
+    Before this, `date` was always the moment the row was saved, so it is also a good value for
+    created_at on old rows. updated_at stays empty (never edited). Idempotent.
+    """
+    columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
+    if {"transactioned_at", "created_at", "updated_at"} <= columns:
+        return
+
+    with engine.begin() as conn:
+        if "date" in columns and "transactioned_at" not in columns:
+            conn.execute(text("ALTER TABLE transactions RENAME COLUMN date TO transactioned_at"))
+        if "created_at" not in columns:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN created_at TIMESTAMP DEFAULT now()"))
+            conn.execute(text("UPDATE transactions SET created_at = transactioned_at"))
+        if "updated_at" not in columns:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN updated_at TIMESTAMP"))
+    print("Added transactions.transactioned_at, created_at and updated_at")
+
+
 migrate_transaction_category_to_fk()
+migrate_add_transaction_type()
+migrate_transaction_timestamps()

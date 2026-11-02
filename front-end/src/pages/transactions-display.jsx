@@ -1,16 +1,29 @@
-import { useState, useEffect } from "react";
-import { Center, Stack, Heading, Card, Flex, Text, IconButton, Box, Separator } from "@chakra-ui/react";
+import { Fragment, useState, useEffect } from "react";
+import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
 import { getTransactions, getAllCategories, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { formatCents } from "../lib/money";
+import { EMPTY_FILTERS, applyFilters, countActiveFilters, hasActiveFilters } from "../lib/transactionFilters";
+import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
-import { IoIosCloseCircle } from "react-icons/io";
+import TransactionDrawer from "../components/TransactionDrawer";
+import TransactionFilters from "../components/TransactionFilters";
+import { Toaster } from "../components/ui/toaster";
+import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
+
+// "Todo o Resto" can be long, so it is shown in pages
+const PAGE_SIZE = 10;
 
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [trigger, setTrigger] = useState(0);
+    const [adding, setAdding] = useState(false);
+    const [editing, setEditing] = useState(null); // the transaction being edited
+    const [filters, setFilters] = useState(EMPTY_FILTERS);
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
         const token = getToken();
@@ -24,9 +37,23 @@ export default function TransactionsDisplay() {
         });
     }, [trigger]);
 
-    const onDelete = (id) => {
-        deleteTransaction(id, getToken());
-        setTrigger(trigger + 1);
+    // Alphabetical, so categories are easy to find in every list
+    const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+    const changeFilters = (next) => {
+        setFilters(next);
+        setPage(1);
+    };
+
+    const reload = () => setTrigger((current) => current + 1);
+
+    // Wait for the delete to finish before reloading, otherwise the list can still show the row
+    const onDelete = async (id) => {
+        const response = await deleteTransaction(id, getToken());
+        if (!response || !response.ok) {
+            customToaster("Erro", "error", "Não foi possível excluir a transação.");
+        }
+        reload();
     }
 
     const today = [];
@@ -45,8 +72,11 @@ export default function TransactionsDisplay() {
     // Start of this month
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    transactions.forEach(transaction => {
-        const tDate = new Date(transaction.date);
+    const filtered = applyFilters(transactions, filters);
+    const activeFilters = countActiveFilters(filters);
+
+    filtered.forEach(transaction => {
+        const tDate = new Date(transaction.transactioned_at);
         if (tDate >= startOfToday) {
             today.push(transaction);
         } else if (tDate >= startOfWeek) {
@@ -65,61 +95,143 @@ export default function TransactionsDisplay() {
         { title: "Todo o Resto", data: older },
     ];
 
-    const renderTransactionCard = (transaction) => {
-        const categoryObj = categories?.find((category) => category.id === transaction.category_id);
-        const categoryName = categoryObj ? categoryObj.name : "Categoria não encontrada";
-        const formatedDate = new Date(transaction.date);
+    const categoryName = (transaction) =>
+        categories?.find((category) => category.id === transaction.category_id)?.name ?? "Categoria não encontrada";
 
-        return (
-            <Card.Root width="300px" height="150px" key={transaction.id} mb={4}>
-                <Box alignSelf="end" marginRight="5px">
-                    <IconButton variant="ghost" color="white" size="1px" onClick={() => onDelete(transaction.id)}>
-                        <IoIosCloseCircle size="1.5vh"/>
-                    </IconButton>
-                </Box>
-                <Card.Header paddingTop="0.5vh">
-                    <Flex justify="space-between">
-                        <Text>- {transaction.value /100} R$</Text>
-                        <Text>{categoryName}</Text>
-                    </Flex>
-                </Card.Header>
-                <Card.Body color="fg.muted">
-                    <Flex justify="space-between">
-                        <Text whiteSpace="normal" wordBreak="break-word" maxW="15ch">
-                            {transaction.label}
-                        </Text>
-                        <Text>
-                            {formatedDate.toLocaleDateString("pt-BR")}
-                        </Text>
-                    </Flex>
-                </Card.Body>
-            </Card.Root>
-        );
-    }
+    const renderRow = (transaction) => (
+        <Table.Row key={transaction.id} cursor="pointer" _hover={{ bg: "bg.muted" }} onClick={() => setEditing(transaction)}>
+            <Table.Cell whiteSpace="nowrap">{new Date(transaction.transactioned_at).toLocaleDateString("pt-BR")}</Table.Cell>
+            <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
+            <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
+            <Table.Cell textAlign="end" whiteSpace="nowrap" color={transaction.type === "credit" ? "green.400" : undefined}>
+                {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
+            </Table.Cell>
+            {/* Clicks here (the menu is rendered elsewhere but still bubbles) must not open the editor */}
+            <Table.Cell textAlign="end" width="1%" onClick={(event) => event.stopPropagation()}>
+                <Menu.Root positioning={{ placement: "bottom-end" }}>
+                    <Menu.Trigger asChild>
+                        <IconButton variant="ghost" size="xs" aria-label={`Ações para ${transaction.label}`}>
+                            <LuEllipsisVertical />
+                        </IconButton>
+                    </Menu.Trigger>
+                    <Portal>
+                        <Menu.Positioner>
+                            <Menu.Content>
+                                <Menu.Item value="edit" onClick={() => setEditing(transaction)}>
+                                    <LuPencil /> Editar
+                                </Menu.Item>
+                                <Menu.Item value="delete" color="fg.error" onClick={() => onDelete(transaction.id)}>
+                                    <LuTrash2 /> Excluir
+                                </Menu.Item>
+                            </Menu.Content>
+                        </Menu.Positioner>
+                    </Portal>
+                </Menu.Root>
+            </Table.Cell>
+        </Table.Row>
+    );
+
+    // Only the oldest group is paginated
+    const pageCount = Math.max(1, Math.ceil(older.length / PAGE_SIZE));
+    const currentPage = Math.min(page, pageCount);
+    const visibleGroups = groups
+        .map((group) => group.data === older
+            ? { ...group, data: older.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) }
+            : group)
+        .filter((group) => group.data.length > 0);
 
     return(
         <Center>
-            <Stack minHeight="100vh" gap={6} w="full" maxW="md" align="center" justify="flex-start" py={10}>
+            <Toaster />
+            <Stack minHeight="100vh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={10} px={4}>
                 <TransactionSummary transactions={transactions} />
 
+                <Flex w="full" justify="space-between" align="center">
+                    <Text fontSize="lg" fontWeight="bold">Transações</Text>
+                    <Flex gap={2}>
+                        <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
+                            <Popover.Trigger asChild>
+                                <Button size="sm" variant="outline">
+                                    <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
+                                </Button>
+                            </Popover.Trigger>
+                            <Portal>
+                                <Popover.Positioner>
+                                    <Popover.Content width="auto">
+                                        <Popover.Body>
+                                            <TransactionFilters
+                                                filters={filters}
+                                                onChange={changeFilters}
+                                                categories={sortedCategories}
+                                            />
+                                        </Popover.Body>
+                                    </Popover.Content>
+                                </Popover.Positioner>
+                            </Portal>
+                        </Popover.Root>
+                        <Button size="sm" onClick={() => setAdding(true)}>
+                            <LuPlus /> Adicionar
+                        </Button>
+                    </Flex>
+                </Flex>
+
                 {loading && <SpinnerLoading/>}
-                
-                {!loading && groups.map(group => {
-                    if (group.data.length === 0) return null;
-                    return (
-                        <Box key={group.title} w="full" display="flex" flexDirection="column" alignItems="center">
-                            <Flex w="full" align="center" mb={6} mt={2}>
-                                <Box color="gray.400" mr={4} fontSize="xs" fontWeight="bold" textTransform="uppercase">
-                                    {group.title}
-                                </Box>
-                                <Separator flex="1" borderColor="gray.700" />
-                            </Flex>
-                            
-                            {group.data.map(renderTransactionCard)}
-                        </Box>
-                    );
-                })}
+
+                {!loading && visibleGroups.length > 0 && (
+                    <Table.ScrollArea w="full">
+                        <Table.Root size="sm">
+                            <Table.Body>
+                                {visibleGroups.map((group) => (
+                                    <Fragment key={group.title}>
+                                        <Table.Row>
+                                            <Table.Cell colSpan={5} pt={6}>
+                                                <Box color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase">
+                                                    {group.title}
+                                                </Box>
+                                            </Table.Cell>
+                                        </Table.Row>
+                                        {group.data.map(renderRow)}
+                                    </Fragment>
+                                ))}
+                            </Table.Body>
+                        </Table.Root>
+                    </Table.ScrollArea>
+                )}
+
+                {!loading && pageCount > 1 && (
+                    <Flex align="center" gap={3}>
+                        <Button size="xs" variant="outline" disabled={currentPage === 1}
+                            onClick={() => setPage(currentPage - 1)}>
+                            Anterior
+                        </Button>
+                        <Text fontSize="sm">Página {currentPage} de {pageCount}</Text>
+                        <Button size="xs" variant="outline" disabled={currentPage === pageCount}
+                            onClick={() => setPage(currentPage + 1)}>
+                            Próxima
+                        </Button>
+                    </Flex>
+                )}
+
+                {!loading && filtered.length === 0 && (
+                    <Text color="fg.muted">
+                        {hasActiveFilters(filters) ? "Nenhuma transação encontrada com esses filtros." : "Nenhuma transação ainda."}
+                    </Text>
+                )}
             </Stack>
+
+            <TransactionDrawer
+                open={adding}
+                onClose={() => setAdding(false)}
+                categories={sortedCategories}
+                onSaved={reload}
+            />
+            <TransactionDrawer
+                open={editing !== null}
+                transaction={editing}
+                onClose={() => setEditing(null)}
+                categories={sortedCategories}
+                onSaved={reload}
+            />
         </Center>
     )
 }

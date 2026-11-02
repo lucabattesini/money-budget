@@ -65,7 +65,7 @@ def _run_query_tool(db: Session, call: ToolCall, user_id: int) -> dict:
                 {
                     "description": t.label,
                     "amount": t.value / 100,
-                    "date": t.date.date().isoformat() if t.date else None,
+                    "date": t.transactioned_at.date().isoformat() if t.transactioned_at else None,
                     "category": t.category_name,
                 }
                 for t in rows
@@ -118,7 +118,7 @@ def node_recorder(state: AssistantState):
                 label=item.description,
                 value=round(item.amount * 100),
                 category_id=cat_obj.id,
-                date=datetime.combine(expense_date, now.time()),
+                transactioned_at=datetime.combine(expense_date, now.time()),
             )
             create_transaction(db, t, state["user_id"])
             registered.append(

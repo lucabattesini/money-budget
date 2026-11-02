@@ -5,7 +5,7 @@ import { mockApi, networkDown, renderApp, requestsMade } from '../test/helpers'
 import Dashboard from './dashboard'
 
 // Sunday 15 March 2026, noon.
-const t = (id, cents, date, category_id = 1) => ({ id, label: 'x', value: cents, date, category_id })
+const t = (id, cents, date, category_id = 1) => ({ id, label: 'x', value: cents, transactioned_at: date, category_id })
 
 const ROUTES = {
   'GET /categories': { data: [{ id: 1, name: 'Alimentação' }, { id: 2, name: 'Transporte' }] },

@@ -87,7 +87,7 @@ def main():
                             user_id=user.id,
                             label=label,
                             value=rng.randint(low // 10, high // 10) * 10,
-                            date=day,
+                            transactioned_at=day,
                             category_id=categories[category],
                         )
                     )

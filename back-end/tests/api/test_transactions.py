@@ -39,7 +39,7 @@ def test_create_stores_the_transaction_for_the_caller(client, db, user, auth_hea
         2500,
         category_ids["Alimentação"],
     )
-    assert row.date is not None
+    assert row.transactioned_at is not None
 
 
 def test_create_requires_authentication(client, db, category_ids):
@@ -165,6 +165,221 @@ def test_delete_requires_authentication(client, user, make_transaction, category
     row = make_transaction(user, category_ids["Alimentação"])
 
     assert client.delete(f"/transactions/{row.id}").status_code == 401
+
+
+# --- credit and debit -------------------------------------------------------
+
+
+def test_a_transaction_is_a_debit_unless_said_otherwise(client, db, auth_headers, category_ids):
+    _create(client, auth_headers, category_ids["Alimentação"])
+
+    assert db.query(TransactionDB).one().type == "debit"
+    assert _list(client, auth_headers)[0]["type"] == "debit"
+
+
+def test_a_credit_is_stored_as_a_positive_amount_in_cents(client, db, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={"label": "Salário", "value": 150000, "category_id": category_ids["Alimentação"], "type": "credit"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    saved = db.query(TransactionDB).one()
+    assert (saved.type, saved.value) == ("credit", 150000)
+    assert _list(client, auth_headers)[0]["type"] == "credit"
+
+
+def test_create_rejects_an_unknown_type(client, db, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={"label": "x", "value": 100, "category_id": category_ids["Alimentação"], "type": "refund"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    assert db.query(TransactionDB).count() == 0
+
+
+def test_spending_totals_by_category_ignore_credits(client, user, auth_headers, make_transaction, category_ids):
+    food = category_ids["Alimentação"]
+    make_transaction(user, food, value=1000, type="debit")
+    make_transaction(user, food, value=300, type="debit")
+    make_transaction(user, food, value=99999, type="credit")
+
+    assert _summed(client, auth_headers) == [{"category_id": food, "total": 1300}]
+
+
+# --- dates: transactioned_at, created_at, updated_at -------------------------
+
+
+def test_a_new_transaction_happens_now_and_records_when_it_was_saved(client, db, auth_headers, category_ids):
+    before = datetime.now()
+    _create(client, auth_headers, category_ids["Alimentação"])
+
+    row = db.query(TransactionDB).one()
+    assert row.transactioned_at >= before
+    assert row.created_at is not None
+    assert row.updated_at is None  # never edited
+
+
+def test_create_accepts_the_date_the_transaction_happened(client, db, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={
+            "label": "Aluguel",
+            "value": 100000,
+            "category_id": category_ids["Alimentação"],
+            "transactioned_at": "2026-01-05T10:30:00",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    row = db.query(TransactionDB).one()
+    assert row.transactioned_at == datetime(2026, 1, 5, 10, 30)
+    assert row.created_at > row.transactioned_at  # saved later than it happened
+
+
+def test_the_list_shows_all_three_dates(client, user, auth_headers, make_transaction, category_ids):
+    make_transaction(user, category_ids["Alimentação"], when=datetime(2026, 1, 5, 10, 30))
+
+    row = _list(client, auth_headers)[0]
+
+    assert row["transactioned_at"].startswith("2026-01-05T10:30")
+    assert row["created_at"] is not None
+    assert row["updated_at"] is None
+
+
+def test_update_can_change_the_date_and_marks_the_row_as_edited(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    food = category_ids["Alimentação"]
+    row = make_transaction(user, food, when=datetime(2026, 3, 15, 9, 0))
+    created = row.created_at
+
+    response = _update(client, auth_headers, row.id, category_id=food, transactioned_at="2026-02-01T08:00:00")
+
+    assert response.status_code == 200
+    db.expire_all()
+    saved = db.query(TransactionDB).filter_by(id=row.id).one()
+    assert saved.transactioned_at == datetime(2026, 2, 1, 8, 0)
+    assert saved.created_at == created  # when it was first saved never changes
+    assert saved.updated_at is not None and saved.updated_at >= created
+
+
+def test_update_keeps_the_date_when_none_is_sent(client, db, user, auth_headers, make_transaction, category_ids):
+    food = category_ids["Alimentação"]
+    row = make_transaction(user, food, when=datetime(2026, 3, 15, 9, 0))
+
+    _update(client, auth_headers, row.id, category_id=food)
+
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().transactioned_at == datetime(2026, 3, 15, 9, 0)
+
+
+# --- update ----------------------------------------------------------------
+
+
+def _update(client, headers, id, **fields):
+    body = {"label": "Novo", "value": 3000, "category_id": None, **fields}
+    return client.put(f"/transactions/{id}", json=body, headers=headers)
+
+
+def test_update_changes_label_amount_and_category_and_keeps_the_date(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+    original_date = row.transactioned_at
+
+    response = _update(client, auth_headers, row.id, label="Novo", value=3050, category_id=category_ids["Transporte"])
+
+    assert response.status_code == 200
+    assert response.json()["data"]["label"] == "Novo"
+    db.expire_all()
+    saved = db.query(TransactionDB).filter_by(id=row.id).one()
+    assert (saved.label, saved.value, saved.category_id) == ("Novo", 3050, category_ids["Transporte"])
+    assert saved.transactioned_at == original_date
+    assert saved.user_id == user.id
+
+
+def test_update_can_switch_between_credit_and_debit_and_keeps_the_type_when_omitted(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    food = category_ids["Alimentação"]
+    row = make_transaction(user, food, type="debit")
+
+    _update(client, auth_headers, row.id, category_id=food, type="credit")
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().type == "credit"
+
+    _update(client, auth_headers, row.id, category_id=food)  # no type: unchanged
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().type == "credit"
+
+
+def test_update_rejects_an_unknown_type(client, user, auth_headers, make_transaction, category_ids):
+    row = make_transaction(user, category_ids["Alimentação"])
+
+    response = _update(client, auth_headers, row.id, category_id=category_ids["Alimentação"], type="refund")
+
+    assert response.status_code == 422
+
+
+def test_update_cannot_change_another_users_transaction(
+    client, db, user, other_user, headers_for, make_transaction, category_ids
+):
+    theirs = make_transaction(other_user, category_ids["Alimentação"], label="Theirs", value=1000)
+
+    response = _update(client, headers_for(user), theirs.id, category_id=category_ids["Alimentação"])
+
+    assert response.status_code == 404
+    db.expire_all()
+    untouched = db.query(TransactionDB).filter_by(id=theirs.id).one()
+    assert (untouched.label, untouched.value) == ("Theirs", 1000)
+
+
+def test_update_of_an_unknown_id_is_not_found(client, auth_headers, category_ids):
+    response = _update(client, auth_headers, 999999, category_id=category_ids["Alimentação"])
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Transaction not found"
+
+
+def test_update_with_an_unknown_category_is_not_found_and_changes_nothing(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+
+    response = _update(client, auth_headers, row.id, category_id=999999)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Category not found"
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().label == "Velho"
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{"value": 0}, {"value": -5}, {"value": 2147483648}, {"label": ""}, {"label": "x" * 101}],
+)
+def test_update_rejects_invalid_values(client, db, user, auth_headers, make_transaction, category_ids, fields):
+    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+
+    response = _update(client, auth_headers, row.id, category_id=category_ids["Alimentação"], **fields)
+
+    assert response.status_code == 422
+    db.expire_all()
+    saved = db.query(TransactionDB).filter_by(id=row.id).one()
+    assert (saved.label, saved.value) == ("Velho", 1000)
+
+
+def test_update_requires_authentication(client, user, make_transaction, category_ids):
+    row = make_transaction(user, category_ids["Alimentação"])
+
+    response = client.put(f"/transactions/{row.id}", json={"label": "x", "value": 1, "category_id": 1})
+
+    assert response.status_code == 401
 
 
 # --- error codes (TKT-28) ------------------------------------------------

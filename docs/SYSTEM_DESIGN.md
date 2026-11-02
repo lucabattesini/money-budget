@@ -100,7 +100,9 @@ flowchart TB
 - `lib/auth.js` stores the JWT in `localStorage` and attaches it as a Bearer
   token to every API call (`lib/utils.js` / `api/endpoints.js`).
 - Pages: `dashboard` (balance + charts), `report-expense` (manual entry),
-  `transactions-display` (history + filters), `investments`, `account`.
+  `transactions-display` (table of history with filters in a menu, 10-per-page
+  paging for older entries, a side panel to add a transaction via
+  `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
   from inside the web app.
 
@@ -133,7 +135,7 @@ A LangGraph `StateGraph` (`graph/graph.py`) over `AssistantState`
 | Node | Role |
 |---|---|
 | **orchestrator** | Classifies the message as `check`, `registry`, or `off-topic`. |
-| **recorder** | On `registry`: extracts one or more expense items (amount, description, category, date) and writes `Transaction` rows via the repositories. |
+| **recorder** | On `registry`: extracts one or more expense items (amount, description, category, date) and writes `Transaction` rows (always `debit`; the item's date becomes `transactioned_at`, never in the future) via the repositories. |
 | **query** | On `check`: turns the question into one or more structured tool calls (`list_transactions`, `summarize_transactions`) with filters (date range, category, search text, min/max amount, weekday). |
 | **db_execute** | Executes the query agent's tool calls against the repositories, converting cents to reais. |
 | **secretary** | Formats the DB results plus the original question into a natural-language (Portuguese) reply. |
@@ -166,8 +168,11 @@ erDiagram
         int id PK
         int user_id FK
         string label
-        int value "cents"
-        datetime date
+        int value "cents, always positive"
+        string type "debit or credit"
+        datetime transactioned_at "when the money moved (editable)"
+        datetime created_at "when first saved"
+        datetime updated_at "when last edited"
         int category_id FK
     }
 
@@ -175,8 +180,32 @@ erDiagram
     USERS ||--o{ CATEGORIES : "owns"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
 ```
-Amounts are stored as integer cents (`value`) and converted to reais (`/100`)
-at the API/agent boundary.
+**`transactions` columns**
+
+| Column | Meaning |
+|---|---|
+| `value` | Amount in integer cents. Always positive (the API rejects 0, negatives and values over the 32-bit limit on edit); the direction is in `type`, never in the sign. Converted to reais (`/100`) at the API/agent boundary. |
+| `type` | `debit` (money out, the default) or `credit` (money in). Not null. Spending totals (the summary at the top of the transactions page, `summed-by-category`) count debits only. |
+| `transactioned_at` | When the money moved. The user can change it (the edit form picks a day and keeps the time of day). Defaults to the moment of creation. Never in the future for entries made in the web app or by the chatbot. This column used to be called `date`. |
+| `created_at` | When the row was first saved. Set by the database, never changed. |
+| `updated_at` | When the row was last edited through `PUT /transactions/{id}`. Empty until the first edit. |
+
+`created_at` and `transactioned_at` are different on purpose: back-dating an
+entry changes only `transactioned_at`. All timestamps are naive (no time zone)
+and written by the server, so they follow the server clock.
+
+**Schema changes** are applied by `db/migrations.py` at start-up. They are
+idempotent: `type` is added with every old row becoming a `debit`; `date` is
+renamed to `transactioned_at` and `created_at` is back-filled from it (before
+the rename, `date` was always the save time); `updated_at` starts empty.
+
+**Transaction endpoints** (all require login and only see the caller's rows):
+`POST /transactions/` (list), `POST /transactions/summed-by-category`,
+`POST /transactions/create`, `PUT /transactions/{id}` (label, value, category,
+and optionally `type` / `transactioned_at`; omitted fields keep their value) and
+`DELETE /transactions/{id}`. A missing id, another user's id, or an unknown
+category answers `404`, the same for missing and foreign ids so other users' ids
+are not revealed.
 
 ## 4. Key request flows
 

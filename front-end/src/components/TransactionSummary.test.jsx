@@ -4,7 +4,7 @@ import { renderApp } from '../test/helpers'
 import TransactionSummary from './TransactionSummary'
 
 // Sunday 15 March 2026, noon. "Last 7 days" starts Sunday 8 March 00:00; the month starts 1 March.
-const tx = (date, cents) => ({ id: Math.random(), date, value: cents, label: 'x' })
+const tx = (date, cents, type = 'debit') => ({ id: Math.random(), transactioned_at: date, value: cents, label: 'x', type })
 
 const totals = () => {
   const read = (label) => screen.getByText(label).nextElementSibling.textContent.replace(/\s/g, ' ')
@@ -21,6 +21,16 @@ describe('TransactionSummary', () => {
     renderApp(<TransactionSummary transactions={[]} />)
 
     expect(totals()).toEqual({ today: 'R$ 0,00', week: 'R$ 0,00', month: 'R$ 0,00' })
+  })
+
+  it('counts what was spent: credits are not added to the totals', () => {
+    renderApp(
+      <TransactionSummary
+        transactions={[tx('2026-03-15T09:00:00', 1000), tx('2026-03-15T10:00:00', 999999, 'credit')]}
+      />,
+    )
+
+    expect(totals().today).toBe('R$ 10,00')
   })
 
   it('sums the amounts (cents to reais) for today, the last 7 days and this month', () => {

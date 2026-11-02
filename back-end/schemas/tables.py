@@ -9,8 +9,11 @@ class TransactionDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     label = Column(String(100))
-    value = Column(Integer)
-    date = Column(DateTime)
+    value = Column(Integer)  # always positive, in cents; `type` says which way the money went
+    type = Column(String(6), nullable=False, default="debit", server_default="debit")  # "debit" | "credit"
+    transactioned_at = Column(DateTime)  # when the money moved (the user may change it)
+    created_at = Column(DateTime, server_default=func.now())  # when the row was first saved
+    updated_at = Column(DateTime)  # when the row was last edited; empty if never edited
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
 
 

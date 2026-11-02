@@ -5,12 +5,18 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from schemas.tables import Categories, TransactionDB
-from schemas.tables_schemas import Transaction, TransactionAggregate, TransactionFilters, TransactionOut
+from schemas.tables_schemas import (
+    Transaction,
+    TransactionAggregate,
+    TransactionFilters,
+    TransactionOut,
+    TransactionUpdate,
+)
 
 MAX_LIST_LIMIT = 200
 
 ORDER_COLUMNS = {
-    "date": TransactionDB.date,
+    "date": TransactionDB.transactioned_at,
     "value": TransactionDB.value,
 }
 
@@ -37,19 +43,23 @@ def create_transaction(db: Session, t: Transaction, user_id: int):
 def get_transactions(db: Session, datetype, date, user_id: int):
     query = db.query(TransactionDB).filter(TransactionDB.user_id == user_id)
     if datetype is None:
-        return query.order_by(TransactionDB.date.desc()).all()
-    return query.filter(extract(datetype, TransactionDB.date) == date).order_by(TransactionDB.date.desc()).all()
+        return query.order_by(TransactionDB.transactioned_at.desc()).all()
+    return (
+        query.filter(extract(datetype, TransactionDB.transactioned_at) == date)
+        .order_by(TransactionDB.transactioned_at.desc())
+        .all()
+    )
 
 
 def get_transactions_summed_by_category(db: Session, datetype, date, user_id: int):
     query = (
         db.query(TransactionDB.category_id, func.sum(TransactionDB.value).label("total"))
-        .filter(TransactionDB.user_id == user_id)
+        .filter(TransactionDB.user_id == user_id, TransactionDB.type == "debit")  # spending only
         .group_by(TransactionDB.category_id)
     )
 
     if datetype is not None:
-        query = query.filter(extract(datetype, TransactionDB.date) == date)
+        query = query.filter(extract(datetype, TransactionDB.transactioned_at) == date)
 
     return query.all()
 
@@ -59,10 +69,12 @@ def _apply_filters(query, user_id: int, f: TransactionFilters):
     query = query.filter(TransactionDB.user_id == user_id)
 
     if f.start_date:
-        query = query.filter(TransactionDB.date >= datetime.combine(f.start_date, time.min))
+        query = query.filter(TransactionDB.transactioned_at >= datetime.combine(f.start_date, time.min))
     if f.end_date:
         # Half-open range so the whole end day is included
-        query = query.filter(TransactionDB.date < datetime.combine(f.end_date + timedelta(days=1), time.min))
+        query = query.filter(
+            TransactionDB.transactioned_at < datetime.combine(f.end_date + timedelta(days=1), time.min)
+        )
     if f.category_ids:
         query = query.filter(TransactionDB.category_id.in_(f.category_ids))
     if f.exclude_category_ids:
@@ -74,7 +86,7 @@ def _apply_filters(query, user_id: int, f: TransactionFilters):
     if f.max_value is not None:
         query = query.filter(TransactionDB.value <= f.max_value)
     if f.weekdays:
-        query = query.filter(extract("dow", TransactionDB.date).in_(f.weekdays))
+        query = query.filter(extract("dow", TransactionDB.transactioned_at).in_(f.weekdays))
 
     return query
 
@@ -105,7 +117,10 @@ def list_transactions(
             id=t.id,
             label=t.label,
             value=t.value,
-            date=t.date,
+            type=t.type,
+            transactioned_at=t.transactioned_at,
+            created_at=t.created_at,
+            updated_at=t.updated_at,
             category_id=t.category_id,
             category_name=category_name,
         )
@@ -138,11 +153,11 @@ def aggregate_transactions(
         return [TransactionAggregate(**row._mapping) for row in query.all()]
 
     if group_by == "weekday":
-        key = extract("dow", TransactionDB.date).label("weekday")
+        key = extract("dow", TransactionDB.transactioned_at).label("weekday")
         query = _apply_filters(db.query(key, *metrics), user_id, filters).group_by(key).order_by(key)
         return [TransactionAggregate(**row._mapping) for row in query.all()]
 
-    parts = [extract(p, TransactionDB.date).label(p) for p in PERIOD_PARTS[group_by]]
+    parts = [extract(p, TransactionDB.transactioned_at).label(p) for p in PERIOD_PARTS[group_by]]
     query = _apply_filters(db.query(*parts, *metrics), user_id, filters).group_by(*parts).order_by(*parts)
 
     results = []
@@ -165,3 +180,20 @@ def delete_transaction(db: Session, id, user_id: int):
 
 def category_exists(db: Session, category_id: int) -> bool:
     return db.query(Categories.id).filter_by(id=category_id).first() is not None
+
+
+def update_transaction(db: Session, id: int, user_id: int, changes: TransactionUpdate):
+    """Update one of the user's transactions. Returns it, or None if it is missing or not theirs."""
+    transaction = db.query(TransactionDB).filter_by(id=id, user_id=user_id).first()
+    if transaction is None:
+        return None
+    transaction.label = changes.label
+    transaction.value = changes.value
+    transaction.category_id = changes.category_id
+    if changes.type is not None:
+        transaction.type = changes.type
+    if changes.transactioned_at is not None:
+        transaction.transactioned_at = changes.transactioned_at
+    transaction.updated_at = datetime.now()
+    db.commit()
+    return transaction
