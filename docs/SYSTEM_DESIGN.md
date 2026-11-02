@@ -238,10 +238,12 @@ erDiagram
 entry changes only `transactioned_at`. All timestamps are naive (no time zone)
 and written by the server, so they follow the server clock.
 
-**Schema changes** are applied by `db/migrations.py` at start-up. They are
-idempotent: `type` is added with every old row becoming a `debit`; `date` is
-renamed to `transactioned_at` and `created_at` is back-filled from it (before
-the rename, `date` was always the save time); `updated_at` starts empty.
+**Schema changes** are Alembic revisions in `back-end/migrations/versions/`, applied by
+`python -m db.upgrade` before the API starts (see 5). The history so far: `0001` the
+first schema (category stored as text), `0002` category as a foreign key (names and
+unknown values go to "Outros"), `0003` `type` (old rows become `debit`), `0004` `date`
+renamed to `transactioned_at` with `created_at` back-filled from it (before the rename,
+`date` was always the save time) and `updated_at` empty, `0005` the `export_jobs` table.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
@@ -335,20 +337,29 @@ sequenceDiagram
   back-end (`find_dotenv` walks up to it) and Vite (`envDir: '..'`). Back-end
   settings (`FRONT_URL`, `GEMINI_MODEL`, `SQL_ECHO`) are read once in
   `back-end/config.py`.
+- Database migrations: Alembic (`back-end/alembic.ini`, `back-end/migrations/`).
+  `python -m db.upgrade` applies them and is safe to run any number of times. A database
+  from before Alembic (no `alembic_version` table) is inspected to find which of the old
+  hand-written changes it already has, that revision is recorded, and only the missing
+  ones run; an empty database gets every revision. A change to a model in
+  `schemas/tables.py` needs a new revision (`alembic revision --autogenerate`); the tests
+  fail if the models and the migrations disagree, and exercise upgrade, downgrade and
+  adopting a pre-Alembic database. Seeding the default categories is a separate command,
+  `python -m db.seed`. PostgreSQL is required (SQLite cannot run these revisions).
 - Tests: `pytest` runs inside the `api` container against a separate
   `<db>_test` Postgres database (transaction rolled back per test); see
   `back-end/tests/README.md`.
 - Local dev: `docker compose up --build` (root `docker-compose.yml`) runs
   three services: `db` (Postgres 16, named volume), `api` (FastAPI with
-  `--reload`; runs `db.migrations` and `db.seed` before starting) and `web`
+  `--reload`; runs `db.upgrade` and `db.seed` before starting) and `web`
   (Vite dev server). Source is bind-mounted for hot reload. The compose
   `DB_URL` must use `postgresql+psycopg2://` (SQLAlchemy 2.1 defaults a bare
   `postgresql://` to psycopg v3, which is not installed).
 - DB: Postgres in production, falls back to local SQLite (`test.db`,
   gitignored) for local dev when `DB_URL` is unset.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
-  calls), Meta WhatsApp Cloud API (chat channel). Library: `openpyxl` (writes
-  Excel files in the document gateway).
+  calls), Meta WhatsApp Cloud API (chat channel). Libraries: `openpyxl` (writes
+  Excel files in the document gateway) and `alembic` (database migrations).
 
 ## 6. Testing
 - **Scope:** back-end (`back-end/tests/`, `pytest`) and front-end

@@ -19,7 +19,8 @@ architecture.
   `query`, `secretary`), each with its own `prompt.py` / `run.py`.
 - `back-end/graph/` — the LangGraph `StateGraph` wiring the agents together.
 - `back-end/schemas/` — SQLAlchemy table models and Pydantic schemas.
-- `back-end/db/` — engine/session setup, migrations, seed data.
+- `back-end/db/` — engine/session setup, `python -m db.upgrade` (applies migrations), seed data.
+- `back-end/migrations/` — Alembic revisions, one file per schema change.
 - `docs/` — system design and architecture documentation.
 
 ## Documentation requirement
@@ -142,5 +143,10 @@ Changes come with tests, in the same PR (back-end and front-end):
 - New agents follow the existing per-agent folder pattern (`prompt.py`,
   `run.py`, optional `tools.py`) and are wired into `graph/graph.py` +
   `graph/state.py`.
+- Every change to a table in `back-end/schemas/tables.py` comes with an Alembic revision
+  (`docker compose exec api alembic revision --autogenerate -m "..."`, then read it and fix
+  what the comparison got wrong). Never edit a revision that was already merged. A test
+  fails when the models and the migrations disagree. Seeding is an explicit command
+  (`python -m db.seed`), never a side effect of importing a module.
 - Amounts are stored as integer cents in the DB and converted to reais at the
   API/agent boundary — don't store floats for money.

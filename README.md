@@ -38,7 +38,7 @@ Requires Docker with Compose. From the repo root:
 
 This starts PostgreSQL (`localhost:5432`), the API (`http://localhost:8000`) and
 the front-end (`http://localhost:5173`) with hot reload. On startup the API
-creates the tables, runs the migration and seeds the default categories.
+applies the database migrations and seeds the default categories.
 
 Stop with `docker compose down` (add `-v` to also delete the database volume).
 
@@ -62,12 +62,23 @@ From the `back-end` folder:
     python -m venv .venv
     source .venv/bin/activate
     pip install -r requirements.txt
-    python -m db.migrations
-    python -m db.seed
+    python -m db.upgrade   # apply the database migrations
+    python -m db.seed      # add the default categories
     uvicorn api.app:app --reload
 
-Without `DB_URL` in `.env`, the API uses a local SQLite file (`test.db`). To use
-PostgreSQL, set `DB_URL` to a URL starting with `postgresql+psycopg2://`.
+Set `DB_URL` in `.env` to a PostgreSQL URL starting with `postgresql+psycopg2://`.
+PostgreSQL is required: the migrations and several queries use PostgreSQL features.
+
+### Changing the database
+A change to a table in `back-end/schemas/tables.py` needs a migration. With the stack
+running:
+
+    docker compose exec api alembic revision --autogenerate -m "what changed"
+
+Read the new file in `back-end/migrations/versions/` (and fix anything the
+automatic comparison got wrong, such as data that must be moved), then apply it
+with `docker compose exec api python -m db.upgrade`. The tests fail if the models and
+the migrations disagree. Do not edit a migration that was already merged; add a new one.
 
 ### Front-end
 From the `front-end` folder:
