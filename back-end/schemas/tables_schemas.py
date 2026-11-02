@@ -11,6 +11,14 @@ class Transaction(BaseModel):
     date: Optional[datetime] = None
 
 
+class TransactionUpdate(BaseModel):
+    """What a user may change on an existing transaction (the date stays as it was)."""
+
+    label: str = Field(min_length=1, max_length=100)
+    value: int = Field(gt=0, le=2147483647)  # cents, must fit the 32-bit column
+    category_id: int
+
+
 class TransactionFilters(BaseModel):
     """Where-clause filters shared by the transaction listing and aggregation queries."""
 

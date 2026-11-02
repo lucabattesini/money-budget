@@ -9,9 +9,10 @@ from api.controllers.transactions_controller import (
     delete_transaction,
     get_transactions,
     get_transactions_summed_by_category,
+    update_transaction,
 )
 from db.connection import get_db
-from schemas.tables_schemas import GetTransactionsParams, Transaction
+from schemas.tables_schemas import GetTransactionsParams, Transaction, TransactionUpdate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"], responses={404: {"description": "Not found"}})
 
@@ -54,3 +55,14 @@ async def delete_transaction_router(
 ):
     json_result = jsonable_encoder(delete_transaction(db, id, user_id))
     return JSONResponse(content={"data": json_result}, status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.put("/{id}")
+async def update_transaction_router(
+    id: int,
+    params: TransactionUpdate,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    json_result = jsonable_encoder(update_transaction(db, id, params, user_id))
+    return JSONResponse(content={"data": json_result}, status_code=status.HTTP_200_OK)

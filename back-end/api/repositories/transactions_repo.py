@@ -5,7 +5,13 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from schemas.tables import Categories, TransactionDB
-from schemas.tables_schemas import Transaction, TransactionAggregate, TransactionFilters, TransactionOut
+from schemas.tables_schemas import (
+    Transaction,
+    TransactionAggregate,
+    TransactionFilters,
+    TransactionOut,
+    TransactionUpdate,
+)
 
 MAX_LIST_LIMIT = 200
 
@@ -165,3 +171,15 @@ def delete_transaction(db: Session, id, user_id: int):
 
 def category_exists(db: Session, category_id: int) -> bool:
     return db.query(Categories.id).filter_by(id=category_id).first() is not None
+
+
+def update_transaction(db: Session, id: int, user_id: int, changes: TransactionUpdate):
+    """Update one of the user's transactions. Returns it, or None if it is missing or not theirs."""
+    transaction = db.query(TransactionDB).filter_by(id=id, user_id=user_id).first()
+    if transaction is None:
+        return None
+    transaction.label = changes.label
+    transaction.value = changes.value
+    transaction.category_id = changes.category_id
+    db.commit()
+    return transaction

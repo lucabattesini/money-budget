@@ -167,6 +167,87 @@ def test_delete_requires_authentication(client, user, make_transaction, category
     assert client.delete(f"/transactions/{row.id}").status_code == 401
 
 
+# --- update ----------------------------------------------------------------
+
+
+def _update(client, headers, id, **fields):
+    body = {"label": "Novo", "value": 3000, "category_id": None, **fields}
+    return client.put(f"/transactions/{id}", json=body, headers=headers)
+
+
+def test_update_changes_label_amount_and_category_and_keeps_the_date(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+    original_date = row.date
+
+    response = _update(client, auth_headers, row.id, label="Novo", value=3050, category_id=category_ids["Transporte"])
+
+    assert response.status_code == 200
+    assert response.json()["data"]["label"] == "Novo"
+    db.expire_all()
+    saved = db.query(TransactionDB).filter_by(id=row.id).one()
+    assert (saved.label, saved.value, saved.category_id) == ("Novo", 3050, category_ids["Transporte"])
+    assert saved.date == original_date
+    assert saved.user_id == user.id
+
+
+def test_update_cannot_change_another_users_transaction(
+    client, db, user, other_user, headers_for, make_transaction, category_ids
+):
+    theirs = make_transaction(other_user, category_ids["Alimentação"], label="Theirs", value=1000)
+
+    response = _update(client, headers_for(user), theirs.id, category_id=category_ids["Alimentação"])
+
+    assert response.status_code == 404
+    db.expire_all()
+    untouched = db.query(TransactionDB).filter_by(id=theirs.id).one()
+    assert (untouched.label, untouched.value) == ("Theirs", 1000)
+
+
+def test_update_of_an_unknown_id_is_not_found(client, auth_headers, category_ids):
+    response = _update(client, auth_headers, 999999, category_id=category_ids["Alimentação"])
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Transaction not found"
+
+
+def test_update_with_an_unknown_category_is_not_found_and_changes_nothing(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+
+    response = _update(client, auth_headers, row.id, category_id=999999)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Category not found"
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().label == "Velho"
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{"value": 0}, {"value": -5}, {"value": 2147483648}, {"label": ""}, {"label": "x" * 101}],
+)
+def test_update_rejects_invalid_values(client, db, user, auth_headers, make_transaction, category_ids, fields):
+    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+
+    response = _update(client, auth_headers, row.id, category_id=category_ids["Alimentação"], **fields)
+
+    assert response.status_code == 422
+    db.expire_all()
+    saved = db.query(TransactionDB).filter_by(id=row.id).one()
+    assert (saved.label, saved.value) == ("Velho", 1000)
+
+
+def test_update_requires_authentication(client, user, make_transaction, category_ids):
+    row = make_transaction(user, category_ids["Alimentação"])
+
+    response = client.put(f"/transactions/{row.id}", json={"label": "x", "value": 1, "category_id": 1})
+
+    assert response.status_code == 401
+
+
 # --- error codes (TKT-28) ------------------------------------------------
 
 

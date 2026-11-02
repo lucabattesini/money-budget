@@ -18,7 +18,10 @@ from api.repositories.transactions_repo import (
 from api.repositories.transactions_repo import (
     get_transactions_summed_by_category as get_transactions_summed_by_category_repo,
 )
-from schemas.tables_schemas import GetTransactionsParams, Transaction
+from api.repositories.transactions_repo import (
+    update_transaction as update_transaction_repo,
+)
+from schemas.tables_schemas import GetTransactionsParams, Transaction, TransactionUpdate
 
 
 def _parse_date(transaction: GetTransactionsParams):
@@ -56,3 +59,19 @@ def delete_transaction(db: Session, id, user_id: int):
     if not delete_transaction_repo(db, id, user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return {"message": "Transaction deleted"}
+
+
+def update_transaction(db: Session, id: int, changes: TransactionUpdate, user_id: int):
+    if not category_exists(db, changes.category_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    # Same answer for "missing" and "someone else's", so other users' ids are not revealed
+    transaction = update_transaction_repo(db, id, user_id, changes)
+    if transaction is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return {
+        "id": transaction.id,
+        "label": transaction.label,
+        "value": transaction.value,
+        "date": transaction.date,
+        "category_id": transaction.category_id,
+    }
