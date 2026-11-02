@@ -14,13 +14,14 @@ sys.path.append(backend_dir)
 load_dotenv(os.path.join(backend_dir, ".env"))
 
 from agents.orchestrator.prompt import ORCHESTRATOR_SYSTEM_PROMPT
+from config import GEMINI_MODEL
 from schemas.agents_schemas import OrchestratorResponse
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def run_orchestrator(user_input: str) -> OrchestratorResponse:
-    model = genai.GenerativeModel("gemini-3.5-flash")
+    model = genai.GenerativeModel(GEMINI_MODEL)
 
     generation_config = genai.GenerationConfig(
         response_mime_type="application/json", response_schema=OrchestratorResponse, temperature=0.0

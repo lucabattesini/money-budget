@@ -14,13 +14,14 @@ sys.path.append(backend_dir)
 load_dotenv(os.path.join(backend_dir, ".env"))
 
 from agents.secretary.prompt import SECRETARY_SYSTEM_PROMPT
+from config import GEMINI_MODEL
 from schemas.agents_schemas import SecretaryResponse
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def run_secretary(user_message: str, query_results: str) -> SecretaryResponse:
-    model = genai.GenerativeModel("gemini-3.5-flash")
+    model = genai.GenerativeModel(GEMINI_MODEL)
 
     generation_config = genai.GenerationConfig(
         response_mime_type="application/json", response_schema=SecretaryResponse, temperature=0.0

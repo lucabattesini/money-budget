@@ -15,13 +15,14 @@ load_dotenv(os.path.join(backend_dir, ".env"))
 from agents.common import extract_tool_calls, today_context
 from agents.recorder.prompt import RECORDER_SYSTEM_PROMPT
 from agents.recorder.tools import RECORD_EXPENSES, RECORDER_TOOLS
+from config import GEMINI_MODEL
 from schemas.agents_schemas import RecorderResponse, RecordExpensesArgs
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def run_recorder(user_input: str) -> RecorderResponse:
-    model = genai.GenerativeModel("gemini-3.5-flash", tools=[RECORDER_TOOLS])
+    model = genai.GenerativeModel(GEMINI_MODEL, tools=[RECORDER_TOOLS])
 
     generation_config = genai.GenerationConfig(temperature=0.0)
 

@@ -15,13 +15,14 @@ load_dotenv(os.path.join(backend_dir, ".env"))
 from agents.common import extract_tool_calls, today_context
 from agents.query.prompt import QUERY_SYSTEM_PROMPT
 from agents.query.tools import QUERY_TOOLS
+from config import GEMINI_MODEL
 from schemas.agents_schemas import QueryResponse
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def run_query(user_question: str) -> QueryResponse:
-    model = genai.GenerativeModel("gemini-3.5-flash", tools=[QUERY_TOOLS])
+    model = genai.GenerativeModel(GEMINI_MODEL, tools=[QUERY_TOOLS])
 
     generation_config = genai.GenerationConfig(temperature=0.0)
 
