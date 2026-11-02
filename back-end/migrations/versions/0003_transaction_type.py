@@ -14,7 +14,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("transactions", sa.Column("type", sa.String(6), nullable=False, server_default="debit"))
+    columns = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("transactions")}
+    if "type" not in columns:  # a database adopted from before Alembic may already have it
+        op.add_column("transactions", sa.Column("type", sa.String(6), nullable=False, server_default="debit"))
 
 
 def downgrade() -> None:

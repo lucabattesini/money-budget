@@ -31,10 +31,17 @@ def upgrade() -> None:
 
         for row in connection.execute(sa.text("SELECT id, category FROM transactions")).all():
             raw = (row.category or "").strip()
-            if raw.isdigit() and int(raw) in ids:
+            if raw.isascii() and raw.isdigit() and int(raw) in ids:
                 category_id = int(raw)
             else:
                 category_id = ids_by_name.get(raw.lower(), fallback_id)
+            if category_id is None and raw:
+                # The text is about to be dropped for good, so do not lose it quietly
+                raise RuntimeError(
+                    f"Transaction {row.id} has the category {raw!r}, which matches no category, and there is "
+                    "no 'Outros' category to put it in. Add the default categories (python -m db.seed) and "
+                    "run the upgrade again."
+                )
             connection.execute(
                 sa.text("UPDATE transactions SET category_id = :category_id WHERE id = :id"),
                 {"category_id": category_id, "id": row.id},

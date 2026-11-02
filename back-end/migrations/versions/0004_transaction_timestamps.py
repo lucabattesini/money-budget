@@ -17,10 +17,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.alter_column("transactions", "date", new_column_name="transactioned_at")
-    op.add_column("transactions", sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()))
-    op.execute("UPDATE transactions SET created_at = transactioned_at")
-    op.add_column("transactions", sa.Column("updated_at", sa.DateTime()))
+    columns = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("transactions")}
+    if "date" in columns and "transactioned_at" not in columns:
+        op.alter_column("transactions", "date", new_column_name="transactioned_at")
+    if "created_at" not in columns:
+        op.add_column("transactions", sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()))
+        # A row without a date still gets a created_at: the moment of this migration
+        op.execute("UPDATE transactions SET created_at = COALESCE(transactioned_at, now())")
+    if "updated_at" not in columns:
+        op.add_column("transactions", sa.Column("updated_at", sa.DateTime()))
 
 
 def downgrade() -> None:

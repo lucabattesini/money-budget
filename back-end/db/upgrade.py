@@ -31,6 +31,12 @@ def alembic_config(url: str) -> Config:
 def detect_revision(inspector) -> str | None:
     """Which revision a database without alembic_version is already at (None: an empty database)."""
     if not inspector.has_table("transactions"):
+        others = [t for t in ("users", "categories") if inspector.has_table(t)]
+        if others:
+            raise RuntimeError(
+                f"This database has the tables {others} but no 'transactions' table, so it cannot be told "
+                "which migrations it already has. Fix or empty the database by hand, then run the upgrade again."
+            )
         return None
     columns = {c["name"] for c in inspector.get_columns("transactions")}
     if "category_id" not in columns or "category" in columns:

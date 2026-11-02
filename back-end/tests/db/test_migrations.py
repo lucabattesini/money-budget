@@ -191,3 +191,90 @@ def test_two_processes_upgrading_a_new_database_at_the_same_time_both_succeed(ur
 
     assert [code for code, _ in results] == [0, 0, 0], results
     assert _version(engine) == LATEST
+
+
+# --- awkward but possible old databases ------------------------------------------------------
+
+
+def test_a_row_without_a_date_still_gets_a_created_at(url, engine):
+    _old_database(url, engine, "0003")
+    with engine.begin() as conn:
+        _seed_users_and_categories(conn)
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, user_id, label, value, date, category_id) VALUES (1, 1, 'no date', 100, NULL, 1)"
+            )
+        )
+    _forget_history(engine)
+
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT created_at FROM transactions")).scalar() is not None
+
+
+def test_a_half_migrated_database_keeps_its_data(url, engine):
+    """Both the old text column and the new foreign key exist (the old script stopped half way)."""
+    _old_database(url, engine, "0001")
+    with engine.begin() as conn:
+        _seed_users_and_categories(conn)
+        conn.execute(text("ALTER TABLE transactions ADD COLUMN category_id INTEGER REFERENCES categories(id)"))
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, user_id, label, value, date, category) VALUES (1, 1, 'x', 100, '2026-01-01', '2')"
+            )
+        )
+    _forget_history(engine)
+
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT category_id FROM transactions")).scalar() == 2
+    assert _version(engine) == LATEST
+
+
+def test_a_hand_edited_database_that_already_has_later_columns_is_not_broken_by_the_upgrade(url, engine):
+    """Recorded as the first revision, but `type` and the new dates already exist: the upgrade must cope."""
+    _old_database(url, engine, "0004")
+    with engine.begin() as conn:
+        _seed_users_and_categories(conn)
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, user_id, label, value, transactioned_at, category_id, type) VALUES (1, 1, 'x', 100, '2026-01-01', 1, 'credit')"
+            )
+        )
+        conn.execute(text("UPDATE alembic_version SET version_num = '0001'"))
+
+    upgrade_database(url)
+
+    assert _version(engine) == LATEST
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT type FROM transactions")).scalar() == "credit"  # untouched
+
+
+def test_the_upgrade_refuses_to_drop_a_category_text_it_cannot_place(url, engine):
+    _old_database(url, engine, "0001")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO users (id, google_id, name, email) VALUES (1, 'g', 'Ana', 'a@example.com')"))
+        conn.execute(text("INSERT INTO categories (id, name) VALUES (1, 'Alimentação')"))  # no 'Outros'
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, user_id, label, value, date, category) VALUES (1, 1, 'x', 100, '2026-01-01', 'Pets')"
+            )
+        )
+    _forget_history(engine)
+
+    with pytest.raises(RuntimeError, match="Pets"):
+        upgrade_database(url)
+
+    columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
+    assert "category" in columns  # the text was not thrown away
+    assert _version(engine) == "0001"  # and the failed step was rolled back
+
+
+def test_a_database_with_only_some_tables_is_reported_not_guessed(url, engine):
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE users (id SERIAL PRIMARY KEY)"))
+
+    with pytest.raises(RuntimeError, match="no 'transactions' table"):
+        upgrade_database(url)
