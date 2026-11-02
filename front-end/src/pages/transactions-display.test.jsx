@@ -404,4 +404,20 @@ describe('transactions page', () => {
     })
   })
 
+  describe('categories', () => {
+    it('are listed alphabetically in the form', async () => {
+      mockApi({
+        'GET /categories': { data: [{ id: 2, name: 'Transporte' }, { id: 3, name: 'Água' }, { id: 1, name: 'Alimentação' }, { id: 4, name: 'zebra' }] },
+        'POST /transactions': TRANSACTIONS,
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      const names = (select) => within(select).getAllByRole('option').map((o) => o.textContent)
+
+      await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
+      const form = await drawer()
+      expect(names(form.getByLabelText('Categoria'))).toEqual(['Selecione', 'Água', 'Alimentação', 'Transporte', 'zebra'])
+    })
+  })
+
 })

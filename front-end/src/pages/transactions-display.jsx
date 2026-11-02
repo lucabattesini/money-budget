@@ -30,6 +30,9 @@ export default function TransactionsDisplay() {
         });
     }, [trigger]);
 
+    // Alphabetical, so categories are easy to find in every list
+    const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
     const reload = () => setTrigger((current) => current + 1);
 
     // Wait for the delete to finish before reloading, otherwise the list can still show the row
@@ -166,14 +169,14 @@ export default function TransactionsDisplay() {
             <TransactionDrawer
                 open={adding}
                 onClose={() => setAdding(false)}
-                categories={categories}
+                categories={sortedCategories}
                 onSaved={reload}
             />
             <TransactionDrawer
                 open={editing !== null}
                 transaction={editing}
                 onClose={() => setEditing(null)}
-                categories={categories}
+                categories={sortedCategories}
                 onSaved={reload}
             />
         </Center>
