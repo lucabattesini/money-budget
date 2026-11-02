@@ -29,6 +29,11 @@ const groupOf = (label) => {
   const heading = rows.slice(0, rows.indexOf(rowOf(label))).reverse().find((row) => row.children.length === 1)
   return GROUP_TITLES.find((title) => heading?.textContent === title)
 }
+// The filters live in a popover next to the add button
+const openFilters = async () => {
+  await userEvent.click(screen.getByRole('button', { name: /filtros/i }))
+  await screen.findByLabelText('Buscar') // the popover content appears a moment after the click
+}
 // The side panel (new or edit); the filter popover is a dialog too, so find it by its title
 const drawer = async () => within((await screen.findByText(/^(Nova|Editar) transação$/)).closest('[role="dialog"]'))
 const openMenuOf = async (label) => {
@@ -405,7 +410,7 @@ describe('transactions page', () => {
   })
 
   describe('categories', () => {
-    it('are listed alphabetically in the form', async () => {
+    it('are listed alphabetically in the filter and in the form', async () => {
       mockApi({
         'GET /categories': { data: [{ id: 2, name: 'Transporte' }, { id: 3, name: 'Água' }, { id: 1, name: 'Alimentação' }, { id: 4, name: 'zebra' }] },
         'POST /transactions': TRANSACTIONS,
@@ -414,9 +419,117 @@ describe('transactions page', () => {
       await screen.findByText('Almoço')
       const names = (select) => within(select).getAllByRole('option').map((o) => o.textContent)
 
+      await openFilters()
+      expect(names(screen.getByLabelText('Categoria'))).toEqual(['Todas', 'Água', 'Alimentação', 'Transporte', 'zebra'])
+      await userEvent.keyboard('{Escape}')
       await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
       const form = await drawer()
       expect(names(form.getByLabelText('Categoria'))).toEqual(['Selecione', 'Água', 'Alimentação', 'Transporte', 'zebra'])
+    })
+  })
+
+  it('has no filter fields on the page until the filter menu is opened', async () => {
+    mockApi(routes())
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('Almoço')
+
+    expect(screen.queryByLabelText('Buscar')).not.toBeInTheDocument()
+    await openFilters()
+    expect(screen.getByLabelText('Buscar')).toBeInTheDocument()
+  })
+
+  describe('filters', () => {
+    const FILTERED = {
+      data: [
+        t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1),
+        t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2),
+        t(3, 'Mercado', 12000, '2026-03-02T10:00:00', 1),
+        t(4, 'Presente', 5000, '2026-02-20T10:00:00', 2),
+      ],
+    }
+    const labelsShown = () => rowsOnPage().map((row) => row.children[1].textContent)
+    const setup = async () => {
+      mockApi(routes(FILTERED))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await openFilters()
+    }
+
+    it('narrows by description, ignoring case', async () => {
+      await setup()
+
+      await userEvent.type(screen.getByLabelText('Buscar'), 'MERC')
+
+      expect(labelsShown()).toEqual(['Mercado'])
+    })
+
+    it('narrows by category', async () => {
+      await setup()
+
+      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
+
+      expect(labelsShown()).toEqual(['Uber', 'Presente'])
+    })
+
+    it('narrows by date range, including both end days', async () => {
+      await setup()
+
+      fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-03-02' } })
+      fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2026-03-10' } })
+
+      expect(labelsShown()).toEqual(['Uber', 'Mercado'])
+    })
+
+    it('narrows by amount range, typed with the amount mask', async () => {
+      await setup()
+
+      await userEvent.type(screen.getByLabelText('Valor mínimo'), '2000')
+      expect(screen.getByLabelText('Valor mínimo')).toHaveValue('20,00')
+      await userEvent.type(screen.getByLabelText('Valor máximo'), '6000')
+
+      expect(labelsShown()).toEqual(['Almoço', 'Presente'])
+    })
+
+    it('hides the filters in a menu and counts how many are set', async () => {
+      await setup()
+      expect(screen.getByRole('button', { name: 'Filtros' })).toBeInTheDocument()
+
+      await userEvent.type(screen.getByLabelText('Buscar'), 'a')
+      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
+
+      expect(screen.getByRole('button', { name: 'Filtros (2)' })).toBeInTheDocument()
+    })
+
+    it('combines filters', async () => {
+      await setup()
+
+      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Alimentação')
+      await userEvent.type(screen.getByLabelText('Valor mínimo'), '5000')
+
+      expect(labelsShown()).toEqual(['Mercado'])
+    })
+
+    it('says so when nothing matches, and clearing the filters brings everything back', async () => {
+      await setup()
+
+      await userEvent.type(screen.getByLabelText('Buscar'), 'nada disso')
+
+      expect(screen.getByText('Nenhuma transação encontrada com esses filtros.')).toBeInTheDocument()
+      expect(labelsShown()).toEqual([])
+      await userEvent.click(screen.getByRole('button', { name: /limpar filtros/i }))
+      expect(labelsShown()).toHaveLength(4)
+      expect(screen.getByLabelText('Buscar')).toHaveValue('')
+      expect(screen.queryByRole('button', { name: /limpar filtros/i })).not.toBeInTheDocument()
+    })
+
+    it('does not change the totals at the top', async () => {
+      await setup()
+      const summary = () => screen.getByText('Hoje', { selector: 'p' }).nextSibling.textContent
+
+      const before = summary()
+      await userEvent.type(screen.getByLabelText('Buscar'), 'Mercado')
+
+      expect(summary()).toBe(before)
     })
   })
 

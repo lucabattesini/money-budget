@@ -1,14 +1,16 @@
 import { Fragment, useState, useEffect } from "react";
-import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Portal } from "@chakra-ui/react";
+import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
 import { getTransactions, getAllCategories, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { formatCents } from "../lib/money";
+import { EMPTY_FILTERS, applyFilters, countActiveFilters, hasActiveFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
 import TransactionDrawer from "../components/TransactionDrawer";
+import TransactionFilters from "../components/TransactionFilters";
 import { Toaster } from "../components/ui/toaster";
-import { LuEllipsisVertical, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
+import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true);
@@ -17,6 +19,7 @@ export default function TransactionsDisplay() {
     const [trigger, setTrigger] = useState(0);
     const [adding, setAdding] = useState(false);
     const [editing, setEditing] = useState(null); // the transaction being edited
+    const [filters, setFilters] = useState(EMPTY_FILTERS);
 
     useEffect(() => {
         const token = getToken();
@@ -60,7 +63,10 @@ export default function TransactionsDisplay() {
     // Start of this month
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    transactions.forEach(transaction => {
+    const filtered = applyFilters(transactions, filters);
+    const activeFilters = countActiveFilters(filters);
+
+    filtered.forEach(transaction => {
         const tDate = new Date(transaction.transactioned_at);
         if (tDate >= startOfToday) {
             today.push(transaction);
@@ -124,9 +130,31 @@ export default function TransactionsDisplay() {
 
                 <Flex w="full" justify="space-between" align="center">
                     <Text fontSize="lg" fontWeight="bold">Transações</Text>
-                    <Button size="sm" onClick={() => setAdding(true)}>
-                        <LuPlus /> Adicionar
-                    </Button>
+                    <Flex gap={2}>
+                        <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
+                            <Popover.Trigger asChild>
+                                <Button size="sm" variant="outline">
+                                    <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
+                                </Button>
+                            </Popover.Trigger>
+                            <Portal>
+                                <Popover.Positioner>
+                                    <Popover.Content width="auto">
+                                        <Popover.Body>
+                                            <TransactionFilters
+                                                filters={filters}
+                                                onChange={setFilters}
+                                                categories={sortedCategories}
+                                            />
+                                        </Popover.Body>
+                                    </Popover.Content>
+                                </Popover.Positioner>
+                            </Portal>
+                        </Popover.Root>
+                        <Button size="sm" onClick={() => setAdding(true)}>
+                            <LuPlus /> Adicionar
+                        </Button>
+                    </Flex>
                 </Flex>
 
                 {loading && <SpinnerLoading/>}
@@ -161,8 +189,10 @@ export default function TransactionsDisplay() {
                     </Table.ScrollArea>
                 )}
 
-                {!loading && transactions.length === 0 && (
-                    <Text color="fg.muted">Nenhuma transação ainda.</Text>
+                {!loading && filtered.length === 0 && (
+                    <Text color="fg.muted">
+                        {hasActiveFilters(filters) ? "Nenhuma transação encontrada com esses filtros." : "Nenhuma transação ainda."}
+                    </Text>
                 )}
             </Stack>
 
