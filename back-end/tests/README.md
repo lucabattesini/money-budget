@@ -55,7 +55,9 @@ tests/
 ## Fixtures
 
 `client`, `db`, `user`, `other_user`, `auth_headers`, and the factories
-`make_user(...)`, `make_transaction(user, category_id, label, value, when)`,
+`make_user(name, family=None, ...)` (each user gets a family of their own unless `family=` is given, so
+`user` and `other_user` are in different families), `make_transaction(user, category_id, label, value, when)`
+(saved for the user's family, `user_id` the user),
 `headers_for(user)`. `category_ids` maps names to ids. Five categories are
 seeded once per run (`Alimentação`, `Transporte`, `Supermercado`, `Aluguel`,
 `Outros`); `Pets` is deliberately missing, to test names that are valid for the
