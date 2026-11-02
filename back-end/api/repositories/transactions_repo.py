@@ -40,26 +40,27 @@ def create_transaction(db: Session, t: Transaction, user_id: int):
         raise
 
 
-def get_transactions(db: Session, datetype, date, user_id: int):
+def get_transactions(db: Session, start: Optional[datetime], end: Optional[datetime], user_id: int):
+    """The user's transactions, newest first. start is included and end excluded; None means open."""
     query = db.query(TransactionDB).filter(TransactionDB.user_id == user_id)
-    if datetype is None:
-        return query.order_by(TransactionDB.transactioned_at.desc()).all()
-    return (
-        query.filter(extract(datetype, TransactionDB.transactioned_at) == date)
-        .order_by(TransactionDB.transactioned_at.desc())
-        .all()
-    )
+    if start is not None:
+        query = query.filter(TransactionDB.transactioned_at >= start)
+    if end is not None:
+        query = query.filter(TransactionDB.transactioned_at < end)
+    return query.order_by(TransactionDB.transactioned_at.desc()).all()
 
 
-def get_transactions_summed_by_category(db: Session, datetype, date, user_id: int):
+def get_transactions_summed_by_category(db: Session, start: Optional[datetime], end: Optional[datetime], user_id: int):
     query = (
         db.query(TransactionDB.category_id, func.sum(TransactionDB.value).label("total"))
         .filter(TransactionDB.user_id == user_id, TransactionDB.type == "debit")  # spending only
         .group_by(TransactionDB.category_id)
     )
 
-    if datetype is not None:
-        query = query.filter(extract(datetype, TransactionDB.transactioned_at) == date)
+    if start is not None:
+        query = query.filter(TransactionDB.transactioned_at >= start)
+    if end is not None:
+        query = query.filter(TransactionDB.transactioned_at < end)
 
     return query.all()
 

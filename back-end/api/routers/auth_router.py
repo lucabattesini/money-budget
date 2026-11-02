@@ -27,6 +27,8 @@ async def auth_google(request: GoogleTokenRequest, db: Session = Depends(get_db)
     try:
         result = login_with_google(db, request.id_token, request.whatsapp_phone)
         return JSONResponse(content={"data": jsonable_encoder(result)}, status_code=status.HTTP_200_OK)
+    except HTTPException:
+        raise  # e.g. 409 when the WhatsApp number belongs to someone else
     except ValueError as e:
         # google-auth raises ValueError for invalid/expired tokens
         print(f"GOOGLE TOKEN VALIDATION ERROR: {str(e)}")

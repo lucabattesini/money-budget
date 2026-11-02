@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func
 
 from db.connection import Base
 
@@ -19,6 +19,8 @@ class TransactionDB(Base):
 
 class Users(Base):
     __tablename__ = "users"
+    # One WhatsApp number belongs to one account (several users may have no number: NULLs do not clash)
+    __table_args__ = (UniqueConstraint("whatsapp_phone", name="uq_users_whatsapp_phone"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     google_id = Column(String(100), unique=True, nullable=False)

@@ -67,6 +67,14 @@ def test_message_from_a_known_number_goes_through_the_chatbot_and_the_reply_is_s
     assert sent_messages == [("5511999990000", "resposta do bot")]
 
 
+def test_a_sender_number_written_with_a_plus_sign_is_still_matched(client, make_user, graph, sent_messages):
+    user = make_user(whatsapp_phone="5511999990000")
+
+    client.post("/webhook/", json=message_payload(sender="+55 11 99999-0000", text="oi"))
+
+    assert graph == [{"user_message": "oi", "user_id": user.id}]
+
+
 def test_message_from_an_unknown_number_gets_a_signup_link_and_never_reaches_the_chatbot(client, graph, sent_messages):
     response = client.post("/webhook/", json=message_payload(sender="5500000000000"))
 
