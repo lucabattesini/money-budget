@@ -56,14 +56,11 @@ export default function Account() {
     };
 
     return (
-        <Center minH="100vh">
+        <Center>
             <Stack
                 gap={8}
                 w="full"
                 maxW="sm"
-                px={6}
-                pt={16}
-                pb={12}
             >
                 {/* Header */}
                 <Stack gap={1}>
