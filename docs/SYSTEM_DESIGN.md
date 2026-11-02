@@ -100,8 +100,9 @@ flowchart TB
 - `lib/auth.js` stores the JWT in `localStorage` and attaches it as a Bearer
   token to every API call (`lib/utils.js` / `api/endpoints.js`).
 - Pages: `dashboard` (balance + charts), `report-expense` (manual entry),
-  `transactions-display` (table of history, delete from a row menu, and a side
-  panel to add a transaction via `POST /transactions/create`), `investments`, `account`.
+  `transactions-display` (table of history with filters in a menu, 10-per-page
+  paging for older entries, a side panel to add a transaction via
+  `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
   from inside the web app.
 
@@ -167,8 +168,11 @@ erDiagram
         int id PK
         int user_id FK
         string label
-        int value "cents"
-        datetime date
+        int value "cents, always positive"
+        string type "debit or credit"
+        datetime transactioned_at "when the money moved (editable)"
+        datetime created_at "when first saved"
+        datetime updated_at "when last edited"
         int category_id FK
     }
 
