@@ -123,6 +123,17 @@ To run ruff and ESLint on each commit, install the hooks once on your machine
 
 GitHub runs the same checks on every pull request, plus the front-end build.
 
+## 🔒Dependency audits
+Check for known security problems now and then (and after changing dependencies):
+
+    docker compose exec api sh -c "pip install pip-audit && pip-audit -r requirements-dev.txt"
+    docker compose exec web npm audit
+    docker compose exec web npm outdated
+
+Back-end: no known vulnerabilities in the pinned libraries (checked 2 November 2026).
+Front-end: none in what ships to users; see `front-end/README.md` for the development-tool findings
+that are left and the upgrades postponed on purpose.
+
 ## 📚Documentation
 See `docs/SYSTEM_DESIGN.md` for the architecture and `AGENTS.md` for the
 contribution conventions (branches, commits and pull requests).
