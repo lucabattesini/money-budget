@@ -100,3 +100,23 @@ class UserUpdatePhone(BaseModel):
 class GetTransactionsParams(BaseModel):
     organized_by: Optional[Literal["day", "month", "year"]] = None
     date: Optional[datetime] = None
+
+
+ExportFormat = Literal["csv", "xlsx"]
+ExportStatus = Literal["queued", "running", "done", "failed"]
+
+
+class ExportJobCreate(BaseModel):
+    format: ExportFormat = "csv"
+
+
+class ExportJobOut(BaseModel):
+    id: int
+    format: ExportFormat
+    status: ExportStatus
+    filename: Optional[str] = None  # set once the file is ready
+    error: Optional[str] = None  # set when it failed
+    created_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
