@@ -11,11 +11,14 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from db.connection import DATABASE_URL
 
 BACK_END = Path(__file__).resolve().parent.parent
+
+# Any number; every process that migrates this database must use the same one
+MIGRATION_LOCK_ID = 7_251_104
 
 
 def alembic_config(url: str) -> Config:
@@ -42,18 +45,29 @@ def detect_revision(inspector) -> str | None:
 
 
 def upgrade_database(url: str = DATABASE_URL) -> None:
+    """Bring the database at `url` to the latest revision.
+
+    Two processes can start at once (two API containers). A lock held for the whole run makes the second
+    wait until the first is done, and then find nothing left to do.
+    """
     config = alembic_config(url)
     engine = create_engine(url)
     try:
-        inspector = inspect(engine)
-        if not inspector.has_table("alembic_version"):
-            current = detect_revision(inspector)
-            if current is not None:
-                print(f"Existing database without migration history: recording revision {current}")
-                command.stamp(config, current)
+        with engine.connect() as lock_connection:
+            lock_connection.execute(text("SELECT pg_advisory_lock(:id)"), {"id": MIGRATION_LOCK_ID})
+            try:
+                inspector = inspect(engine)
+                if not inspector.has_table("alembic_version"):
+                    current = detect_revision(inspector)
+                    if current is not None:
+                        print(f"Existing database without migration history: recording revision {current}")
+                        command.stamp(config, current)
+                command.upgrade(config, "head")
+            finally:
+                lock_connection.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": MIGRATION_LOCK_ID})
+                lock_connection.commit()
     finally:
         engine.dispose()
-    command.upgrade(config, "head")
 
 
 if __name__ == "__main__":

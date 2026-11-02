@@ -162,3 +162,32 @@ def test_a_database_made_from_the_models_without_history_is_adopted_as_it_is(url
 
 def test_an_empty_database_has_no_revision_to_detect(engine):
     assert detect_revision(inspect(engine)) is None
+
+
+# --- two processes at once ------------------------------------------------------------------
+
+
+def test_two_processes_upgrading_a_new_database_at_the_same_time_both_succeed(url, engine):
+    """Two API containers starting together: the second must wait for the first, not crash."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    back_end = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "DB_URL": url}
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-m", "db.upgrade"],
+            cwd=back_end,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for _ in range(3)
+    ]
+    results = [(p.wait(timeout=120), p.stderr.read()) for p in processes]
+
+    assert [code for code, _ in results] == [0, 0, 0], results
+    assert _version(engine) == LATEST
