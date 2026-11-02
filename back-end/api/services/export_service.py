@@ -1,7 +1,8 @@
 """Turns transactions into a downloadable document.
 
-Column names are the ones the import page tells users to use, so an exported file
-can be read back by the import.
+Column names are the ones the import page tells users to use, so the import can read
+an exported file (after removing the apostrophe the export adds to text starting with
+= + - or @, see utils/formatting.py).
 """
 
 from decimal import Decimal

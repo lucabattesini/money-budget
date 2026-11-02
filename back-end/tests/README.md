@@ -43,7 +43,9 @@ tests/
   test_jwt_secret.py       # login secret loading
   test_external_calls_blocked.py  # Gemini and network blocks
   api/                     # endpoints through TestClient: auth, users, categories,
-                           #   transactions, WhatsApp webhook
+                           #   transactions, export jobs, WhatsApp webhook
+  gateways/                # document gateway: CSV and Excel files, built in memory
+  utils/                   # formatting helpers (amounts, dates, formula guard)
   repositories/            # transaction filters, ordering, pagination, aggregates
   graph/                   # chatbot: database node, recorder node, whole flow
                            #   (only the four Gemini agents are stubbed)
@@ -109,3 +111,8 @@ host is the `db` service.
 ## Later
 
 - Strengthen the Gemini tests and migrate the library (TKT-19).
+
+Export jobs run in a background task. `tests/api/test_exports.py` has its own `queue`
+fixture that holds the task back and runs it on demand (`queue.run()`), so a test can look
+at a job while it is still queued. (The test database shares one connection, which would
+undo a task's work if it ran inside the request.)

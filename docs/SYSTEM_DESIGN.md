@@ -27,16 +27,20 @@ flowchart TB
         UsersR["users_router"]
         CatR["categories_router"]
         TxR["transactions_router"]
+        ExR["exports_router"]
         WAR["whatsapp_router\n(/webhook)"]
 
         AuthC["auth_controller\n(verify Google token, issue JWT)"]
         UsersC["users_controller"]
         CatC["categories_controller"]
         TxC["transactions_controller"]
+        ExC["exports_controller\n(queue + background job)"]
         WAC["whatsapp_controller"]
         WAS["whatsapp_service\n(send message via Meta API)"]
 
-        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo)"]
+        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, exports_repo)"]
+        ExS["export_service"]
+        DocGW["document gateway\n(CSV / Excel)"]
 
         subgraph Agents["LangGraph agent pipeline"]
             Graph["graph.app\n(StateGraph)"]
@@ -49,7 +53,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nusers / categories / transactions")]
+    DB[("PostgreSQL\nusers / categories / transactions / export_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -57,6 +61,7 @@ flowchart TB
     Web --> UsersR
     Web --> CatR
     Web --> TxR
+    Web -- "queue, poll, download" --> ExR
 
     WA <--> WAAPI
     WAAPI -- "POST /webhook" --> WAR
@@ -70,6 +75,9 @@ flowchart TB
     UsersR --> UsersC
     CatR --> CatC
     TxR --> TxC
+    ExR --> ExC
+    ExC --> ExS
+    ExS --> DocGW
 
     WAC -- "app.invoke(state)" --> Graph
     Graph --> Orchestrator
@@ -89,6 +97,7 @@ flowchart TB
     UsersC --> Repos
     CatC --> Repos
     TxC --> Repos
+    ExC --> Repos
 
     Repos --> DB
 ```
@@ -131,7 +140,9 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
 - `utils/formatting.py` — pure helpers for how values are shown: `1.234,56`,
   `DD/MM/YYYY`, Débito / Crédito, and `neutralize_formula`, which stops text a
   user typed (a description) from running as a formula when the file is opened
-  in a spreadsheet (leading `'`; an importer must strip it).
+  in a spreadsheet (leading `'`). The apostrophe is a visible side effect: a
+  description that really starts with `=`, `+`, `-` or `@` is exported with it, so
+  the import has to remove one leading `'` from such cells.
 - `db/connection.py` — SQLAlchemy engine/session (`DB_URL`, defaults to a
   local SQLite file for dev). Each request gets its own session from the
   `get_db` dependency, closed when the request ends. Code outside a request
@@ -236,7 +247,7 @@ the rename, `date` was always the save time); `updated_at` starts empty.
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
 `POST /transactions/create`, `PUT /transactions/{id}` (label, value, category,
 and optionally `type` / `transactioned_at`; omitted fields keep their value) and
-and `DELETE /transactions/{id}`. A missing id, another user's id, or an unknown
+`DELETE /transactions/{id}`. A missing id, another user's id, or an unknown
 category answers `404`, the same for missing and foreign ids so other users' ids
 are not revealed.
 
@@ -245,12 +256,16 @@ job as `queued`, answers `202` at once and builds the file in a FastAPI backgrou
 task (own session via `session_scope`; no extra service to run). The job goes
 `queued -> running -> done | failed`. `GET /exports/{id}` shows the state and
 `GET /exports/{id}/file` downloads it (`409` until it is done). The file is every
-transaction of the caller, newest first, with no page limit. Finished files are
-kept in the table for a day and deleted when the user queues the next export. A
-failed job stores a generic message (the details go to the log); another user's job
+transaction of the caller, newest first, with no page limit. A user can have one
+export queued or running at a time (`409` otherwise). Finished files are kept in
+the table for a day: whenever anyone queues an export, every job older than a day
+is deleted, and an expired job answers `404` even before it is deleted. A failed
+job stores a generic message (the details go to the log); another user's job
 answers `404`. The task runs inside the API process, so a job that is running when
-the server restarts stays `running` and is never finished; the page gives up
-after two minutes. A separate worker would fix that if exports ever get large.
+the server restarts would stay `running`: a job queued or running for over five
+minutes is marked failed the next time it is read or the user queues an export,
+and the page gives up after two minutes. Times come from the database clock. A
+separate worker would be the next step if exports ever get large.
 
 ## 4. Key request flows
 
