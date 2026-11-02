@@ -177,7 +177,7 @@ def make_transaction(db):
             user_id=user.id,
             label=label,
             value=value,
-            date=when or datetime.now(),
+            transactioned_at=when or datetime.now(),
             category_id=category_id,
             type=type,
         )

@@ -69,7 +69,7 @@ def test_a_past_date_is_kept(db, user, recorder):
 
     run(user)
 
-    assert rows(db)[0].date.date() == date(2026, 1, 15)
+    assert rows(db)[0].transactioned_at.date() == date(2026, 1, 15)
 
 
 def test_a_missing_date_means_today(db, user, recorder):
@@ -77,7 +77,7 @@ def test_a_missing_date_means_today(db, user, recorder):
 
     run(user)
 
-    assert rows(db)[0].date.date() == date.today()
+    assert rows(db)[0].transactioned_at.date() == date.today()
 
 
 def test_a_future_date_is_clamped_to_today(db, user, recorder):
@@ -85,7 +85,7 @@ def test_a_future_date_is_clamped_to_today(db, user, recorder):
 
     run(user)
 
-    assert rows(db)[0].date.date() == date.today()
+    assert rows(db)[0].transactioned_at.date() == date.today()
 
 
 def test_a_valid_category_missing_from_the_database_falls_back_to_outros(db, user, recorder, category_ids):

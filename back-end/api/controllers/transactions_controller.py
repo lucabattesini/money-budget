@@ -39,7 +39,7 @@ def _parse_date(transaction: GetTransactionsParams):
 def create_transaction(db: Session, transaction: Transaction, user_id: int):
     if transaction.category_id is not None and not category_exists(db, transaction.category_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    transaction.date = datetime.now()
+    transaction.transactioned_at = transaction.transactioned_at or datetime.now()
     return create_transaction_repo(db, transaction, user_id)
 
 
@@ -73,6 +73,8 @@ def update_transaction(db: Session, id: int, changes: TransactionUpdate, user_id
         "label": transaction.label,
         "value": transaction.value,
         "type": transaction.type,
-        "date": transaction.date,
+        "transactioned_at": transaction.transactioned_at,
+        "created_at": transaction.created_at,
+        "updated_at": transaction.updated_at,
         "category_id": transaction.category_id,
     }

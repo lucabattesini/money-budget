@@ -110,7 +110,9 @@ def test_rows_carry_their_category_name(db, user, seeded):
 
 
 def test_transaction_without_a_category_is_still_listed(db, user, make_transaction):
-    row = TransactionDB(user_id=user.id, label="No category", value=100, date=datetime(2026, 1, 1), category_id=None)
+    row = TransactionDB(
+        user_id=user.id, label="No category", value=100, transactioned_at=datetime(2026, 1, 1), category_id=None
+    )
     db.add(row)
     db.commit()
 
@@ -190,7 +192,7 @@ def test_limit_is_capped_at_200(db, user, category_ids):
             user_id=user.id,
             label=f"t{i}",
             value=1,
-            date=datetime(2026, 1, 1),
+            transactioned_at=datetime(2026, 1, 1),
             category_id=category_ids["Outros"],
         )
         for i in range(205)

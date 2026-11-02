@@ -39,7 +39,7 @@ def test_create_stores_the_transaction_for_the_caller(client, db, user, auth_hea
         2500,
         category_ids["Alimentação"],
     )
-    assert row.date is not None
+    assert row.transactioned_at is not None
 
 
 def test_create_requires_authentication(client, db, category_ids):
@@ -210,6 +210,74 @@ def test_spending_totals_by_category_ignore_credits(client, user, auth_headers, 
     assert _summed(client, auth_headers) == [{"category_id": food, "total": 1300}]
 
 
+# --- dates: transactioned_at, created_at, updated_at -------------------------
+
+
+def test_a_new_transaction_happens_now_and_records_when_it_was_saved(client, db, auth_headers, category_ids):
+    before = datetime.now()
+    _create(client, auth_headers, category_ids["Alimentação"])
+
+    row = db.query(TransactionDB).one()
+    assert row.transactioned_at >= before
+    assert row.created_at is not None
+    assert row.updated_at is None  # never edited
+
+
+def test_create_accepts_the_date_the_transaction_happened(client, db, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={
+            "label": "Aluguel",
+            "value": 100000,
+            "category_id": category_ids["Alimentação"],
+            "transactioned_at": "2026-01-05T10:30:00",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    row = db.query(TransactionDB).one()
+    assert row.transactioned_at == datetime(2026, 1, 5, 10, 30)
+    assert row.created_at > row.transactioned_at  # saved later than it happened
+
+
+def test_the_list_shows_all_three_dates(client, user, auth_headers, make_transaction, category_ids):
+    make_transaction(user, category_ids["Alimentação"], when=datetime(2026, 1, 5, 10, 30))
+
+    row = _list(client, auth_headers)[0]
+
+    assert row["transactioned_at"].startswith("2026-01-05T10:30")
+    assert row["created_at"] is not None
+    assert row["updated_at"] is None
+
+
+def test_update_can_change_the_date_and_marks_the_row_as_edited(
+    client, db, user, auth_headers, make_transaction, category_ids
+):
+    food = category_ids["Alimentação"]
+    row = make_transaction(user, food, when=datetime(2026, 3, 15, 9, 0))
+    created = row.created_at
+
+    response = _update(client, auth_headers, row.id, category_id=food, transactioned_at="2026-02-01T08:00:00")
+
+    assert response.status_code == 200
+    db.expire_all()
+    saved = db.query(TransactionDB).filter_by(id=row.id).one()
+    assert saved.transactioned_at == datetime(2026, 2, 1, 8, 0)
+    assert saved.created_at == created  # when it was first saved never changes
+    assert saved.updated_at is not None and saved.updated_at >= created
+
+
+def test_update_keeps_the_date_when_none_is_sent(client, db, user, auth_headers, make_transaction, category_ids):
+    food = category_ids["Alimentação"]
+    row = make_transaction(user, food, when=datetime(2026, 3, 15, 9, 0))
+
+    _update(client, auth_headers, row.id, category_id=food)
+
+    db.expire_all()
+    assert db.query(TransactionDB).filter_by(id=row.id).one().transactioned_at == datetime(2026, 3, 15, 9, 0)
+
+
 # --- update ----------------------------------------------------------------
 
 
@@ -222,7 +290,7 @@ def test_update_changes_label_amount_and_category_and_keeps_the_date(
     client, db, user, auth_headers, make_transaction, category_ids
 ):
     row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
-    original_date = row.date
+    original_date = row.transactioned_at
 
     response = _update(client, auth_headers, row.id, label="Novo", value=3050, category_id=category_ids["Transporte"])
 
@@ -231,7 +299,7 @@ def test_update_changes_label_amount_and_category_and_keeps_the_date(
     db.expire_all()
     saved = db.query(TransactionDB).filter_by(id=row.id).one()
     assert (saved.label, saved.value, saved.category_id) == ("Novo", 3050, category_ids["Transporte"])
-    assert saved.date == original_date
+    assert saved.transactioned_at == original_date
     assert saved.user_id == user.id
 
 

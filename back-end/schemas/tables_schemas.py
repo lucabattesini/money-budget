@@ -12,7 +12,7 @@ class Transaction(BaseModel):
     value: int
     category_id: int
     type: TransactionType = "debit"
-    date: Optional[datetime] = None
+    transactioned_at: Optional[datetime] = None  # empty means now
 
 
 class TransactionUpdate(BaseModel):
@@ -22,6 +22,7 @@ class TransactionUpdate(BaseModel):
     value: int = Field(gt=0, le=2147483647)  # cents, must fit the 32-bit column
     category_id: int
     type: Optional[TransactionType] = None  # None keeps the current type
+    transactioned_at: Optional[datetime] = None  # None keeps the current date
 
 
 class TransactionFilters(BaseModel):
@@ -52,7 +53,9 @@ class TransactionOut(BaseModel):
     label: Optional[str] = None
     value: int  # cents, always positive
     type: TransactionType = "debit"
-    date: Optional[datetime] = None
+    transactioned_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     category_id: Optional[int] = None
     category_name: Optional[str] = None
 
