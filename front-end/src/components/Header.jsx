@@ -1,4 +1,4 @@
-import { Flex, Box, Link, Text, Icon } from "@chakra-ui/react";
+import { Flex, Link, Text, Icon } from "@chakra-ui/react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { LuLayoutDashboard, LuReceipt, LuArrowRightLeft, LuUser } from "react-icons/lu";
 
@@ -24,11 +24,16 @@ export default function Header() {
             align="center"
             justify="space-between"
         >
-            <Box>
+            <Link
+                as={RouterLink}
+                to="/"
+                aria-label="Money Budget, ir para o início"
+                _hover={{ textDecoration: "none" }}
+            >
                 <Text fontSize="xl" fontWeight="bold" color="white">
                     Money Budget
                 </Text>
-            </Box>
+            </Link>
 
             <Flex gap={6} as="nav">
                 {navItems.map((item) => {
