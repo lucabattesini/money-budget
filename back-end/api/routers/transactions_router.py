@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, status
+from datetime import date
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -7,6 +10,7 @@ from api.controllers.auth_controller import get_current_user_id
 from api.controllers.transactions_controller import (
     create_transaction,
     delete_transaction,
+    export_transactions,
     get_transactions,
     get_transactions_summed_by_category,
     update_transaction,
@@ -25,6 +29,21 @@ async def get_transactions_router(
 ):
     json_result = jsonable_encoder(get_transactions(db, transactionsParams, user_id))
     return JSONResponse(content={"data": json_result}, status_code=status.HTTP_200_OK)
+
+
+@router.get("/export")
+async def export_transactions_router(
+    file_format: Literal["csv", "xlsx"] = Query("csv", alias="format"),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    document = export_transactions(db, user_id, file_format)
+    filename = f"transacoes-{date.today().isoformat()}.{document.extension}"
+    return Response(
+        content=document.content,
+        media_type=document.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/summed-by-category")

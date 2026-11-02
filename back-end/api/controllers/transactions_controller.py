@@ -3,8 +3,10 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from api.gateways.documents import Document
 from api.repositories.transactions_repo import (
     category_exists,
+    list_all_transactions,
 )
 from api.repositories.transactions_repo import (
     create_transaction as create_transaction_repo,
@@ -21,6 +23,7 @@ from api.repositories.transactions_repo import (
 from api.repositories.transactions_repo import (
     update_transaction as update_transaction_repo,
 )
+from api.services.export_service import export_transactions as build_export
 from schemas.tables_schemas import GetTransactionsParams, Transaction, TransactionUpdate
 
 
@@ -78,3 +81,7 @@ def update_transaction(db: Session, id: int, changes: TransactionUpdate, user_id
         "updated_at": transaction.updated_at,
         "category_id": transaction.category_id,
     }
+
+
+def export_transactions(db: Session, user_id: int, file_format: str) -> Document:
+    return build_export(list_all_transactions(db, user_id), file_format)
