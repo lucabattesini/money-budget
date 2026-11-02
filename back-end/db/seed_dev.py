@@ -19,8 +19,8 @@ import argparse
 import random
 from datetime import datetime, timedelta
 
-from db import seed  # noqa: F401  (ensures default categories exist)
 from db.connection import LocalSession
+from db.seed import seed_categories
 from schemas.tables import Categories, TransactionDB, Users
 
 DEMO_EMAIL = "demo@example.com"
@@ -63,6 +63,7 @@ def main():
     parser.add_argument("--reset", action="store_true")
     args = parser.parse_args()
 
+    seed_categories()  # the sample data needs the default categories
     rng = random.Random(42)  # deterministic data
     db = LocalSession()
     try:

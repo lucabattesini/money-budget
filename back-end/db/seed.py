@@ -53,4 +53,5 @@ def seed_categories():
         db.close()
 
 
-seed_categories()
+if __name__ == "__main__":
+    seed_categories()
