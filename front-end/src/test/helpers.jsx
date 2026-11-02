@@ -6,6 +6,7 @@ export const strayRequests = []
 import { render } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Provider } from '../components/ui/provider'
+import { Toaster } from '../components/ui/toaster'
 
 /** Shows the current route, so tests can assert where the app navigated to. */
 export function LocationDisplay() {
@@ -13,11 +14,12 @@ export function LocationDisplay() {
   return <div data-testid="location">{location.pathname + location.search}</div>
 }
 
-/** Render a component inside the Chakra provider and a router. */
+/** Render a component inside the Chakra provider and a router, with the toast area the app layout provides. */
 export function renderApp(ui, { route = '/' } = {}) {
   return render(
     <Provider>
       <MemoryRouter initialEntries={[route]}>
+        <Toaster />
         {ui}
         <LocationDisplay />
       </MemoryRouter>

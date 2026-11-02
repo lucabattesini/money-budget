@@ -1,8 +1,12 @@
-import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
 import AccountData from './account-data'
+import { enqueueExport, followExport } from '../lib/exportJobs'
+
+vi.mock('../lib/exportJobs', () => ({ enqueueExport: vi.fn(), followExport: vi.fn() }))
 
 const CATEGORIES = { data: [{ id: 2, name: 'Transporte' }, { id: 3, name: 'Água' }, { id: 1, name: 'Alimentação' }] }
 
@@ -69,5 +73,69 @@ describe('import and export page', () => {
 
     expect(requestsMade(api)).toEqual([])
     expect(screen.getByRole('table', { name: 'Colunas da planilha de importação' })).toBeInTheDocument()
+  })
+})
+
+describe('exporting', () => {
+  beforeEach(() => {
+    vi.mocked(enqueueExport).mockReset()
+    vi.mocked(followExport).mockReset()
+    saveToken('tok')
+  })
+
+  const render = () => {
+    mockApi({ 'GET /categories': CATEGORIES })
+    return renderApp(<AccountData />)
+  }
+
+  it('queues an Excel export by default and then follows the job', async () => {
+    const job = { id: 7, status: 'queued' }
+    vi.mocked(enqueueExport).mockResolvedValue(job)
+    render()
+    expect(screen.getByRole('radio', { name: 'Excel (.xlsx)' })).toBeChecked()
+
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(followExport).toHaveBeenCalledWith(job))
+    expect(enqueueExport).toHaveBeenCalledWith('xlsx')
+  })
+
+  it('queues a CSV when that format is chosen', async () => {
+    vi.mocked(enqueueExport).mockResolvedValue({ id: 8 })
+    render()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'CSV (.csv)' }))
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(enqueueExport).toHaveBeenCalledWith('csv'))
+  })
+
+  it('does not follow anything when the export could not be queued', async () => {
+    vi.mocked(enqueueExport).mockResolvedValue(null)
+    render()
+
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(enqueueExport).toHaveBeenCalled())
+    expect(followExport).not.toHaveBeenCalled()
+  })
+
+  it('does not wait for the file: the button is free again as soon as the export is queued', async () => {
+    vi.mocked(enqueueExport).mockResolvedValue({ id: 9 })
+    vi.mocked(followExport).mockReturnValue(new Promise(() => {})) // a job that takes forever
+    render()
+
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(followExport).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: /baixar/i })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: /baixar/i })) // a second export can be queued
+    await waitFor(() => expect(enqueueExport).toHaveBeenCalledTimes(2))
+  })
+
+  it('says the file is built in the background', () => {
+    render()
+
+    expect(screen.getByText(/gerado em segundo plano/i)).toBeInTheDocument()
   })
 })

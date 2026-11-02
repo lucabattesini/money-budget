@@ -1,5 +1,7 @@
 from sqlalchemy import inspect, text
 
+from schemas import tables  # noqa: F401  (importing the models is what registers their tables for create_all)
+
 from .connection import Base, engine
 
 Base.metadata.create_all(bind=engine)

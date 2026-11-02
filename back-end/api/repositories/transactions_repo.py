@@ -112,6 +112,21 @@ def list_transactions(
         .all()
     )
 
+    return _to_out(rows)
+
+
+def list_all_transactions(db: Session, user_id: int) -> list[TransactionOut]:
+    """Every transaction of the user, newest first. No page limit: meant for exports."""
+    query = db.query(TransactionDB, Categories.name).outerjoin(Categories, TransactionDB.category_id == Categories.id)
+    rows = (
+        query.filter(TransactionDB.user_id == user_id)
+        .order_by(TransactionDB.transactioned_at.desc(), TransactionDB.id.desc())
+        .all()
+    )
+    return _to_out(rows)
+
+
+def _to_out(rows) -> list[TransactionOut]:
     return [
         TransactionOut(
             id=t.id,

@@ -9,7 +9,6 @@ import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
 import TransactionDrawer from "../components/TransactionDrawer";
 import TransactionFilters from "../components/TransactionFilters";
-import { Toaster } from "../components/ui/toaster";
 import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 // "Todo o Resto" can be long, so it is shown in pages
@@ -142,7 +141,6 @@ export default function TransactionsDisplay() {
 
     return(
         <Center>
-            <Toaster />
             <Stack minHeight="100vh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={10} px={4}>
                 <TransactionSummary transactions={transactions} />
 

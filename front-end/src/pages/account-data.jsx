@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Code, Heading, List, Separator, Stack, Table, Tag, Text, Wrap } from "@chakra-ui/react";
+import { Button, Code, Heading, List, RadioGroup, Separator, Stack, Table, Tag, Text, Wrap } from "@chakra-ui/react";
+import { LuDownload } from "react-icons/lu";
 import { getAllCategories } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { enqueueExport, followExport } from "../lib/exportJobs";
 
 // The columns a spreadsheet must have to be imported. The first row holds these exact names.
 // The import itself is not built yet; this page already tells people what it will expect.
@@ -13,9 +15,16 @@ const COLUMNS = [
     { name: "Tipo", required: false, format: "Débito ou Crédito (se vazio, Débito)", example: "Débito" },
 ];
 
-// Placeholder: the bulk import and the export (Excel / CSV) will both live on this page.
+const EXPORT_FORMATS = [
+    { value: "xlsx", label: "Excel (.xlsx)" },
+    { value: "csv", label: "CSV (.csv)" },
+];
+
+// The export works; the bulk import is not built yet (this page already says what it will expect).
 export default function AccountData() {
     const [categories, setCategories] = useState([]);
+    const [exportFormat, setExportFormat] = useState("xlsx");
+    const [queueing, setQueueing] = useState(false);
 
     useEffect(() => {
         const token = getToken();
@@ -24,6 +33,15 @@ export default function AccountData() {
             if (data && data.data) setCategories(data.data);
         });
     }, []);
+
+    // Queue the export and move on: the file is built in the background and downloaded when it is ready,
+    // even if the user goes to another page meanwhile.
+    const handleExport = async () => {
+        setQueueing(true);
+        const job = await enqueueExport(exportFormat);
+        setQueueing(false);
+        if (job) followExport(job);
+    };
 
     const categoryNames = categories.map((category) => category.name).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
@@ -84,11 +102,30 @@ export default function AccountData() {
 
             <Separator />
 
-            <Stack gap={2}>
+            <Stack gap={4}>
                 <Heading size="md">Exportar</Heading>
                 <Text color="fg.muted">
-                    Em breve: baixe suas transações em Excel ou CSV, com as mesmas colunas da importação.
+                    Baixe todas as suas transações, da mais nova para a mais antiga, com as mesmas colunas da
+                    importação. O valor sai sempre positivo; se foi entrada ou saída está na coluna Tipo.
+                    O arquivo é gerado em segundo plano: você pode continuar usando o app e avisamos quando
+                    estiver pronto.
                 </Text>
+
+                <RadioGroup.Root value={exportFormat} onValueChange={(e) => setExportFormat(e.value)}>
+                    <Stack direction="row" gap={6}>
+                        {EXPORT_FORMATS.map((format) => (
+                            <RadioGroup.Item key={format.value} value={format.value}>
+                                <RadioGroup.ItemHiddenInput />
+                                <RadioGroup.ItemIndicator />
+                                <RadioGroup.ItemText>{format.label}</RadioGroup.ItemText>
+                            </RadioGroup.Item>
+                        ))}
+                    </Stack>
+                </RadioGroup.Root>
+
+                <Button alignSelf="start" onClick={handleExport} loading={queueing}>
+                    <LuDownload /> Baixar
+                </Button>
             </Stack>
         </Stack>
     );
