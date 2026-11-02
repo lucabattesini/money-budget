@@ -5,12 +5,14 @@ from dotenv import find_dotenv, load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from config import SQL_ECHO
+
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 
 DATABASE_URL = os.getenv("DB_URL", "sqlite:///./test.db")
 
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL, echo=SQL_ECHO)
 
 LocalSession = sessionmaker(bind=engine)
 

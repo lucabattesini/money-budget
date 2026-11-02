@@ -239,11 +239,13 @@ sequenceDiagram
 
 ## 5. Deployment / runtime notes
 - Backend: `uvicorn api.app:app --reload`, FastAPI with CORS restricted to the
-  configured front-end origin(s).
+  `FRONT_URL` origin (the same address is used for the WhatsApp sign-up link).
 - Frontend: Vite dev server (`npm run dev`), talks to the API via
   `VITE_API_URL`.
 - Config: one `.env` at the repo root (see `.env.example`) feeds compose, the
-  back-end (`find_dotenv` walks up to it) and Vite (`envDir: '..'`).
+  back-end (`find_dotenv` walks up to it) and Vite (`envDir: '..'`). Back-end
+  settings (`FRONT_URL`, `GEMINI_MODEL`, `SQL_ECHO`) are read once in
+  `back-end/config.py`.
 - Tests: `pytest` runs inside the `api` container against a separate
   `<db>_test` Postgres database (transaction rolled back per test); see
   `back-end/tests/README.md`.
