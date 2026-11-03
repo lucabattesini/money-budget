@@ -307,8 +307,8 @@ family can have one export queued or running at a time. The chatbot state carrie
 **Budgets** (`/budgets`, TKT-61, all require login and only see the caller's family). A family plans how much to
 spend in each spending category, and a plan **stays in force until it is changed**: the amount set in a month is
 the plan of every later month that has no amount of its own. So `budgets` (family, category, first day of a month,
-amount in cents; unique per family, category and month) only holds the months where the amount *changes*; the plan of
-a month is the latest row up to it. A row of 0 means "nothing from this month on" and is what remembers that a plan
+amount in cents; unique per family, category and month) mostly holds the months where the amount *changes* (a later
+row that repeats the one before it can exist, and is harmless); the plan of a month is the latest row up to it. A row of 0 means "nothing from this month on" and is what remembers that a plan
 was stopped. Asking for the amount that already applies from an earlier month keeps no row of its own (and removes the
 month's own row if it had one), so the month goes back to following the earlier plan. Categories of the groups
 "Receitas" and "Transferências" have no budget: money coming in or moving between accounts is not spending.
@@ -415,7 +415,7 @@ names, but merged categories stay merged), `0013` `families.currency` and `famil
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de
-Vida, Filhos, Educação, Saúde e Bem-estar, Finanças, Outros, Transferências). The groups are a fixed set, the same for every family, in the order of `category_groups.position` (1 first, kept in the database; the Categorias and Orçamentos pages and every API list use it, and `db.seed` sets it from the order of `DEFAULT_GROUPS`):
+Vida, Filhos, Educação, Saúde e Bem-estar, Finanças, Outros, Transferências). The groups are a fixed set, the same for every family, in the order of `category_groups.position` (1 first, kept in the database; the Categorias and Orçamentos pages and every API list use it, and `db.seed` gives a group it creates the place it has in `DEFAULT_GROUPS`, never moving one that exists):
 nothing in the API creates, renames or deletes one. Each category has exactly one (`categories.group_id`, not
 null, a foreign key), and a category saved without one goes to "Outros". The 51 default
 categories mirror Monarch's (for example "Supermercado", "Restaurantes e Bares", "Luz e gás", "Salário", "Transferência";

@@ -598,3 +598,33 @@ def test_the_copy_endpoint_is_gone(client, auth_headers):
     assert client.post(
         "/budgets/copy", json={"from_month": NOV, "to_month": "2026-12"}, headers=auth_headers
     ).status_code in (404, 405)
+
+
+def test_a_later_month_that_repeats_the_new_amount_keeps_its_own_row_and_the_numbers_stay_right(
+    client, db, auth_headers, food
+):
+    _plan(client, auth_headers, food, 100, month="2026-10")
+    _plan(client, auth_headers, food, 200, month="2026-12")
+
+    _plan(client, auth_headers, food, 200, month="2026-11")  # December now repeats November
+
+    assert [_budgeted(client, auth_headers, food, m) for m in ("2026-10", "2026-11", "2026-12", "2027-01")] == [
+        100,
+        200,
+        200,
+        200,
+    ]
+    assert db.query(Budgets).count() == 3  # harmless: the December row says the same thing as November
+
+
+def test_a_stop_in_the_middle_of_three_changes_splits_them_cleanly(client, auth_headers, food):
+    _plan(client, auth_headers, food, 100, month="2026-09")
+    _plan(client, auth_headers, food, 0, month="2026-10")
+    _plan(client, auth_headers, food, 150, month="2026-11")
+
+    assert [_budgeted(client, auth_headers, food, m) for m in ("2026-09", "2026-10", "2026-11", "2026-12")] == [
+        100,
+        None,
+        150,
+        150,
+    ]
