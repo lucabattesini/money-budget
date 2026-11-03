@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Badge, Box, Button, CloseButton, Dialog, Field, HStack, Input, NativeSelect, Portal, Spinner, Stack, Table, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Button, CloseButton, Dialog, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Table, Text } from "@chakra-ui/react";
 import { LuUpload } from "react-icons/lu";
 import { cancelImport, chooseImportCategories, createCategory, getAllCategories, getCategoryGroups, matchImportColumns, uploadImport } from "../api/endpoints";
 import { getToken } from "../lib/auth";
@@ -53,7 +53,7 @@ const fileDate = (iso) => iso.split("-").reverse().join("/"); // 2026-03-15 -> 1
 
 function StepIndicator({ current }) {
     return (
-        <HStack as="ol" listStyleType="none" gap={2} m={0} p={0} aria-label="Passos da importação">
+        <HStack as="ol" listStyleType="none" columnGap={5} rowGap={2} flexWrap="wrap" m={0} p={0} aria-label="Passos da importação">
             {STEPS.map((step, index) => (
                 <HStack as="li" key={step.id} gap={2} aria-current={step.id === current ? "step" : undefined}>
                     <Badge colorPalette={step.id === current ? "blue" : "gray"} variant={step.id === current ? "solid" : "subtle"}>
@@ -65,6 +65,21 @@ function StepIndicator({ current }) {
                 </HStack>
             ))}
         </HStack>
+    );
+}
+
+// A titled block of a step, so what belongs together is together: a title, a line saying what it is for, the content.
+function Section({ title, hint, children }) {
+    return (
+        <Box as="section" borderWidth="1px" borderRadius="lg" p={{ base: 4, md: 5 }}>
+            <Stack gap={4}>
+                <Stack gap={1}>
+                    <Heading as="h3" size="sm">{title}</Heading>
+                    {hint && <Text fontSize="sm" color="fg.muted">{hint}</Text>}
+                </Stack>
+                {children}
+            </Stack>
+        </Box>
     );
 }
 
@@ -116,29 +131,30 @@ function ProblemsAlert({ error }) {
 function FileStep({ file, setFile, checking, error }) {
     const input = useRef(null);
     return (
-        <Stack gap={4}>
-            <Text color="fg.muted">
-                Escolha a planilha (.xlsx ou .csv). No próximo passo você diz qual coluna é qual e conferimos o
-                arquivo inteiro antes de salvar qualquer coisa.
-            </Text>
-            <Field.Root invalid={!!error}>
-                <Field.Label>Planilha</Field.Label>
-                <HStack>
-                    <Button variant="outline" onClick={() => input.current?.click()} disabled={checking}>
-                        <LuUpload /> Escolher arquivo
-                    </Button>
-                    <Text fontSize="sm" color="fg.muted">{file ? file.name : "Nenhum arquivo escolhido"}</Text>
-                </HStack>
-                {/* The real input stays in the page (hidden) so a screen reader and the tests can reach it by its label */}
-                <Input
-                    ref={input}
-                    type="file"
-                    aria-label="Arquivo da planilha"
-                    accept=".xlsx,.csv"
-                    display="none"
-                    onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                />
-            </Field.Root>
+        <Stack gap={5}>
+            <Section
+                title="Planilha"
+                hint="Escolha o arquivo (.xlsx ou .csv). Nos próximos passos você diz como ele escreve datas e valores e qual coluna é qual, e conferimos o arquivo inteiro antes de salvar qualquer coisa."
+            >
+                <Field.Root invalid={!!error}>
+                    <Field.Label>Arquivo</Field.Label>
+                    <HStack gap={3} flexWrap="wrap">
+                        <Button variant="outline" onClick={() => input.current?.click()} disabled={checking}>
+                            <LuUpload /> Escolher arquivo
+                        </Button>
+                        <Text fontSize="sm" color="fg.muted">{file ? file.name : "Nenhum arquivo escolhido"}</Text>
+                    </HStack>
+                    {/* The real input stays in the page (hidden) so a screen reader and the tests can reach it by its label */}
+                    <Input
+                        ref={input}
+                        type="file"
+                        aria-label="Arquivo da planilha"
+                        accept=".xlsx,.csv"
+                        display="none"
+                        onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                    />
+                </Field.Root>
+            </Section>
 
             {error && <ProblemsAlert error={error} />}
         </Stack>
@@ -164,54 +180,50 @@ function FormatSelect({ label, value, options, onChange }) {
 // The first rows of the file, to recognise its columns and the way it writes dates and amounts.
 function SampleTable({ job }) {
     return (
-        <Stack gap={2}>
-            <Text fontSize="sm" fontWeight="semibold">Primeiras linhas do arquivo</Text>
-            <Box overflowX="auto">
-                <Table.Root size="sm" aria-label="Primeiras linhas do arquivo">
-                    <Table.Header>
-                        <Table.Row>
-                            {job.columns.map((name, index) => (
-                                <Table.ColumnHeader key={index}>{columnLabel(name, index)}</Table.ColumnHeader>
+        <Box overflowX="auto">
+            <Table.Root size="sm" aria-label="Primeiras linhas do arquivo">
+                <Table.Header>
+                    <Table.Row>
+                        {job.columns.map((name, index) => (
+                            <Table.ColumnHeader key={index}>{columnLabel(name, index)}</Table.ColumnHeader>
+                        ))}
+                    </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                    {job.sample.map((row, rowIndex) => (
+                        <Table.Row key={rowIndex}>
+                            {job.columns.map((_name, index) => (
+                                <Table.Cell key={index}>{row[index] ?? ""}</Table.Cell>
                             ))}
                         </Table.Row>
-                    </Table.Header>
-                    <Table.Body>
-                        {job.sample.map((row, rowIndex) => (
-                            <Table.Row key={rowIndex}>
-                                {job.columns.map((_name, index) => (
-                                    <Table.Cell key={index}>{row[index] ?? ""}</Table.Cell>
-                                ))}
-                            </Table.Row>
-                        ))}
-                    </Table.Body>
-                </Table.Root>
-            </Box>
-        </Stack>
+                    ))}
+                </Table.Body>
+            </Table.Root>
+        </Box>
     );
 }
+
+const SAMPLE_TITLE = "Primeiras linhas do arquivo";
+const SAMPLE_HINT = "Use estas linhas para reconhecer as colunas e o jeito de escrever datas e valores.";
 
 // Step 2: how the file writes dates and amounts, and what the sign of the amount means; each row is then checked that way.
 function FormatsStep({ job, formats, setFormats }) {
     return (
-        <Stack gap={4}>
-            <Text color="fg.muted">
-                Diga como o arquivo escreve as datas e os valores, olhando as primeiras linhas abaixo. Conferimos cada
-                linha pelo formato que você escolher.
-            </Text>
-            <Stack gap={3}>
-                <Text fontSize="sm" fontWeight="semibold">Como o arquivo escreve os valores</Text>
-                <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={3}>
+        <Stack gap={5}>
+            <Section
+                title="Como o arquivo escreve os valores"
+                hint="Conferimos cada linha pelo formato que você escolher. No automático, olhamos o arquivo todo; uma data como 05/03/2026, que pode ser dos dois jeitos, segue o idioma da sua família."
+            >
+                <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={5}>
                     <FormatSelect label="Formato das datas" value={formats.dateOrder} options={DATE_FORMATS} onChange={(dateOrder) => setFormats((c) => ({ ...c, dateOrder }))} />
                     <FormatSelect label="Formato dos valores" value={formats.amountStyle} options={AMOUNT_FORMATS} onChange={(amountStyle) => setFormats((c) => ({ ...c, amountStyle }))} />
                     <FormatSelect label="Sinal do valor" value={formats.sign} options={SIGNS} onChange={(sign) => setFormats((c) => ({ ...c, sign }))} />
                 </Box>
-                <Text fontSize="xs" color="fg.muted">
-                    Conferimos cada linha pelo formato que você escolher. No automático, olhamos o arquivo todo; uma data
-                    como 05/03/2026 que pode ser dos dois jeitos segue o idioma da sua família.
-                </Text>
-            </Stack>
+            </Section>
 
-            <SampleTable job={job} />
+            <Section title={SAMPLE_TITLE} hint={SAMPLE_HINT}>
+                <SampleTable job={job} />
+            </Section>
         </Stack>
     );
 }
@@ -222,35 +234,44 @@ function ColumnsStep({ job, choice, setChoice, formats }) {
     const repeated = taken.length !== new Set(taken).size;
     const byType = formats.sign === "type_column"; // otherwise the sign of the amount says it and there is no Tipo column
     const fields = FIELDS.filter((field) => byType || field.name !== "Tipo");
+    const fieldSelect = (field) => (
+        <Field.Root key={field.name} required={field.required}>
+            <Field.Label>{field.required ? field.name : `${field.name} (opcional, se vazio é Débito)`}</Field.Label>
+            <NativeSelect.Root>
+                <NativeSelect.Field
+                    aria-label={`Coluna para ${field.name}`}
+                    value={choice[field.name]}
+                    onChange={(e) => setChoice((current) => ({ ...current, [field.name]: e.target.value }))}
+                >
+                    <option value="">{field.required ? "Escolha..." : "Não usar"}</option>
+                    {job.columns.map((name, index) => (
+                        <option key={index} value={String(index)}>{columnLabel(name, index)}</option>
+                    ))}
+                </NativeSelect.Field>
+                <NativeSelect.Indicator />
+            </NativeSelect.Root>
+        </Field.Root>
+    );
+    const grid = { display: "grid", gridTemplateColumns: { base: "1fr", md: "repeat(2, 1fr)" }, gap: 5 };
     return (
-        <Stack gap={4}>
-            <Text color="fg.muted">
-                Diga qual coluna do arquivo é cada informação da transação. Confira pelos exemplos abaixo. Depois conferimos
-                todas as linhas; se alguma tiver problema, nada é importado.
-            </Text>
-            <Stack gap={3}>
-                {fields.map((field) => (
-                    <Field.Root key={field.name} required={field.required}>
-                        <Field.Label>{field.required ? field.name : `${field.name} (opcional, se vazio é Débito)`}</Field.Label>
-                        <NativeSelect.Root>
-                            <NativeSelect.Field
-                                aria-label={`Coluna para ${field.name}`}
-                                value={choice[field.name]}
-                                onChange={(e) => setChoice((current) => ({ ...current, [field.name]: e.target.value }))}
-                            >
-                                <option value="">{field.required ? "Escolha..." : "Não usar"}</option>
-                                {job.columns.map((name, index) => (
-                                    <option key={index} value={String(index)}>{columnLabel(name, index)}</option>
-                                ))}
-                            </NativeSelect.Field>
-                            <NativeSelect.Indicator />
-                        </NativeSelect.Root>
-                    </Field.Root>
-                ))}
-            </Stack>
-            {repeated && <Text color="fg.error" role="alert">Uma mesma coluna não pode ser usada para dois campos.</Text>}
+        <Stack gap={5}>
+            <Section
+                title="Campos obrigatórios"
+                hint="Diga qual coluna do arquivo é cada informação da transação. Depois conferimos todas as linhas; se alguma tiver problema, nada é importado."
+            >
+                <Box {...grid}>{fields.filter((field) => field.required).map(fieldSelect)}</Box>
+                {repeated && <Text color="fg.error" role="alert">Uma mesma coluna não pode ser usada para dois campos.</Text>}
+            </Section>
 
-            <SampleTable job={job} />
+            {fields.some((field) => !field.required) && (
+                <Section title="Campo opcional" hint="Se o arquivo não diz se é débito ou crédito, tudo entra como débito.">
+                    <Box {...grid}>{fields.filter((field) => !field.required).map(fieldSelect)}</Box>
+                </Section>
+            )}
+
+            <Section title={SAMPLE_TITLE} hint={SAMPLE_HINT}>
+                <SampleTable job={job} />
+            </Section>
         </Stack>
     );
 }
@@ -270,33 +291,35 @@ function HowRead({ job }) {
 // Step 4: every row of the file is checked the way steps 2 and 3 said. All the problems are listed, or all is well.
 function CheckStep({ job, running, error }) {
     return (
-        <Stack gap={4}>
-            {running && (
-                <HStack>
-                    <Spinner size="sm" />
-                    <Text>Conferindo todas as linhas do arquivo...</Text>
-                </HStack>
-            )}
-            {error && (
-                <>
-                    <ProblemsAlert error={error} />
-                    <Text fontSize="sm" color="fg.muted">
-                        Nada foi importado. Corrija o arquivo e envie de novo, ou volte e mude as colunas ou os formatos,
-                        se o problema for o jeito de ler o arquivo.
-                    </Text>
-                </>
-            )}
-            {!running && !error && job.total_rows !== null && job.total_rows !== undefined && (
-                <Stack gap={2}>
-                    <Alert.Root status="success">
-                        <Alert.Indicator />
-                        <Alert.Title>
-                            Tudo certo: {job.total_rows === 1 ? "a linha do arquivo foi conferida" : `as ${job.total_rows} linhas do arquivo foram conferidas`}.
-                        </Alert.Title>
-                    </Alert.Root>
-                    <HowRead job={job} />
-                </Stack>
-            )}
+        <Stack gap={5}>
+            <Section title="Resultado da conferência" hint="Cada linha do arquivo é conferida pelos formatos e colunas que você escolheu.">
+                {running && (
+                    <HStack>
+                        <Spinner size="sm" />
+                        <Text>Conferindo todas as linhas do arquivo...</Text>
+                    </HStack>
+                )}
+                {error && (
+                    <>
+                        <ProblemsAlert error={error} />
+                        <Text fontSize="sm" color="fg.muted">
+                            Nada foi importado. Corrija o arquivo e envie de novo, ou volte e mude as colunas ou os formatos,
+                            se o problema for o jeito de ler o arquivo.
+                        </Text>
+                    </>
+                )}
+                {!running && !error && job.total_rows !== null && job.total_rows !== undefined && (
+                    <Stack gap={3}>
+                        <Alert.Root status="success">
+                            <Alert.Indicator />
+                            <Alert.Title>
+                                Tudo certo: {job.total_rows === 1 ? "a linha do arquivo foi conferida" : `as ${job.total_rows} linhas do arquivo foram conferidas`}.
+                            </Alert.Title>
+                        </Alert.Root>
+                        <HowRead job={job} />
+                    </Stack>
+                )}
+            </Section>
         </Stack>
     );
 }
@@ -330,7 +353,7 @@ function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
     };
 
     return (
-        <Stack as="li" gap={3} borderWidth="1px" borderRadius="md" p={3} listStyleType="none">
+        <Stack as="li" gap={4} borderWidth="1px" borderRadius="md" p={4} listStyleType="none">
             <Text>
                 <Text as="span" fontWeight="semibold">{item.name}</Text>
                 <Text as="span" color="fg.muted"> · {item.rows === 1 ? "1 linha" : `${item.rows} linhas`}</Text>
@@ -389,25 +412,26 @@ function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCate
     };
 
     return (
-        <Stack gap={4}>
-            <Text color="fg.muted">
-                O arquivo usa {unknown.length === 1 ? "uma categoria que você ainda não tem" : `${unknown.length} categorias que você ainda não tem`}.
-                Para cada uma, escolha uma categoria que já existe ou crie uma nova. Nada é salvo até o último passo.
-            </Text>
-            <Stack as="ul" gap={3} m={0} p={0} aria-label="Categorias do arquivo que não existem">
-                {unknown.map((item) => (
-                    <CategoryRow
-                        key={item.name}
-                        item={item}
-                        row={rows[item.name]}
-                        onChange={(changes) => update(item.name, changes)}
-                        categories={categories}
-                        groups={groups}
-                        onCreate={created}
-                    />
-                ))}
-            </Stack>
-            {error && <Text color="fg.error" role="alert">{error}</Text>}
+        <Stack gap={5}>
+            <Section
+                title="Categorias que você ainda não tem"
+                hint={`O arquivo usa ${unknown.length === 1 ? "uma categoria que você ainda não tem" : `${unknown.length} categorias que você ainda não tem`}. Para cada uma, escolha uma categoria que já existe ou crie uma nova. Nada é salvo até o último passo.`}
+            >
+                <Stack as="ul" gap={4} m={0} p={0} aria-label="Categorias do arquivo que não existem">
+                    {unknown.map((item) => (
+                        <CategoryRow
+                            key={item.name}
+                            item={item}
+                            row={rows[item.name]}
+                            onChange={(changes) => update(item.name, changes)}
+                            categories={categories}
+                            groups={groups}
+                            onCreate={created}
+                        />
+                    ))}
+                </Stack>
+                {error && <Text color="fg.error" role="alert">{error}</Text>}
+            </Section>
         </Stack>
     );
 }
@@ -416,21 +440,26 @@ function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCate
 function ConfirmStep({ job }) {
     const hidden = job.skipped_count - job.skipped.length;
     return (
-        <Stack gap={4}>
-            <Text>
-                <Text as="span" fontWeight="semibold">{job.to_import === 1 ? "1 transação será importada" : `${job.to_import} transações serão importadas`}</Text>
-                {job.skipped_count > 0 && (
-                    <Text as="span">
-                        {" "}e {job.skipped_count === 1 ? "1 será ignorada porque já existe" : `${job.skipped_count} serão ignoradas porque já existem`}
-                    </Text>
-                )}
-                .
-            </Text>
-            <HowRead job={job} />
-            {job.to_import === 0 && <Text color="fg.muted">Todas as transações do arquivo já existem. Não há nada para importar.</Text>}
+        <Stack gap={5}>
+            <Section title="Resumo">
+                <Text>
+                    <Text as="span" fontWeight="semibold">{job.to_import === 1 ? "1 transação será importada" : `${job.to_import} transações serão importadas`}</Text>
+                    {job.skipped_count > 0 && (
+                        <Text as="span">
+                            {" "}e {job.skipped_count === 1 ? "1 será ignorada porque já existe" : `${job.skipped_count} serão ignoradas porque já existem`}
+                        </Text>
+                    )}
+                    .
+                </Text>
+                {job.to_import === 0 && <Text color="fg.muted">Todas as transações do arquivo já existem. Não há nada para importar.</Text>}
+                <HowRead job={job} />
+                <Text fontSize="sm" color="fg.muted">
+                    A importação roda em segundo plano: você pode continuar usando o app e avisamos quando terminar.
+                </Text>
+            </Section>
+
             {job.skipped_count > 0 && (
-                <Stack gap={2}>
-                    <Text fontSize="sm" fontWeight="semibold">Já existem e serão ignoradas</Text>
+                <Section title="Já existem e serão ignoradas" hint="Mesmo dia, descrição, valor, categoria e tipo de uma transação que você já tem.">
                     <Box maxH="48" overflowY="auto">
                         <Table.Root size="sm" aria-label="Transações que serão ignoradas">
                             <Table.Header>
@@ -454,11 +483,8 @@ function ConfirmStep({ job }) {
                         </Table.Root>
                     </Box>
                     {hidden > 0 && <Text fontSize="sm" color="fg.muted">E mais {hidden}.</Text>}
-                </Stack>
+                </Section>
             )}
-            <Text fontSize="sm" color="fg.muted">
-                A importação roda em segundo plano: você pode continuar usando o app e avisamos quando terminar.
-            </Text>
         </Stack>
     );
 }
@@ -634,13 +660,13 @@ export default function ImportDialog({ open, onClose }) {
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
                     <Dialog.Content maxW="5xl">
-                        <Dialog.Header>
-                            <Stack gap={3}>
+                        <Dialog.Header px={{ base: 4, md: 8 }} pt={{ base: 5, md: 7 }} pb={4}>
+                            <Stack gap={4}>
                                 <Dialog.Title>Importar transações</Dialog.Title>
                                 <StepIndicator current={step} />
                             </Stack>
                         </Dialog.Header>
-                        <Dialog.Body>
+                        <Dialog.Body px={{ base: 4, md: 8 }} py={5}>
                             {step === "file" && <FileStep file={file} setFile={setFile} checking={checking} error={fileError} />}
                             {step === "formats" && job && <FormatsStep job={job} formats={formats} setFormats={setFormats} />}
                             {step === "columns" && job && <ColumnsStep job={job} choice={choice} setChoice={setChoice} formats={formats} />}
@@ -659,7 +685,7 @@ export default function ImportDialog({ open, onClose }) {
                             {step === "confirm" && job && <ConfirmStep job={job} />}
                             {checking && <Spinner mt={4} aria-label="Conferindo o arquivo" />}
                         </Dialog.Body>
-                        <Dialog.Footer>
+                        <Dialog.Footer px={{ base: 4, md: 8 }} py={5} gap={3} borderTopWidth="1px">
                             <Button variant="outline" onClick={close} disabled={busy || checking}>Cancelar</Button>
                             {step !== "file" && (
                                 <Button variant="outline" onClick={goBack} disabled={busy}>Voltar</Button>

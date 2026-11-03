@@ -156,6 +156,56 @@ describe('import dialog', () => {
     })
   })
 
+  describe('sections', () => {
+    const headings = () => screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+
+    it('organises each step in titled sections', async () => {
+      mockApi({ ...imports({ unknown_categories: [PETS] }), 'GET /categories': CATEGORIES, 'GET /categories/groups': GROUPS })
+      open()
+      expect(headings()).toEqual(['Planilha'])
+
+      await toFormats()
+      expect(headings()).toEqual(['Como o arquivo escreve os valores', 'Primeiras linhas do arquivo'])
+
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      await screen.findByLabelText('Coluna para Data')
+      expect(headings()).toEqual(['Campos obrigatórios', 'Campo opcional', 'Primeiras linhas do arquivo'])
+
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      expect(await screen.findByText(/Tudo certo/)).toBeInTheDocument()
+      expect(headings()).toEqual(['Resultado da conferência'])
+
+      await passCheck()
+      await screen.findByLabelText('Categoria para "Pets"')
+      expect(headings()).toEqual(['Categorias que você ainda não tem'])
+    })
+
+    it('has the summary and, when there are duplicates, their own section when confirming', async () => {
+      mockApi(imports({ to_import: 1, skipped_count: 1, skipped: [skipped(2)] }))
+      open()
+
+      await check()
+
+      await screen.findByText(/1 transação será importada/)
+      expect(headings()).toEqual(['Resumo', 'Já existem e serão ignoradas'])
+    })
+
+    it('has no section for duplicates when there are none, and none for the optional field when the sign says the direction', async () => {
+      mockApi(imports())
+      open()
+      await toFormats()
+      await userEvent.selectOptions(screen.getByLabelText('Sinal do valor'), 'Negativo é débito, positivo é crédito')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      await screen.findByLabelText('Coluna para Data')
+
+      expect(headings()).toEqual(['Campos obrigatórios', 'Primeiras linhas do arquivo'])
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      await passCheck()
+      await screen.findByText(/3 transações serão importadas/)
+      expect(headings()).toEqual(['Resumo'])
+    })
+  })
+
   describe('step 2: formats', () => {
     const putBody = (api) => JSON.parse(api.mock.calls.find(([, o]) => o?.method === 'PUT')[1].body)
     const options = (label) => within(screen.getByLabelText(label)).getAllByRole('option').map((o) => o.textContent)
