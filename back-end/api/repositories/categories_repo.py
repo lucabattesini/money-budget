@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from schemas.tables import Categories, CategoryGroups
+from schemas.tables import Categories, CategoryGroups, Families, TransactionDB
 
 
 def _visible(family_id: int):
@@ -37,3 +37,60 @@ def get_category_by_name(db: Session, name: str, family_id: int):
 
 def category_visible_to_family(db: Session, category_id: int, family_id: int) -> bool:
     return db.query(Categories.id).filter(Categories.id == category_id, _visible(family_id)).first() is not None
+
+
+def get_family_category(db: Session, family_id: int, category_id: int) -> Categories | None:
+    """One of the family's OWN categories. A default category, another family's and a missing id are all None."""
+    return db.query(Categories).filter(Categories.id == category_id, Categories.family_id == family_id).first()
+
+
+def group_exists(db: Session, group_id: int) -> bool:
+    return db.query(CategoryGroups.id).filter(CategoryGroups.id == group_id).first() is not None
+
+
+def lock_family(db: Session, family_id: int) -> None:
+    """Serialise changes to a family's categories, so two requests cannot both take the same name."""
+    db.query(Families).filter(Families.id == family_id).with_for_update().one()
+
+
+def name_is_taken(db: Session, family_id: int, name: str, except_id: int | None = None) -> bool:
+    """True if a default category or one of the family's has this name, ignoring case and surrounding spaces.
+
+    Compared here and not in SQL, so the case rules are Python's (they cover accents) whatever the database locale.
+    """
+    wanted = name.strip().casefold()
+    rows = db.query(Categories.id, Categories.name).filter(_visible(family_id)).all()
+    return any(row.id != except_id and (row.name or "").strip().casefold() == wanted for row in rows)
+
+
+def create_category(db: Session, family_id: int, name: str, group_id: int | None) -> Categories:
+    # Without a group the column's default puts it in "Outros"
+    extra = {} if group_id is None else {"group_id": group_id}
+    category = Categories(name=name, family_id=family_id, **extra)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def update_category(db: Session, category: Categories, name: str | None, group_id: int | None) -> Categories:
+    if name is not None:
+        category.name = name
+    if group_id is not None:
+        category.group_id = group_id
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def count_transactions_using(db: Session, category_id: int) -> int:
+    return db.query(TransactionDB.id).filter(TransactionDB.category_id == category_id).count()
+
+
+def delete_category(db: Session, category: Categories) -> None:
+    db.delete(category)
+    db.commit()
+
+
+def group_name_of(db: Session, category: Categories) -> str:
+    return db.query(CategoryGroups.name).filter(CategoryGroups.id == category.group_id).scalar()
