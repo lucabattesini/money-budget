@@ -1,6 +1,7 @@
-from sqlalchemy import func, or_
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from api.utils.category_names import same_name
 from schemas.tables import Categories, CategoryGroups, Families, TransactionDB
 
 
@@ -26,13 +27,15 @@ def get_all_groups(db: Session):
 
 
 def get_category_by_name(db: Session, name: str, family_id: int):
-    # The family's own category wins over a default one with the same name
-    return (
-        db.query(Categories)
-        .filter(_visible(family_id), func.lower(Categories.name) == name.lower())
-        .order_by(Categories.family_id.is_(None), Categories.id)
-        .first()
+    """The category with these words as its name, whether or not it starts with an emoji.
+
+    The family's own category wins over a default one with the same name. Compared here and not in SQL, because
+    the emoji in front is part of the stored name.
+    """
+    candidates = (
+        db.query(Categories).filter(_visible(family_id)).order_by(Categories.family_id.is_(None), Categories.id)
     )
+    return next((category for category in candidates if same_name(category.name, name)), None)
 
 
 def category_visible_to_family(db: Session, category_id: int, family_id: int) -> bool:
@@ -54,13 +57,12 @@ def lock_family(db: Session, family_id: int) -> None:
 
 
 def name_is_taken(db: Session, family_id: int, name: str, except_id: int | None = None) -> bool:
-    """True if a default category or one of the family's has this name, ignoring case and surrounding spaces.
+    """True if a default category or one of the family's has this name, ignoring case, surrounding spaces and emoji.
 
     Compared here and not in SQL, so the case rules are Python's (they cover accents) whatever the database locale.
     """
-    wanted = name.strip().casefold()
     rows = db.query(Categories.id, Categories.name).filter(_visible(family_id)).all()
-    return any(row.id != except_id and (row.name or "").strip().casefold() == wanted for row in rows)
+    return any(row.id != except_id and same_name(row.name, name) for row in rows)
 
 
 def create_category(db: Session, family_id: int, name: str, group_id: int | None) -> Categories:

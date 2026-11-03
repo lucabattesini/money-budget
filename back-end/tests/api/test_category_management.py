@@ -292,3 +292,45 @@ def test_another_familys_category_cannot_be_deleted(client, db, auth_headers, ow
 def test_changing_and_deleting_require_login(client, own):
     assert client.patch(f"/categories/{own['id']}", json={"name": "x"}).status_code in (401, 403)
     assert client.delete(f"/categories/{own['id']}").status_code in (401, 403)
+
+
+# --- emoji in the name -------------------------------------------------------------------------------------
+
+
+def test_a_name_may_start_with_an_emoji_and_is_kept_as_typed(client, auth_headers):
+    created = _post(client, auth_headers, name="  🌱 Plantas ").json()["data"]
+
+    assert created["name"] == "🌱 Plantas"
+    assert "🌱 Plantas" in _list(client, auth_headers)
+
+
+@pytest.mark.parametrize("name", ["🛒", "🛒 ", "🧑‍💻"])
+def test_a_name_with_only_an_emoji_is_refused(client, auth_headers, name):
+    response = _post(client, auth_headers, name=name)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O nome da categoria não pode ficar vazio."
+
+
+@pytest.mark.parametrize("name", ["Plantas", "🌿 plantas", "  🌱   PLANTAS "])
+def test_the_emoji_does_not_make_a_name_different_for_the_duplicate_check(client, auth_headers, name):
+    _post(client, auth_headers, name="🌱 Plantas")
+
+    assert _post(client, auth_headers, name=name).status_code == 409
+
+
+def test_a_name_cannot_clash_with_a_default_category_that_has_an_emoji(client, db, auth_headers):
+    group = db.query(CategoryGroups).filter_by(name="Alimentação").one()
+    db.add(Categories(name="🛒 Mercado do bairro", group_id=group.id))
+    db.commit()
+
+    assert _post(client, auth_headers, name="mercado do bairro").status_code == 409
+    assert _post(client, auth_headers, name="🏪 Mercado do bairro").status_code == 409
+
+
+def test_renaming_can_add_change_or_drop_the_emoji_without_clashing_with_itself(client, auth_headers, own):
+    for new_name in ["🌱 Plantas", "🪴 Plantas", "Plantas"]:
+        response = _patch(client, auth_headers, own["id"], name=new_name)
+
+        assert response.status_code == 200
+        assert response.json()["data"]["name"] == new_name

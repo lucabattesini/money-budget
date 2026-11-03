@@ -14,6 +14,7 @@ from api.repositories.categories_repo import (
 )
 from api.repositories.categories_repo import get_all_categories as get_all_categories_repo
 from api.repositories.categories_repo import get_all_groups as get_all_groups_repo
+from api.utils.category_names import plain_name
 from schemas.tables import Categories
 
 MAX_NAME_LENGTH = 100  # the size of the column
@@ -40,7 +41,7 @@ def get_all_groups(db: Session):
 
 def _clean_name(name: str) -> str:
     name = (name or "").strip()
-    if not name:
+    if not plain_name(name):  # nothing, or only an emoji: a category needs words to be told apart
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O nome da categoria não pode ficar vazio."
         )
