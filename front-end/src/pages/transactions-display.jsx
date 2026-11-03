@@ -4,6 +4,7 @@ import { getTransactions, getAllCategories, deleteTransaction } from "../api/end
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
+import { formatDate, useLocale } from "../lib/locale";
 import { EMPTY_FILTERS, applyFilters, countActiveFilters, hasActiveFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
@@ -16,6 +17,7 @@ import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "re
 const PAGE_SIZE = 10;
 
 export default function TransactionsDisplay() {
+    useLocale(); // amounts and dates follow the family's currency and language
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
@@ -104,7 +106,7 @@ export default function TransactionsDisplay() {
 
     const renderRow = (transaction) => (
         <Table.Row key={transaction.id} cursor="pointer" _hover={{ bg: "bg.muted" }} onClick={() => setEditing(transaction)}>
-            <Table.Cell whiteSpace="nowrap">{new Date(transaction.transactioned_at).toLocaleDateString("pt-BR")}</Table.Cell>
+            <Table.Cell whiteSpace="nowrap">{formatDate(transaction.transactioned_at)}</Table.Cell>
             <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
             <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
             <Table.Cell textAlign="end" whiteSpace="nowrap" color={transaction.type === "credit" ? "green.400" : undefined}>

@@ -42,3 +42,31 @@ def test_text_that_looks_like_a_formula_is_neutralized(text):
 @pytest.mark.parametrize("text", ["Almoço", "", "a=b", "1+1", " =x", "'já tem"])
 def test_ordinary_text_is_left_alone(text):
     assert neutralize_formula(text) == text
+
+
+@pytest.mark.parametrize(
+    ("amount", "currency", "language", "text"),
+    [
+        (1234.5, "BRL", "pt", "R$ 1.234,50"),
+        (1234.5, "BRL", "en", "R$1,234.50"),
+        (1234.5, "USD", "en", "US$1,234.50"),
+        (1234.5, "USD", "pt", "US$ 1.234,50"),
+        (1234.5, "CAD", "en", "CA$1,234.50"),
+        (7, "EUR", "pt", "€ 7,00"),
+        (0.05, "GBP", "en", "£0.05"),
+        (1000000, "BRL", "pt", "R$ 1.000.000,00"),
+    ],
+)
+def test_money_follows_the_currency_for_the_symbol_and_the_language_for_the_separators(
+    amount, currency, language, text
+):
+    from api.utils.formatting import format_money
+
+    assert format_money(amount, currency, language) == text
+
+
+def test_the_day_and_month_follow_the_language():
+    from api.utils.formatting import format_day_month
+
+    assert format_day_month(date(2026, 3, 5), "pt") == "05/03"
+    assert format_day_month(date(2026, 3, 5), "en") == "03/05"

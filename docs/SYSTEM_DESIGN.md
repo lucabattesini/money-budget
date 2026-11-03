@@ -187,7 +187,7 @@ A LangGraph `StateGraph` (`graph/graph.py`) over `AssistantState`
 | **recorder** | On `registry`: extracts one or more expense items (amount, description, category, date) and writes `Transaction` rows (always `debit`; the item's date becomes `transactioned_at`, never in the future) via the repositories. |
 | **query** | On `check`: turns the question into one or more structured tool calls (`list_transactions`, `summarize_transactions`) with filters (date range, category, search text, min/max amount, weekday). |
 | **db_execute** | Executes the query agent's tool calls against the repositories, converting cents to reais. |
-| **secretary** | Formats the DB results plus the original question into a natural-language (Portuguese) reply. |
+| **secretary** | Formats the DB results plus the original question into a natural-language reply, in the family's language and currency. |
 | **off_topic** | Static decline reply for anything non-financial. |
 
 Each agent node calls out to an LLM (Google Gemini via `google-generativeai`)
@@ -201,6 +201,8 @@ erDiagram
         int id PK
         datetime created_at
         datetime abandoned_at "when its last person left; deleted 30 days later"
+        string currency "BRL, USD, CAD, EUR or GBP; how amounts are shown"
+        string language "pt or en; number and date format and the assistant's language"
     }
     USERS {
         int id PK
@@ -290,6 +292,20 @@ transactions, but only the person in `requested_by` can see or download the job,
 family can have one export queued or running at a time. The chatbot state carries both
 `user_id` (who spoke, saved on the transaction) and `family_id` (what it reads and writes).
 
+**Currency and language** (family settings, TKT-25). `families.currency` (`BRL` default, also `USD`, `CAD`, `EUR`,
+`GBP`) and `families.language` (`pt` default, also `en`) belong to the family, so everyone in it sees the same and a
+person who joins another family gets that family's. `GET /families/me` returns both; `PATCH /families/me/settings
+{currency?, language?}` changes them (any member, not only the owner; a field left out keeps its value; a value that is
+not offered answers `422`). The currency is only how an amount is shown: amounts stay integer cents and nothing is
+converted between currencies. The language decides the number separators and the order of day and month, and the
+language the WhatsApp assistant answers in. The page loads the settings once in the layout (`lib/locale.js`; until they
+arrive, or if they cannot be loaded, it shows reais and Portuguese) and the Preferências page under Conta changes them.
+The assistant reads them from the family on every message: the recorder and the secretary are told the language (and
+the secretary the currency), and what the code itself says (the "Registrado!" confirmation, amounts, dates, weekday
+names, the refusal of off-topic messages) comes from `graph/messages.py` and `api/utils/formatting.py`. Not covered
+yet: the text of the screens stays in Portuguese (TKT-57), and the export files keep their documented Brazilian
+format.
+
 **Inviting and joining** (`/families`, all require login). `GET /families/me` shows the
 family's people and the caller's role. Only the owner can `POST /families/invites`
 (answers the code, `201`), `GET /families/invites` (the active codes) and
@@ -353,7 +369,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged).
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese).
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de

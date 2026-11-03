@@ -19,6 +19,7 @@ import {
   updateTransaction,
   loginWithGoogle,
   updatePhone,
+  updateFamilySettings,
 } from './endpoints'
 import { saveToken, getToken } from '../lib/auth'
 import { mockApi, networkDown } from '../test/helpers'
@@ -279,5 +280,25 @@ describe('category management calls', () => {
       status: 409,
       detail: 'Esta categoria é usada por 2 transações.',
     })
+  })
+})
+
+describe('the HTTP method of every call', () => {
+  // A browser sends "patch" exactly as written (only GET, POST, PUT and DELETE are fixed for you), and the server's CORS
+  // check refuses it, so a lower case method makes the call fail before it reaches the API. mockApi upper-cases the
+  // method itself, which hides the problem in the other tests: look at what fetch really received.
+  it.each([
+    ['PATCH', 'updateFamilySettings', () => updateFamilySettings({ language: 'en' }, 'tok')],
+    ['PATCH', 'updateCategory', () => updateCategory(1, { name: 'x' }, 'tok')],
+    ['PATCH', 'updatePhone', () => updatePhone('+5511999999999', 'tok')],
+    ['DELETE', 'deleteCategory', () => deleteCategory(1, 'tok')],
+    ['POST', 'createCategory', () => createCategory({ name: 'x' }, 'tok')],
+    ['GET', 'getFamily', () => getFamily('tok')],
+  ])('is sent as %s by %s', async (method, _name, call) => {
+    const api = mockApi({ [`${method} /categories`]: {}, [`${method} /categories/1`]: {}, [`${method} /families/me`]: {}, [`${method} /families/me/settings`]: {}, [`${method} /user/me/phone`]: {} })
+
+    await call()
+
+    expect(api.mock.calls.at(-1)[1].method).toBe(method)
   })
 })

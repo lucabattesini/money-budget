@@ -1,10 +1,12 @@
 import { Box, Heading, Text, Center, Stack, Flex } from "@chakra-ui/react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useMemo } from "react";
+import { formatMoney, useLocale } from "../lib/locale";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#ff6f61', '#6b5b95'];
 
 export default function CategoryPieChart({ transactions, categories }) {
+    useLocale(); // show amounts in the family's currency
     const data = useMemo(() => {
         if (!transactions || !categories) return [];
 
@@ -65,7 +67,7 @@ export default function CategoryPieChart({ transactions, categories }) {
                                 <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                             ))}
                         </Pie>
-                        <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
+                        <Tooltip formatter={(value) => formatMoney(value)} />
                         <Legend 
                             layout="vertical" 
                             verticalAlign="middle" 

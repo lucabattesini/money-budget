@@ -3,6 +3,8 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from schemas.family_settings import Currency, Language
+
 # Which way the money went. `value` is always a positive amount in cents.
 TransactionType = Literal["credit", "debit"]
 
@@ -118,6 +120,13 @@ class GetTransactionsParams(BaseModel):
         if self.organized_by is not None and self.date is None:
             raise ValueError("'date' is required when 'organized_by' is set")
         return self
+
+
+class FamilySettings(BaseModel):
+    """What a family may change about how it sees amounts and dates; a field left out keeps its value."""
+
+    currency: Optional[Currency] = None
+    language: Optional[Language] = None
 
 
 class JoinFamily(BaseModel):

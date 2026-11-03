@@ -227,7 +227,7 @@ def test_the_assistant_saves_in_the_speakers_family_and_remembers_who_spoke(
     db, user, partner, other_user, monkeypatch, category_ids
 ):
     reply = RecorderResponse(items=[ExpenseItem(amount=10.0, category="Sem categoria", description="Café")])
-    monkeypatch.setattr(nodes, "run_recorder", lambda message: reply)
+    monkeypatch.setattr(nodes, "run_recorder", lambda message, **kw: reply)
 
     _record(partner, None)
 
@@ -240,7 +240,7 @@ def test_the_assistant_cannot_file_an_expense_under_another_familys_category(
     db, user, other_user, private_category, monkeypatch, category_ids
 ):
     reply = RecorderResponse(items=[ExpenseItem(amount=10.0, category="Pets", description="Ração")])
-    monkeypatch.setattr(nodes, "run_recorder", lambda message: reply)
+    monkeypatch.setattr(nodes, "run_recorder", lambda message, **kw: reply)
 
     _record(user, None)
 

@@ -24,6 +24,7 @@ describe('routing', () => {
     mockApi({
       'GET /user/me': { data: { name: 'Clara', email: 'c@example.com' } },
       'GET /categories': { data: [] }, // asked by the import page
+      'GET /families/me': { data: { currency: 'BRL', language: 'pt', role: 'owner', members: [] } }, // asked by the layout
     })
   })
 

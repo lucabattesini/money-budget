@@ -17,7 +17,9 @@ def recorder(monkeypatch):
     """Stub the Gemini-backed recorder agent with a canned response."""
 
     def _set(items=(), reply=None):
-        monkeypatch.setattr(nodes, "run_recorder", lambda message: RecorderResponse(items=list(items), reply=reply))
+        monkeypatch.setattr(
+            nodes, "run_recorder", lambda message, **kw: RecorderResponse(items=list(items), reply=reply)
+        )
 
     return _set
 

@@ -1,9 +1,11 @@
 import { Button, Field, Flex, Input, NativeSelect } from "@chakra-ui/react";
 import { EMPTY_FILTERS, hasActiveFilters } from "../lib/transactionFilters";
 import { maskAmount } from "../lib/money";
+import { useLocale } from "../lib/locale";
 
 // The filter bar above the table. `filters` is controlled by the page.
 export default function TransactionFilters({ filters, onChange, categories }) {
+    useLocale(); // the amount fields are written in the family's language
     const set = (name) => (value) => onChange({ ...filters, [name]: value });
 
     return (
@@ -57,13 +59,13 @@ export default function TransactionFilters({ filters, onChange, categories }) {
 
             <Field.Root width="full">
                 <Field.Label>Valor mínimo</Field.Label>
-                <Input size="sm" inputMode="numeric" placeholder="0,00" value={filters.min}
+                <Input size="sm" inputMode="numeric" placeholder={maskAmount("0")} value={filters.min}
                     onChange={(e) => set("min")(maskAmount(e.target.value))} />
             </Field.Root>
 
             <Field.Root width="full">
                 <Field.Label>Valor máximo</Field.Label>
-                <Input size="sm" inputMode="numeric" placeholder="0,00" value={filters.max}
+                <Input size="sm" inputMode="numeric" placeholder={maskAmount("0")} value={filters.max}
                     onChange={(e) => set("max")(maskAmount(e.target.value))} />
             </Field.Root>
 

@@ -18,7 +18,7 @@ Important Instructions:
    - With no period mentioned, do not set dates (all time).
 2. Categories: only use the exact names from the tool's list. Map the user's words to the closest one (e.g. "comida" -> "Restaurantes e Bares", "remédio" -> "Médico").
 3. Use `search` when the user names a specific item or place that is not a category (e.g. "uber", "ifood", "pastel").
-4. Amounts are in reais (e.g. "acima de 100 reais" -> min_amount = 100).
+4. Amounts are in the family's currency, as whole units (e.g. "acima de 100 reais" or "over 100 dollars" -> min_amount = 100).
 5. Weekdays use 0 = Sunday, 1 = Monday ... 6 = Saturday ("fim de semana" -> [0, 6]).
 6. If the question needs more than one piece of data (e.g. "quanto gastei este mês e qual foi o maior gasto?"), call several tools in the same turn.
 7. Always call at least one tool.

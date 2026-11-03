@@ -20,7 +20,7 @@ RECORDER_TOOLS = {
                             "properties": {
                                 "amount": {
                                     "type": "number",
-                                    "description": 'Amount spent in reais, using a dot for decimals ("12,50" -> 12.5).',
+                                    "description": 'Amount spent, in the currency of the family, using a dot for decimals ("12,50" -> 12.5).',
                                 },
                                 "category": {
                                     "type": "string",
@@ -29,7 +29,7 @@ RECORDER_TOOLS = {
                                 },
                                 "description": {
                                     "type": "string",
-                                    "description": 'Short description in Portuguese, taken from the user\'s words (e.g. "Pastel", "Uber para o trabalho").',
+                                    "description": 'Short description in the language of the user\'s message, taken from the user\'s words (e.g. "Pastel", "Uber para o trabalho").',
                                 },
                                 "date": {
                                     "type": "string",
