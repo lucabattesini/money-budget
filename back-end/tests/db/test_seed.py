@@ -51,7 +51,7 @@ def _seeded(url, engine):
 
 
 def test_the_seed_gives_every_default_category_the_group_of_the_agreed_list(url, engine):
-    from db.seed import DEFAULT_GROUPS
+    from db.seed import DEFAULT_GROUPS, display_name
 
     _seeded(url, engine)
 
@@ -59,7 +59,9 @@ def test_the_seed_gives_every_default_category_the_group_of_the_agreed_list(url,
         rows = conn.execute(
             text("SELECT g.name, c.name FROM categories c JOIN category_groups g ON g.id = c.group_id")
         ).all()
-    assert sorted(rows) == sorted((group, name) for group, names in DEFAULT_GROUPS.items() for name in names)
+    assert sorted(rows) == sorted(
+        (group, display_name(name)) for group, names in DEFAULT_GROUPS.items() for name in names
+    )
     assert len(rows) == 39  # 26 expense categories plus the ones for income, transfers and investments
 
 
@@ -78,13 +80,15 @@ def test_seeding_twice_adds_no_group_and_no_category(url, engine):
 def test_the_seed_repairs_a_missing_default_category_without_touching_the_others(url, engine):
     _seeded(url, engine)
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM categories WHERE name = 'Viagem'"))
+        conn.execute(text("DELETE FROM categories WHERE name LIKE '% Viagem'"))
 
     _run(url, "-m", "db.seed")
 
     with engine.connect() as conn:
         group = conn.execute(
-            text("SELECT g.name FROM categories c JOIN category_groups g ON g.id = c.group_id WHERE c.name = 'Viagem'")
+            text(
+                "SELECT g.name FROM categories c JOIN category_groups g ON g.id = c.group_id WHERE c.name LIKE '% Viagem'"
+            )
         ).scalar()
         assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 39
     assert group == "Lazer"
@@ -102,7 +106,9 @@ def test_a_family_with_a_category_of_the_same_name_does_not_stop_the_default_fro
 
     with engine.connect() as conn:
         assert (
-            conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Pets' AND family_id IS NULL")).scalar()
+            conn.execute(
+                text("SELECT count(*) FROM categories WHERE name LIKE '% Pets' AND family_id IS NULL")
+            ).scalar()
             == 1
         )
 
@@ -114,9 +120,11 @@ def test_there_are_default_categories_for_income_transfers_and_investments(url, 
         rows = conn.execute(
             text("SELECT g.name, c.name FROM categories c JOIN category_groups g ON g.id = c.group_id")
         ).all()
+    from api.utils.category_names import plain_name
+
     by_group = {}
     for group, name in rows:
-        by_group.setdefault(group, set()).add(name)
+        by_group.setdefault(group, set()).add(plain_name(name))
     assert {"Salário", "Renda extra e freelance", "Reembolsos"} <= by_group["Receitas"]
     assert {"Transferência entre contas", "Pagamento de fatura do cartão"} <= by_group["Transferências"]
     assert {"Investimentos", "Fundo de Emergência", "Renda fixa", "Ações e fundos"} <= by_group["Investimentos"]
@@ -138,8 +146,15 @@ def test_a_database_made_by_the_migration_alone_gets_the_new_categories_from_the
     _run(url, "-m", "db.seed")
 
     with engine.connect() as conn:
-        assert conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Investimentos'")).scalar() == 1
-        assert conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Salário'")).scalar() == 1
+        assert (
+            conn.execute(
+                text(
+                    "SELECT count(*) FROM categories WHERE name LIKE '%Investimentos' AND name NOT LIKE '%de investimentos'"
+                )
+            ).scalar()
+            == 1
+        )
+        assert conn.execute(text("SELECT count(*) FROM categories WHERE name LIKE '% Salário'")).scalar() == 1
         assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 39
 
 
@@ -199,3 +214,67 @@ def test_the_migrations_frozen_grouping_still_agrees_with_the_seed_for_what_it_c
     for group, names in migration.GROUPS.items():
         missing = set(names) - set(DEFAULT_GROUPS[group])
         assert not missing, f"{group}: the seed no longer groups {missing}"
+
+
+def test_every_default_category_has_an_emoji_in_front_of_its_name(url, engine):
+    from api.utils.category_names import plain_name
+    from db.seed import default_categories
+
+    _seeded(url, engine)
+
+    with engine.connect() as conn:
+        names = conn.execute(text("SELECT name FROM categories WHERE family_id IS NULL")).scalars().all()
+    assert sorted(plain_name(name) for name in names) == sorted(default_categories)
+    assert all(name != plain_name(name) and name.endswith(" " + plain_name(name)) for name in names), names
+
+
+def test_every_default_category_has_an_emoji_chosen_for_it():
+    """Whoever adds a default category to DEFAULT_GROUPS must also pick its emoji in DEFAULT_EMOJIS."""
+    from db.seed import DEFAULT_EMOJIS, default_categories
+
+    assert set(DEFAULT_EMOJIS) == set(default_categories)
+    assert all(emoji.strip() == emoji and emoji for emoji in DEFAULT_EMOJIS.values())
+
+
+def test_a_default_stored_without_its_emoji_is_not_added_a_second_time(url, engine):
+    upgrade_database(url)
+    with engine.begin() as conn:  # a database from before the emojis
+        conn.execute(
+            text(
+                "INSERT INTO categories (name, group_id) SELECT 'Aluguel', id FROM category_groups WHERE name = 'Casa'"
+            )
+        )
+
+    _run(url, "-m", "db.seed")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM categories WHERE name LIKE '%Aluguel'")).scalar() == 1
+        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 39
+
+
+def test_the_migrations_frozen_emojis_still_agree_with_the_seed_for_what_it_covers():
+    """Migration 0011 keeps its own copy of the emojis. A default whose emoji changes in the seed would then differ
+    between old and new databases: that needs a new migration, and this test says so."""
+    import importlib.util
+
+    from db.seed import DEFAULT_EMOJIS
+
+    path = BACK_END / "migrations" / "versions" / "0011_category_emojis.py"
+    spec = importlib.util.spec_from_file_location("migration_0011", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    assert migration.EMOJIS.items() <= DEFAULT_EMOJIS.items()
+
+
+def test_the_development_seed_works_with_default_categories_that_start_with_an_emoji(url, engine):
+    """db.seed_dev looks the defaults up by their words ("Aluguel"), but they are stored as "🏠 Aluguel"."""
+    upgrade_database(url)
+    _run(url, "-m", "db.seed")
+
+    result = _run(url, "-m", "db.seed_dev")
+
+    assert result.returncode == 0, result.stderr
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM transactions")).scalar() > 50
+        assert conn.execute(text("SELECT count(*) FROM transactions WHERE category_id IS NULL")).scalar() == 0

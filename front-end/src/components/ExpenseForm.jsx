@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Portal, Combobox } from "@chakra-ui/react";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
+import { compareCategories } from "../lib/categoryName";
 import { getToken } from "../lib/auth";
 import { MAX_CENTS } from "../lib/money";
 import customToaster from "../utils/customToaster";
@@ -21,11 +22,14 @@ export default function ExpenseForm() {
             const categoriesData = await getAllCategories(token)
 
             if (categoriesData && categoriesData.data) {
-                const organizedCategories = categoriesData.data.map((category) => ({
-                    id: category.id,
-                    name: category.name,
-                    value: String(category.id)
-                }));
+                // Alphabetical, so categories are easy to find in every list
+                const organizedCategories = categoriesData.data
+                    .map((category) => ({
+                        id: category.id,
+                        name: category.name,
+                        value: String(category.id)
+                    }))
+                    .sort(compareCategories);
 
                 setCategories(organizedCategories);
                 setFilteredCategories(organizedCategories)

@@ -57,6 +57,28 @@ describe('expense form', () => {
     expect(screen.getByRole('option', { name: 'Transporte' })).toBeInTheDocument()
   })
 
+  it('lists the categories A-Z, whatever order the server sent them in', async () => {
+    await renderForm({
+      'GET /categories': { data: [{ id: 3, name: 'Viagem' }, { id: 1, name: 'Água' }, { id: 2, name: 'Aluguel' }] },
+    })
+
+    await openCategories()
+
+    const options = await screen.findAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual(['Água', 'Aluguel', 'Viagem'])
+  })
+
+  it('sorts by the words, not by the emoji the name starts with', async () => {
+    await renderForm({
+      'GET /categories': { data: [{ id: 1, name: '🏠 Zebra' }, { id: 2, name: '🔧 Abacate' }] },
+    })
+
+    await openCategories()
+
+    const options = await screen.findAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual(['🔧 Abacate', '🏠 Zebra'])
+  })
+
   it('narrows the categories as the user types', async () => {
     await renderForm()
 

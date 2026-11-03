@@ -446,3 +446,19 @@ def test_a_failure_after_the_data_has_been_moved_undoes_all_of_it(
     assert db.query(Categories).filter_by(id=joiner_cat_id).first() is not None  # not deleted
     assert db.get(FamilyInvites, created["id"]).used_at is None
     assert family_cat.id != joiner_cat_id
+
+
+def test_a_category_with_an_emoji_is_merged_with_the_same_words_without_one(
+    client, db, user, other_user, auth_headers, headers_for, make_transaction
+):
+    family_cat = _category(db, user, "Plantas")
+    joiner_cat = _category(db, other_user, "🌱 plantas")
+    row = make_transaction(other_user, joiner_cat.id, label="Vaso")
+    joiner_cat_id = joiner_cat.id
+
+    _join(client, headers_for(other_user), _invite(client, auth_headers)["code"], bring_data=True)
+
+    db.expire_all()
+    assert db.get(TransactionDB, row.id).category_id == family_cat.id
+    assert db.query(Categories).filter_by(id=joiner_cat_id).first() is None
+    assert [c.name for c in db.query(Categories).filter_by(family_id=user.family_id)] == ["Plantas"]

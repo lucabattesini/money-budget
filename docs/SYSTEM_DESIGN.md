@@ -118,6 +118,9 @@ flowchart TB
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
   (a left menu with sections as nested routes: `/account` profile,
+  `/account/categories` the family's categories under their groups (every group is shown, even an empty one, with an
+  "Adicionar" button that opens the side panel already set to that group; rename, change group and delete for its own
+  ones; the default ones are marked "Padrão" and cannot be changed; the emoji grid is a keyboard-friendly radio group),
   `/account/family` the family (people, invite codes for the owner, joining with a code, going back to the family left behind for 30 days) and
   `/account/data` import/export: the export queues a job (`POST /exports`), shows a
   toast, follows the job and downloads the file when it is done, with a second
@@ -345,15 +348,44 @@ oldest account keeps it), `0007` families (one per existing user; rows move from
 person's category becomes uncategorised), `0008` `users.role` (everyone is an owner) and `family_invites`, `0009` `families.abandoned_at` (families that
 are already empty start their 30 days) and `users.previous_family_id`, `0010` `category_groups` and `categories.group_id`
 (default categories are grouped by name; every other category, such as a family's own, goes to "Outros"; the
-new default categories are created by the seed command).
+new default categories are created by the seed command), `0011` an emoji in front of the name of each default
+category (data only: no column; a family's own categories are untouched).
 
 **Category groups.** Categories are listed under a group (Casa, Alimentação, Transporte, Saúde e bem-estar,
 Lazer, Educação, Compras e presentes, Finanças, Receitas, Transferências, Investimentos, Outros). The groups are a fixed set, the same for every family:
 nothing in the API creates, renames or deletes one. Each category has exactly one (`categories.group_id`, not
 null, a foreign key), and a category saved without one goes to "Outros". The grouping of the 39 default
 categories (26 for spending, plus income, transfer and investment ones such as "Salário", "Transferência entre contas" and "Renda fixa") lives in `db/seed.py` (`DEFAULT_GROUPS`) for new databases; migration `0010` keeps its own copy for
-existing ones. Showing groups in the screens (filters, totals per group) is not built yet. The assistant's own
+existing ones. The Categorias page lists the categories under their groups; filters and totals per group are not built yet. The assistant's own
 category list (`schemas/agents_schemas.py`) is separate and does not use groups.
+
+**Managing categories** (`/categories`, all require login). A family manages only its own categories; the default
+ones (no `family_id`, `is_default` true in the list) are shown but cannot be changed. `POST /categories {name,
+group_id}` adds one (`201`; without a group it goes to "Outros"), `PATCH /categories/{id} {name?, group_id?}` renames
+it and/or moves it to another group (a field left out keeps its value), and `DELETE /categories/{id}` removes it.
+Names are trimmed, cannot be empty or longer than 100 characters (`422`), and cannot repeat inside the family or
+clash with a default category, ignoring case and surrounding spaces (`409`; the comparison is done in Python, so it
+covers accented letters whatever the database locale). A group that does not exist answers `422`. Deleting a category
+that transactions still use is refused (`409`, the message says how many; a transaction that takes the category at
+the very moment it is deleted gets the same answer, never a `500`); there is no merge flow. Editing or deleting a
+default category, another family's category or an id that does not exist all answer the same `404`. The checks run
+while the family row is locked, so two requests cannot both take the same name. Every message is in Portuguese,
+ready to show in the page. The lists that offer categories (the new-transaction form, the filters, the import
+page) fetch them whenever they open, so a new category appears at once, sorted A-Z.
+
+**Emoji in category names.** A category's emoji is the start of its name ("🛒 Supermercado"), not a separate
+column. The default categories ship with one (`DEFAULT_EMOJIS` in `db/seed.py`, a test makes sure every default has
+one; migration `0011` renames the existing ones, with its own frozen copy of the list). The add/edit panel offers a
+grid of about 80 emojis, or none, and also accepts one typed into the name box; the page splits a stored name back
+into its emoji and its words when editing. Because the emoji is part of the name, everything that compares or sorts
+names looks at the words only (`api/utils/category_names.py` on the server, `lib/categoryName.js` in the page, which
+split a name by the same rule: the start of a name that is made of symbols, skin tones, joiners and variation
+selectors is the emoji). The duplicate check treats "Plantas" and "🌱 Plantas" as the same name, and also ignores
+invisible characters (zero-width spaces and joiners), runs of spaces, full-width letters and an accent written as
+a letter plus a combining mark; accents themselves still tell names apart. Merging categories when someone joins a
+family compares by the words too. A name with nothing but an emoji or invisible characters is refused as empty, the WhatsApp assistant still finds "Supermercado" when the stored name is "🛒 Supermercado", and lists stay
+A-Z by the words whatever the emoji. Anything that matches category names typed by a person (such as the planned
+spreadsheet import) must compare the words only as well.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,

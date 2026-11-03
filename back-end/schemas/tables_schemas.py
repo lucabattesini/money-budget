@@ -93,6 +93,18 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class CategoryCreate(BaseModel):
+    name: str
+    group_id: Optional[int] = None  # empty means "Outros"
+
+
+class CategoryUpdate(BaseModel):
+    """What may change on a category of the family. A field left out keeps its value."""
+
+    name: Optional[str] = None
+    group_id: Optional[int] = None
+
+
 class UserUpdatePhone(BaseModel):
     whatsapp_phone: str
 

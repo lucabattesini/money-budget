@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0010"
+LATEST = "0011"
 
 
 def _version(engine):
@@ -167,6 +167,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         ("0008", "0008"),
         ("0009", "0009"),
         ("0010", "0010"),
+        ("0011", "0010"),  # only names changed: the schema looks like 0010, and running 0011 again changes nothing
     ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
@@ -716,3 +717,77 @@ def test_undoing_the_groups_revision_drops_the_groups_and_keeps_the_categories(u
     assert "group_id" not in {c["name"] for c in inspect(engine).get_columns("categories")}
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 7
+
+
+# --- 0011: emojis in the names of the default categories ------------------------------------------------
+
+
+def _database_before_emojis(url, engine):
+    command.upgrade(alembic_config(url), "0010")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(
+            text("INSERT INTO users (id, family_id, google_id, name, email) VALUES (1, 1, 'g', 'Ana', 'a@e.com')")
+        )
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, family_id, name, group_id) "
+                "SELECT v.id, v.family_id, v.name, g.id FROM (VALUES "
+                "(1, NULL, 'Supermercado'), (2, NULL, 'alimentação'), (3, NULL, '🛒 Compras'), (4, NULL, 'Uma desconhecida'),"
+                "(5, 1, 'Supermercado'), (6, 1, 'Plantas')) AS v(id, family_id, name), category_groups g "
+                "WHERE g.name = 'Outros'"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, family_id, user_id, label, value, category_id) VALUES (1, 1, 1, 'x', 100, 1)"
+            )
+        )
+
+
+def _names(engine):
+    with engine.connect() as conn:
+        return dict(conn.execute(text("SELECT id, name FROM categories ORDER BY id")).all())
+
+
+def test_default_categories_get_their_emoji_in_front_of_the_name(url, engine):
+    _database_before_emojis(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    names = _names(engine)
+    assert names[1] == "🛒 Supermercado"
+    assert names[2] == "🍽️ alimentação"  # found ignoring case; the words are kept as they were stored
+
+
+def test_a_family_category_an_emoji_already_there_and_unknown_names_are_left_alone(url, engine):
+    _database_before_emojis(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    names = _names(engine)
+    assert names[3] == "🛒 Compras"  # not given a second emoji
+    assert names[4] == "Uma desconhecida"
+    assert (names[5], names[6]) == ("Supermercado", "Plantas")  # a family's own, even when the name matches a default
+
+
+def test_the_emojis_change_no_id_and_no_transaction(url, engine):
+    _database_before_emojis(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT category_id FROM transactions")).scalar() == 1
+        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 6
+
+
+def test_undoing_the_emojis_gives_the_default_categories_their_old_names_back(url, engine):
+    _database_before_emojis(url, engine)
+    command.upgrade(alembic_config(url), "head")
+
+    command.downgrade(alembic_config(url), "0010")
+
+    names = _names(engine)
+    assert names[1] == "Supermercado"
+    assert names[3] == "Compras"  # any emoji of the list in front of a default name is removed, even another one
+    assert (names[5], names[6]) == ("Supermercado", "Plantas")

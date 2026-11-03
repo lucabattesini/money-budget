@@ -3,6 +3,7 @@ import { Button, Code, Heading, List, RadioGroup, Separator, Stack, Table, Tag, 
 import { LuDownload } from "react-icons/lu";
 import { getAllCategories } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { compareNames } from "../lib/categoryName";
 import { enqueueExport, followExport } from "../lib/exportJobs";
 
 // The columns a spreadsheet must have to be imported. The first row holds these exact names.
@@ -43,7 +44,7 @@ export default function AccountData() {
         if (job) followExport(job);
     };
 
-    const categoryNames = categories.map((category) => category.name).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const categoryNames = categories.map((category) => category.name).sort(compareNames);
 
     return (
         <Stack gap={6} maxW="3xl">

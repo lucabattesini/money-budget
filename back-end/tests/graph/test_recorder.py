@@ -132,3 +132,21 @@ def test_extracted_items_are_returned_in_the_state(db, user, recorder):
     recorder(expenses)
 
     assert run(user)["extracted_items"] == expenses
+
+
+def test_the_assistant_finds_a_category_whose_name_starts_with_an_emoji(db, user, recorder, category_ids):
+    """Defaults are stored as "🛒 Supermercado", but the assistant works with the words only."""
+    from schemas.tables import Categories, CategoryGroups
+
+    group = db.query(CategoryGroups).filter_by(name="Alimentação").one()
+    db.query(Categories).filter_by(id=category_ids["Supermercado"]).update({"name": "🛒 Supermercado"})
+    db.add(Categories(name="🌱 Pets", family_id=user.family_id, group_id=group.id))
+    db.commit()
+    recorder([item(30.0, "Supermercado", "Compras da semana"), item(10.0, "Pets", "Ração")])
+
+    run(user)
+
+    by_label = {r.label: r.category_id for r in rows(db)}
+    assert by_label["Compras da semana"] == category_ids["Supermercado"]
+    own = db.query(Categories).filter_by(name="🌱 Pets").one()
+    assert by_label["Ração"] == own.id  # the family's own category wins over a default of the same words
