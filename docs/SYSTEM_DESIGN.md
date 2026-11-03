@@ -118,6 +118,8 @@ flowchart TB
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
   (a left menu with sections as nested routes: `/account` profile,
+  `/account/categories` the family's categories under their groups (add, rename, change group and delete its own
+  ones in a side panel; the default ones are marked "Padrão" and cannot be changed),
   `/account/family` the family (people, invite codes for the owner, joining with a code, going back to the family left behind for 30 days) and
   `/account/data` import/export: the export queues a job (`POST /exports`), shows a
   toast, follows the job and downloads the file when it is done, with a second
@@ -352,8 +354,21 @@ Lazer, Educação, Compras e presentes, Finanças, Receitas, Transferências, In
 nothing in the API creates, renames or deletes one. Each category has exactly one (`categories.group_id`, not
 null, a foreign key), and a category saved without one goes to "Outros". The grouping of the 39 default
 categories (26 for spending, plus income, transfer and investment ones such as "Salário", "Transferência entre contas" and "Renda fixa") lives in `db/seed.py` (`DEFAULT_GROUPS`) for new databases; migration `0010` keeps its own copy for
-existing ones. Showing groups in the screens (filters, totals per group) is not built yet. The assistant's own
+existing ones. The Categorias page lists the categories under their groups; filters and totals per group are not built yet. The assistant's own
 category list (`schemas/agents_schemas.py`) is separate and does not use groups.
+
+**Managing categories** (`/categories`, all require login). A family manages only its own categories; the default
+ones (no `family_id`, `is_default` true in the list) are shown but cannot be changed. `POST /categories {name,
+group_id}` adds one (`201`; without a group it goes to "Outros"), `PATCH /categories/{id} {name?, group_id?}` renames
+it and/or moves it to another group (a field left out keeps its value), and `DELETE /categories/{id}` removes it.
+Names are trimmed, cannot be empty or longer than 100 characters (`422`), and cannot repeat inside the family or
+clash with a default category, ignoring case and surrounding spaces (`409`; the comparison is done in Python, so it
+covers accented letters whatever the database locale). A group that does not exist answers `422`. Deleting a category
+that transactions still use is refused (`409`, the message says how many); there is no merge flow. Editing or deleting a
+default category, another family's category or an id that does not exist all answer the same `404`. The checks run
+while the family row is locked, so two requests cannot both take the same name. Every message is in Portuguese,
+ready to show in the page. The lists that offer categories (the new-transaction form, the filters, the import
+page) fetch them whenever they open, so a new category appears at once, sorted A-Z.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
