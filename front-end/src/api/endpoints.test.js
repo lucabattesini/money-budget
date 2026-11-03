@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  cancelInvite,
+  createInvite,
   deleteTransaction,
+  getFamily,
+  getInvites,
+  joinFamily,
   getAllCategories,
   getMe,
   getSummedTransactionsByCategory,
@@ -170,6 +175,8 @@ describe('an expired login', () => {
     ['updateTransaction', () => updateTransaction(1, { label: 'x', value: 1, category_id: 1 }, 'old'), 'PUT /transactions/1'],
     ['deleteTransaction', () => deleteTransaction(1, 'old'), 'DELETE /transactions/1'],
     ['updatePhone', () => updatePhone('5511999999999', 'old'), 'PATCH /user/me/phone'],
+    ['getFamily', () => getFamily('old'), 'GET /families/me'],
+    ['joinFamily', () => joinFamily('CODE', true, 'old'), 'POST /families/join'],
   ])('%s forgets the token and sends the user to the login page', async (_name, call, route) => {
     saveToken('old')
     window.location.hash = '#/transactions'
@@ -190,5 +197,48 @@ describe('an expired login', () => {
     expect(await getAllCategories('good')).toBeUndefined()
 
     expect(getToken()).toBe('good')
+  })
+})
+
+
+describe('family calls', () => {
+  it('send the login token and the right route and body', async () => {
+    const api = mockApi({
+      'GET /families/me': { data: { id: 1 } },
+      'GET /families/invites': { data: [] },
+      'POST /families/invites': [{ data: { code: 'A' } }, 201],
+      'DELETE /families/invites/3': { data: {} },
+      'POST /families/join': { data: {} },
+    })
+
+    await getFamily('tok')
+    await getInvites('tok')
+    await createInvite('tok')
+    await cancelInvite(3, 'tok')
+    await joinFamily('AAAA-BBBB', false, 'tok')
+
+    expect(api.mock.calls.map(([, o]) => o.headers.Authorization)).toEqual(Array(5).fill('Bearer tok'))
+    expect(JSON.parse(api.mock.calls[4][1].body)).toEqual({ code: 'AAAA-BBBB', bring_data: false })
+  })
+
+  it('hand back the data on success and the server message on an error', async () => {
+    mockApi({
+      'GET /families/me': { data: { id: 1, role: 'owner' } },
+      'POST /families/join': [{ detail: 'Código inválido, expirado ou já usado.' }, 404],
+    })
+
+    expect(await getFamily('tok')).toEqual({ ok: true, data: { id: 1, role: 'owner' } })
+    expect(await joinFamily('X', true, 'tok')).toEqual({
+      ok: false,
+      status: 404,
+      detail: 'Código inválido, expirado ou já usado.',
+    })
+  })
+
+  it('say the server could not be reached, without throwing', async () => {
+    networkDown()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(await getFamily('tok')).toEqual({ ok: false })
   })
 })

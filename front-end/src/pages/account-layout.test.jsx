@@ -23,10 +23,14 @@ const currentEntry = () =>
   menu().getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page').map((l) => l.textContent)
 
 describe('account area', () => {
-  it('has a menu with Perfil and one entry for Importar e exportar', () => {
+  it('has a menu with Perfil, Família and Importar e exportar', () => {
     renderAccount()
 
-    expect(menu().getAllByRole('link').map((link) => link.textContent)).toEqual(['Perfil', 'Importar e exportar'])
+    expect(menu().getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Perfil',
+      'Família',
+      'Importar e exportar',
+    ])
   })
 
   it('opens on the profile, which is the highlighted entry', () => {

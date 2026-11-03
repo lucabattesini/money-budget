@@ -7,6 +7,7 @@ export const endpoints = {
     categories: `${URL_BASE}/categories`,
     transactions: `${URL_BASE}/transactions`,
     exports: `${URL_BASE}/exports`,
+    families: `${URL_BASE}/families`,
     user: `${URL_BASE}/user`,
     auth: `${URL_BASE}/auth`,
 };
@@ -174,6 +175,33 @@ export function downloadExport(id, token) {
         return { ok: false };
     });
 }
+
+// ─── Families ─────────────────────────────────────────────────────────────────
+
+// One call for every family endpoint. Resolves { ok: true, data } on success, { ok: false, status, detail } when the
+// server answered with an error (detail is its message, to show the user), and { ok: false } when it cannot be reached.
+function familyCall(path, method, token, body) {
+    return fetch(endpoints.families + path, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    .then(async res => {
+        checkSession(res);
+        const json = await res.json().catch(() => ({}));
+        return res.ok ? { ok: true, data: json.data } : { ok: false, status: res.status, detail: json.detail };
+    })
+    .catch(error => {
+        console.error("Failed to call the family API", error);
+        return { ok: false };
+    });
+}
+
+export const getFamily = (token) => familyCall("/me", "get", token);
+export const getInvites = (token) => familyCall("/invites", "get", token);
+export const createInvite = (token) => familyCall("/invites", "post", token);
+export const cancelInvite = (id, token) => familyCall(`/invites/${id}`, "delete", token);
+export const joinFamily = (code, bringData, token) => familyCall("/join", "post", token, { code, bring_data: bringData });
 
 export function updateTransaction(id, payload, token) {
     return fetch(endpoints.transactions + `/${id}`, {
