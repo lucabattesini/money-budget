@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { Box, Center, Grid, Heading, HStack, IconButton, Stack } from "@chakra-ui/react";
+import { useSearchParams } from "react-router-dom";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { getAllCategories, getTransactions, getMe, getBudgets } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { monthKey, monthLabel, shiftMonth } from "../lib/budget";
+import { monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { countsAsIncoming, countsAsSpending, spendingOfMonth, sumCents, transactionsOfMonth } from "../lib/dashboard";
 import { useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
@@ -22,7 +23,12 @@ export default function Dashboard() {
     const [user, setUser] = useState(null);
     const [now] = useState(() => new Date());
     const thisMonth = monthKey(now);
-    const [month, setMonth] = useState(thisMonth); // every card shows this month
+    // Every card shows this month. It lives in the address (?month=2026-03), so reloading or sharing the page keeps it;
+    // this month is the default and needs no parameter. A month that is missing, invalid or still to come is this month.
+    const [params, setParams] = useSearchParams();
+    const requested = monthFromLink(params.get("month"), thisMonth);
+    const month = requested > thisMonth ? thisMonth : requested;
+    const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key }, { replace: true });
     const [budget, setBudget] = useState(undefined); // the plan of the month: undefined while loading, null when it failed
 
     useEffect(() => {

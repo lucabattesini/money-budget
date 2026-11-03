@@ -432,6 +432,80 @@ describe('dashboard', () => {
     })
   })
 
+  describe('month in the address', () => {
+    const where = () => screen.getByTestId('location').textContent
+
+    it('has no month in the address on the current month', async () => {
+      mockApi(ROUTES)
+
+      renderApp(<Dashboard />, { route: '/' })
+
+      await screen.findByLabelText('Total gasto no mês')
+      expect(where()).toBe('/')
+    })
+
+    it('writes the month to the address when the user goes back, and takes it off when back on this month', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />, { route: '/' })
+      await screen.findByLabelText('Total gasto no mês')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      await waitFor(() => expect(where()).toBe('/?month=2026-02'))
+      expect(screen.getByRole('heading', { name: 'fevereiro de 2026' })).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
+      await waitFor(() => expect(where()).toBe('/'))
+      expect(screen.getByRole('heading', { name: 'março de 2026' })).toBeInTheDocument()
+    })
+
+    it('opens on the month in the address, asking for that month\'s plan and showing its spending', async () => {
+      const api = mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 200000, 150000) } })
+
+      renderApp(<Dashboard />, { route: '/?month=2026-02' })
+
+      expect(await screen.findByRole('heading', { name: 'fevereiro de 2026' })).toBeInTheDocument()
+      await waitFor(() => expect(monthTotal()).toBe('R$ 1.099,00')) // 999,00 + 100,00 of February
+      expect(requestsMade(api)).toContain(FEBRUARY)
+      expect(requestsMade(api)).not.toContain(MARCH) // this month's plan is never asked for
+      expect(where()).toBe('/?month=2026-02')
+    })
+
+    it('keeps the month through a reload: a new page on the same address shows the same month', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      const first = renderApp(<Dashboard />, { route: '/' })
+      await screen.findByLabelText('Total gasto no mês')
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      await waitFor(() => expect(where()).toBe('/?month=2026-02'))
+      const address = where()
+      first.unmount()
+
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />, { route: address })
+
+      expect(await screen.findByRole('heading', { name: 'fevereiro de 2026' })).toBeInTheDocument()
+    })
+
+    it.each(['?month=banana', '?month=2026-13', '?month=2026-04', '?month=2030-01', '?month='])(
+      'opens on this month for the address %j',
+      async (search) => {
+        mockApi(ROUTES)
+
+        renderApp(<Dashboard />, { route: `/${search}` })
+
+        expect(await screen.findByRole('heading', { name: 'março de 2026' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Próximo mês' })).toBeDisabled()
+      },
+    )
+
+    it('makes the links of the cards follow the month of the address', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+
+      renderApp(<Dashboard />, { route: '/?month=2026-02' })
+
+      expect(await screen.findByRole('link', { name: 'Ver orçamentos' })).toHaveAttribute('href', '/budgets?month=2026-02')
+    })
+  })
+
   describe('month switcher', () => {
     it('starts on the current month and cannot go past it', async () => {
       mockApi(ROUTES)
