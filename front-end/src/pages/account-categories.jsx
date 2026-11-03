@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Button, CloseButton, Drawer, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, CloseButton, Drawer, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Text } from "@chakra-ui/react";
 import { LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 import { createCategory, deleteCategory, getAllCategories, getCategoryGroups, updateCategory } from "../api/endpoints";
 import { getToken } from "../lib/auth";
@@ -182,13 +182,26 @@ export default function AccountCategories() {
                 const inGroup = categories.filter((category) => category.group_id === group.id).sort(byName);
                 if (inGroup.length === 0) return null;
                 return (
-                    <Stack key={group.id} gap={2} as="section" aria-label={group.name}>
-                        <Heading size="md">{group.name}</Heading>
-                        <Stack as="ul" listStyleType="none" gap={1} aria-label={`Categorias de ${group.name}`}>
+                    <Box key={group.id} as="section" aria-label={group.name} borderWidth="1px" borderRadius="lg" overflow="hidden">
+                        <HStack px={4} py={3} bg="bg.muted" justify="space-between">
+                            <Heading size="md">{group.name}</Heading>
+                            <Text fontSize="sm" color="fg.muted">{inGroup.length}</Text>
+                        </HStack>
+                        <Stack as="ul" listStyleType="none" gap={0} m={0} p={0} aria-label={`Categorias de ${group.name}`}>
                             {inGroup.map((category) => (
-                                <HStack as="li" key={category.id} gap={3} justify="space-between" minH="9">
+                                <HStack
+                                    as="li"
+                                    key={category.id}
+                                    gap={3}
+                                    justify="space-between"
+                                    px={4}
+                                    py={2}
+                                    minH="12"
+                                    borderTopWidth="1px"
+                                    _hover={{ bg: "bg.subtle" }}
+                                >
                                     <HStack gap={3}>
-                                        <Text>{category.name}</Text>
+                                        <Text fontWeight="medium">{category.name}</Text>
                                         {category.is_default && <Badge>Padrão</Badge>}
                                     </HStack>
                                     {!category.is_default &&
@@ -225,7 +238,7 @@ export default function AccountCategories() {
                                 </HStack>
                             ))}
                         </Stack>
-                    </Stack>
+                    </Box>
                 );
             })}
 
