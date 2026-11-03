@@ -118,7 +118,7 @@ flowchart TB
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
   (a left menu with sections as nested routes: `/account` profile,
-  `/account/family` the family (people, invite codes for the owner, joining with a code) and
+  `/account/family` the family (people, invite codes for the owner, joining with a code, going back to the family left behind for 30 days) and
   `/account/data` import/export: the export queues a job (`POST /exports`), shows a
   toast, follows the job and downloads the file when it is done, with a second
   toast; the follow-up lives in `lib/exportJobs.js` (outside React) so it
