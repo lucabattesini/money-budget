@@ -284,7 +284,7 @@ family's people and the caller's role. Only the owner can `POST /families/invite
 `DELETE /families/invites/{id}`; a member gets `403`. A code is 16 characters from an
 alphabet without look-alikes, shown only when created: the table keeps a SHA-256 hash and the last four
 characters (to tell codes apart in a list). It works once and expires after 7 days (database clock); an owner can
-have 10 active codes. `POST /families/join {code, bring_data}` moves the caller into the code's family
+have 3 active codes. `POST /families/join {code, bring_data}` moves the caller into the code's family
 as a member; `bring_data` is required, so the choice is always explicit. A code that is wrong, used, expired
 or cancelled all answer the same `404`. Rules: someone who shares a family with other people cannot join
 another (`409`; leaving or handing over ownership comes later); a code for one's own family is refused (`409`) and

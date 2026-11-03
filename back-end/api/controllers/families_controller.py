@@ -21,7 +21,7 @@ from schemas.tables import Users
 # No 0/O/1/I/L: codes are read aloud and typed by hand. 16 characters of 31 are far too many to guess.
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 CODE_LENGTH = 16
-MAX_ACTIVE_INVITES = 10
+MAX_ACTIVE_INVITES = 3
 
 
 def _normalize(code: str) -> str:
@@ -66,7 +66,8 @@ def create_family_invite(db: Session, user: Users) -> dict:
     _only_owner(user)
     if count_active_invites(db, user.family_id) >= MAX_ACTIVE_INVITES:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Há códigos demais ativos. Cancele algum antes."
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Você já tem {MAX_ACTIVE_INVITES} códigos ativos. Cancele algum antes.",
         )
     code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
     invite = create_invite(db, user.family_id, user.id, _hash(code), code[-4:])

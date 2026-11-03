@@ -108,13 +108,13 @@ describe('family page: inviting', () => {
     mockApi({
       'GET /families/me': { data: OWNER_ALONE },
       'GET /families/invites': { data: [] },
-      'POST /families/invites': [{ detail: 'Há códigos demais ativos. Cancele algum antes.' }, 409],
+      'POST /families/invites': [{ detail: 'Você já tem 3 códigos ativos. Cancele algum antes.' }, 409],
     })
     renderApp(<AccountFamily />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Gerar código' }))
 
-    expect(await screen.findByText('Há códigos demais ativos. Cancele algum antes.')).toBeInTheDocument()
+    expect(await screen.findByText('Você já tem 3 códigos ativos. Cancele algum antes.')).toBeInTheDocument()
     expect(screen.queryByTestId('new-code')).not.toBeInTheDocument()
   })
 })

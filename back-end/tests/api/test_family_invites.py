@@ -127,11 +127,26 @@ def test_a_code_of_another_family_cannot_be_cancelled_or_seen(client, user, othe
     assert client.get("/families/invites", headers=headers_for(other_user)).json()["data"][0]["id"] == theirs["id"]
 
 
-def test_a_family_cannot_have_a_flood_of_codes(client, auth_headers):
-    for _ in range(10):
-        _invite(client, auth_headers)
+def test_a_family_can_have_three_active_codes_and_cancelling_one_frees_a_place(client, auth_headers):
+    codes = [_invite(client, auth_headers) for _ in range(3)]
 
-    assert client.post("/families/invites", headers=auth_headers).status_code == 409
+    fourth = client.post("/families/invites", headers=auth_headers)
+
+    assert fourth.status_code == 409
+    assert "3 códigos" in fourth.json()["detail"]
+    client.delete(f"/families/invites/{codes[0]['id']}", headers=auth_headers)
+    assert client.post("/families/invites", headers=auth_headers).status_code == 201
+
+
+def test_used_and_expired_codes_do_not_count_towards_the_limit(client, db, other_user, auth_headers, headers_for):
+    used = _invite(client, auth_headers)
+    expired = _invite(client, auth_headers)
+    _invite(client, auth_headers)
+    _join(client, headers_for(other_user), used["code"])
+    db.query(FamilyInvites).filter_by(id=expired["id"]).update({"expires_at": datetime.now() - timedelta(minutes=1)})
+    db.commit()
+
+    assert client.post("/families/invites", headers=auth_headers).status_code == 201
 
 
 # --- joining ---------------------------------------------------------------------------------------
