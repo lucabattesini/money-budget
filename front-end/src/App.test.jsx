@@ -32,7 +32,7 @@ describe('routing', () => {
     window.location.hash = '' // the router reads the real URL, so do not leak it into the next test
   })
 
-  it.each(['#/', '#/transactions', '#/report-expense', '#/investments', '#/account'])(
+  it.each(['#/', '#/transactions', '#/budgets', '#/report-expense', '#/investments', '#/account'])(
     'sends a logged-out visitor from %s to the login page',
     (hash) => {
       renderAt(hash)

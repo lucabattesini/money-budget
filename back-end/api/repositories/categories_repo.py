@@ -1,6 +1,7 @@
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from api.repositories.budgets_repo import UNBUDGETED_GROUPS, delete_budgets_of_category
 from api.utils.category_names import same_name
 from schemas.tables import Categories, CategoryGroups, Families, TransactionDB
 
@@ -23,7 +24,7 @@ def get_all_categories(db: Session, family_id: int):
 
 def get_all_groups(db: Session):
     """Every group, in the order they are shown. The same for everyone."""
-    return db.query(CategoryGroups).order_by(CategoryGroups.id).all()
+    return db.query(CategoryGroups).order_by(CategoryGroups.position, CategoryGroups.id).all()
 
 
 def get_category_by_name(db: Session, name: str, family_id: int):
@@ -80,6 +81,8 @@ def update_category(db: Session, category: Categories, name: str | None, group_i
         category.name = name
     if group_id is not None:
         category.group_id = group_id
+        if db.query(CategoryGroups.name).filter(CategoryGroups.id == group_id).scalar() in UNBUDGETED_GROUPS:
+            delete_budgets_of_category(db, category.id)  # income and transfers have no budget: do not keep hidden ones
     db.commit()
     db.refresh(category)
     return category
@@ -90,6 +93,7 @@ def count_transactions_using(db: Session, category_id: int) -> int:
 
 
 def delete_category(db: Session, category: Categories) -> None:
+    delete_budgets_of_category(db, category.id)  # a budget has no meaning without its category
     db.delete(category)
     try:
         db.commit()

@@ -20,6 +20,8 @@ import {
   loginWithGoogle,
   updatePhone,
   updateFamilySettings,
+  getBudgets,
+  setBudget,
 } from './endpoints'
 import { saveToken, getToken } from '../lib/auth'
 import { mockApi, networkDown } from '../test/helpers'
@@ -294,8 +296,10 @@ describe('the HTTP method of every call', () => {
     ['DELETE', 'deleteCategory', () => deleteCategory(1, 'tok')],
     ['POST', 'createCategory', () => createCategory({ name: 'x' }, 'tok')],
     ['GET', 'getFamily', () => getFamily('tok')],
+    ['GET', 'getBudgets', () => getBudgets('2026-11', 'tok')],
+    ['PUT', 'setBudget', () => setBudget(1, '2026-11', 100, 'tok')],
   ])('is sent as %s by %s', async (method, _name, call) => {
-    const api = mockApi({ [`${method} /categories`]: {}, [`${method} /categories/1`]: {}, [`${method} /families/me`]: {}, [`${method} /families/me/settings`]: {}, [`${method} /user/me/phone`]: {} })
+    const api = mockApi({ [`${method} /categories`]: {}, [`${method} /categories/1`]: {}, [`${method} /families/me`]: {}, [`${method} /families/me/settings`]: {}, [`${method} /user/me/phone`]: {}, [`${method} /budgets?month=2026-11`]: {}, [`${method} /budgets`]: {} })
 
     await call()
 

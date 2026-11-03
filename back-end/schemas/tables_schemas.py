@@ -129,6 +129,17 @@ class FamilySettings(BaseModel):
     language: Optional[Language] = None
 
 
+MONTH_PATTERN = r"^20\d\d-(0[1-9]|1[0-2])$"  # "2026-11"; the years 2000-2099, so every month is a valid date
+
+
+class BudgetSet(BaseModel):
+    """Plan an amount for a category from a month on, until a later month changes it. 0 means nothing from then on."""
+
+    category_id: int
+    month: str = Field(pattern=MONTH_PATTERN)
+    amount: int = Field(ge=0, le=2147483647)  # cents, must fit the 32-bit column
+
+
 class JoinFamily(BaseModel):
     code: str
     bring_data: bool  # no default: joining always asks whether to bring the old data along

@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from api.utils.category_names import plain_name
-from schemas.tables import Categories, ExportJobDB, Families, FamilyInvites, TransactionDB, Users
+from schemas.tables import Budgets, Categories, ExportJobDB, Families, FamilyInvites, TransactionDB, Users
 
 INVITE_LIFETIME = timedelta(days=7)  # asked of the database clock, like the export times
 ABANDONED_KEPT_FOR = timedelta(days=30)  # how long a family nobody is in is kept, in case someone goes back
@@ -103,12 +103,15 @@ def _fold(name: str | None) -> str:
 
 
 def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
-    """Move the family's transactions and categories to the new family.
+    """Move the family's transactions and categories to the new family. Budgets are not brought: a plan belongs to
+    the family that made it, so the ones of the family being left are deleted and the new family keeps its own.
 
     A category whose name matches one the new family already has is merged into it: its transactions are
     re-pointed and it is deleted. The others come along as they are. Default categories belong to nobody
     and are never touched.
     """
+    # Before any category is deleted below: a budget points at its category
+    db.query(Budgets).filter(Budgets.family_id == old_family_id).delete(synchronize_session=False)
     kept = {_fold(c.name): c for c in db.query(Categories).filter(Categories.family_id == new_family_id)}
     db.query(TransactionDB).filter(TransactionDB.family_id == old_family_id).update(
         {TransactionDB.family_id: new_family_id}, synchronize_session=False
@@ -245,6 +248,7 @@ def purge_abandoned_families(db: Session) -> None:
         {TransactionDB.category_id: None}, synchronize_session=False
     )
     db.query(TransactionDB).filter(TransactionDB.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(Budgets).filter(Budgets.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(Categories).filter(Categories.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(ExportJobDB).filter(ExportJobDB.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(FamilyInvites).filter(FamilyInvites.family_id.in_(ids)).delete(synchronize_session=False)

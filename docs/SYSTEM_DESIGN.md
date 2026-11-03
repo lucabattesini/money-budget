@@ -29,6 +29,7 @@ flowchart TB
         TxR["transactions_router"]
         ExR["exports_router"]
         FamR["families_router"]
+        BudR["budgets_router"]
         WAR["whatsapp_router\n(/webhook)"]
 
         AuthC["auth_controller\n(verify Google token, issue JWT)"]
@@ -36,11 +37,12 @@ flowchart TB
         CatC["categories_controller"]
         TxC["transactions_controller"]
         ExC["exports_controller\n(queue + background job)"]
+        BudC["budgets_controller"]
         FamC["families_controller\n(invite codes, joining)"]
         WAC["whatsapp_controller"]
         WAS["whatsapp_service\n(send message via Meta API)"]
 
-        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, exports_repo,\nfamilies_repo)"]
+        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, budgets_repo,\nexports_repo, families_repo)"]
         ExS["export_service"]
         DocGW["document gateway\n(CSV / Excel)"]
 
@@ -55,7 +57,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / export_jobs")]
+    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / budgets / export_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -113,7 +115,7 @@ flowchart TB
 - React (Vite) SPA, `HashRouter`-based, Chakra UI for components/theming.
 - `lib/auth.js` stores the JWT in `localStorage` and attaches it as a Bearer
   token to every API call (`lib/utils.js` / `api/endpoints.js`).
-- Pages: `dashboard` (balance + charts), `report-expense` (manual entry),
+- Pages: `dashboard` (balance + charts), `budgets` (the plan per category, repeated month to month until changed, and how it is going), `report-expense` (manual entry),
   `transactions-display` (table of history with filters in a menu, 10-per-page
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
@@ -221,6 +223,7 @@ erDiagram
     CATEGORY_GROUPS {
         int id PK
         string name "unique; a fixed set shipped with the app"
+        int position "its place in every list, 1 is first, set in the database"
     }
     CATEGORIES {
         int id PK
@@ -253,6 +256,13 @@ erDiagram
         datetime used_at
     }
 
+    BUDGETS {
+        int id PK
+        int family_id FK
+        int category_id FK
+        date month "first day of the month"
+        int amount "cents, 0 means no plan from this month on"
+    }
     EXPORT_JOBS {
         int id PK
         int family_id FK
@@ -271,11 +281,13 @@ erDiagram
     FAMILIES ||--o{ TRANSACTIONS : "owns"
     FAMILIES ||--o{ CATEGORIES : "owns"
     FAMILIES ||--o{ EXPORT_JOBS : "owns"
+    FAMILIES ||--o{ BUDGETS : "plans"
     FAMILIES ||--o{ FAMILY_INVITES : "hands out"
     USERS ||--o{ TRANSACTIONS : "created"
     USERS ||--o{ EXPORT_JOBS : "asked for"
     CATEGORY_GROUPS ||--|{ CATEGORIES : "groups"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
+    CATEGORIES ||--o{ BUDGETS : "has"
 ```
 **Families.** Data belongs to a family (the people who share one budget), not to a
 person. A user is in exactly one family (`users.family_id`, not null; no membership
@@ -291,6 +303,36 @@ login and returns the defaults plus the family's own, each with its group (`grou
 transactions, but only the person in `requested_by` can see or download the job, and a
 family can have one export queued or running at a time. The chatbot state carries both
 `user_id` (who spoke, saved on the transaction) and `family_id` (what it reads and writes).
+
+**Budgets** (`/budgets`, TKT-61, all require login and only see the caller's family). A family plans how much to
+spend in each spending category, and a plan **stays in force until it is changed**: the amount set in a month is
+the plan of every later month that has no amount of its own. So `budgets` (family, category, first day of a month,
+amount in cents; unique per family, category and month) mostly holds the months where the amount *changes* (a later
+row that repeats the one before it can exist, and is harmless); the plan of a month is the latest row up to it. A row of 0 means "nothing from this month on" and is what remembers that a plan
+was stopped. Asking for the amount that already applies from an earlier month keeps no row of its own (and removes the
+month's own row if it had one), so the month goes back to following the earlier plan. Categories of the groups
+"Receitas" and "Transferências" have no budget: money coming in or moving between accounts is not spending.
+`GET /budgets?month=YYYY-MM` answers the month by group and category: `budgeted` (null when nothing applies),
+`since` (the month that set the amount: the month itself, or an earlier one when it is repeated), `spent` (debits of
+the month in that category, credits never count; the month runs from its first moment to the first moment of the
+next), and totals. `totals.spent` only counts categories that have a budget, so it compares with `totals.budgeted`;
+`totals.remaining` is the difference (negative when over) and `totals.unbudgeted_spent` is what was spent in the
+other spending categories (debits with no category, and debits in an income or transfer category, are in neither
+number, so the two do not add up to every debit of the month). `PUT /budgets {category_id, month, amount}` sets the
+amount from that month on (0 stops the plan from then on) and answers with the month as `GET` shows it; another
+family's category, an income or transfer one and an unknown id all answer `404`, and a bad month (only the years 2000
+to 2099 are offered, and the page's buttons stop there) or an amount that is negative or over the 32-bit limit `422`.
+`PUT` takes the same family lock as the category changes, so two requests (two members, two tabs) cannot both create
+the same row, and a category being deleted at that moment is seen as gone. The Orçamentos page (`/budgets`, in the top
+menu) shows one month with buttons to move between months, totals with a bar, every group (all start open; each can
+be closed) with its categories A-Z in Portuguese order like the Categorias page, and a field per category that saves
+when it is left or Enter is pressed; "Repetido de <month>" says where an amount comes from, and a bar turns orange
+from 80% of the plan and red when it is exceeded. Budgets follow their categories: deleting a category deletes its
+budgets, and so does moving it to an income or transfer group (nothing hidden is kept); joining another family with the
+data brings the transactions and categories but not the budgets (a plan belongs to the family that made it: the
+budgets of the family being left are deleted, the family joined keeps its own); a family that is deleted after 30
+days takes its budgets with it. Not built yet: budgets for a group or for income, rollover of unused
+money, a yearly view and alerts.
 
 **Currency and language** (family settings, TKT-25). `families.currency` (`BRL` default, also `USD`, `CAD`, `EUR`,
 `GBP`) and `families.language` (`pt` default, also `en`) belong to the family, so everyone in it sees the same and a
@@ -348,6 +390,23 @@ whatever their date says, and a person whose previous family is deleted simply h
 | `created_at` | When the row was first saved. Set by the database, never changed. |
 | `updated_at` | When the row was last edited through `PUT /transactions/{id}`. Empty until the first edit. |
 
+**`category_groups` columns**
+
+| Column | Meaning |
+|---|---|
+| `id` | Primary key. Used by `categories.group_id`. It does **not** decide the order. |
+| `name` | The heading shown to people ("Moradia", "Alimentação"...). Unique, not null. The same set for every family. |
+| `position` | **The order of the groups.** Integer, not null, 1 is first. Every list of groups sorts by it (then by `id` to break a tie): the category list, the Categorias page and the Orçamentos page. Added by migration `0015` (existing groups kept their old order); a new database gets it from `DEFAULT_GROUPS` in `db/seed.py`. The full order is in "Order of the category groups" below. |
+
+**`budgets` columns**
+
+| Column | Meaning |
+|---|---|
+| `family_id` | Whose plan it is. A plan belongs to the family that made it and is never brought to another family. |
+| `category_id` | The spending category the plan is for (never one of the income or transfer groups). |
+| `month` | The first day of the month the amount starts to apply from. With `family_id` and `category_id` it is unique. |
+| `amount` | Planned cents from that month on, until a later month changes it. `0` means "no plan from this month on". |
+
 `created_at` and `transactioned_at` are different on purpose: back-dating an
 entry changes only `transactioned_at`. All timestamps are naive (no time zone)
 and written by the server, so they follow the server clock.
@@ -369,11 +428,11 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese).
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`.
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de
-Vida, Filhos, Educação, Saúde e Bem-estar, Finanças, Outros, Transferências). The groups are a fixed set, the same for every family:
+Vida, Filhos, Educação, Saúde e Bem-estar, Finanças, Outros, Transferências). The groups are a fixed set, the same for every family, in the order of `category_groups.position` (1 first, kept in the database; the Categorias and Orçamentos pages and every API list use it, and `db.seed` gives a group it creates the place it has in `DEFAULT_GROUPS`, never moving one that exists):
 nothing in the API creates, renames or deletes one. Each category has exactly one (`categories.group_id`, not
 null, a foreign key), and a category saved without one goes to "Outros". The 51 default
 categories mirror Monarch's (for example "Supermercado", "Restaurantes e Bares", "Luz e gás", "Salário", "Transferência";
@@ -382,6 +441,32 @@ categories mirror Monarch's (for example "Supermercado", "Restaurantes e Bares",
 two differ, so changing a default category later needs a new migration. The Categorias page lists the categories under their groups; filters and totals per group are not built yet. The assistant's own
 category list (`schemas/agents_schemas.py`) is separate and does not use groups: it is the default categories
 except income and transfers (a test keeps it in step with the seed).
+
+**Order of the category groups.** The order is data, not an accident of how the rows were created: each group has an
+integer `category_groups.position` (not null, 1 is first, added by migration `0015`, which gave the groups already in a
+database the positions of their old id order). Everything that lists groups sorts by `position` (then `id`, to break a
+tie): `GET /categories/groups`, the groups of `GET /budgets`, and so the Categorias and Orçamentos pages. A new
+database gets the order below from `DEFAULT_GROUPS` in `db/seed.py`, which gives a group it creates the place it has
+in that list and never moves one that already exists; nothing in the API changes the order yet.
+
+| position | group |
+|---|---|
+| 1 | Receitas |
+| 2 | Presentes e Doações |
+| 3 | Auto e Transporte |
+| 4 | Moradia |
+| 5 | Contas e Serviços |
+| 6 | Alimentação |
+| 7 | Compras |
+| 8 | Viagem e Estilo de Vida |
+| 9 | Filhos |
+| 10 | Educação |
+| 11 | Saúde e Bem-estar |
+| 12 | Finanças |
+| 13 | Outros |
+| 14 | Transferências |
+
+(The Orçamentos page leaves out Receitas and Transferências, which have no budget, and keeps the rest in this order.)
 
 **Managing categories** (`/categories`, all require login). A family manages only its own categories; the default
 ones (no `family_id`, `is_default` true in the list) are shown but cannot be changed. `POST /categories {name,

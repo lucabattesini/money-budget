@@ -8,6 +8,7 @@ export const endpoints = {
     transactions: `${URL_BASE}/transactions`,
     exports: `${URL_BASE}/exports`,
     families: `${URL_BASE}/families`,
+    budgets: `${URL_BASE}/budgets`,
     user: `${URL_BASE}/user`,
     auth: `${URL_BASE}/auth`,
 };
@@ -209,6 +210,11 @@ export const createCategory = (payload, token) => jsonCall(endpoints.categories,
 export const updateCategory = (id, payload, token) => jsonCall(endpoints.categories + `/${id}`, "patch", token, payload);
 export const deleteCategory = (id, token) => jsonCall(endpoints.categories + `/${id}`, "delete", token);
 
+// ─── Budgets ──────────────────────────────────────────────────────────────────
+
+export const getBudgets = (month, token) => jsonCall(endpoints.budgets + `?month=${encodeURIComponent(month)}`, "get", token);
+export const setBudget = (categoryId, month, amount, token) =>
+    jsonCall(endpoints.budgets, "put", token, { category_id: categoryId, month, amount });
 export const getFamily = (token) => familyCall("/me", "get", token);
 export const updateFamilySettings = (settings, token) => familyCall("/me/settings", "patch", token, settings);
 export const getInvites = (token) => familyCall("/invites", "get", token);

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
 
 from db.connection import Base
 
@@ -77,6 +77,8 @@ class CategoryGroups(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False, unique=True)
+    # The place of the group in every list (1 is first). The order is data, not the order the rows were created in
+    position = Column(Integer, nullable=False)
 
 
 def _fallback_group_id(context) -> int:
@@ -100,6 +102,22 @@ class Categories(Base):
     name = Column(String(100))
     # Every category has exactly one group; without one it goes to "Outros"
     group_id = Column(Integer, ForeignKey("category_groups.id"), nullable=False, default=_fallback_group_id)
+
+
+class Budgets(Base):
+    """How much a family plans to spend in a category from one month on (integer cents, like every amount).
+
+    A plan stays in force until a later month changes it, so a month with no row of its own uses the latest earlier
+    row. A row of 0 means "nothing from this month on"."""
+
+    __tablename__ = "budgets"
+    __table_args__ = (UniqueConstraint("family_id", "category_id", "month", name="uq_budgets_family_category_month"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    month = Column(Date, nullable=False)  # always the first day of the month
+    amount = Column(Integer, nullable=False)  # cents; 0 stops the plan from this month on
 
 
 class ExportJobDB(Base):

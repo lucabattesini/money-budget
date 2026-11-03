@@ -118,10 +118,11 @@ def seed_categories():
         # Two API containers starting together must not seed at the same time (the same lock the upgrade uses,
         # released when this transaction ends)
         db.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": MIGRATION_LOCK_ID})
-        for group_name, category_names in DEFAULT_GROUPS.items():
+        for position, (group_name, category_names) in enumerate(DEFAULT_GROUPS.items(), start=1):
             group = db.query(CategoryGroups).filter_by(name=group_name).first()
             if not group:
-                group = CategoryGroups(name=group_name)
+                # A new group takes the place of the list above; an existing one keeps the position the database gives it
+                group = CategoryGroups(name=group_name, position=position)
                 db.add(group)
                 db.flush()
             for name in category_names:

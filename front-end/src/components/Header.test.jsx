@@ -24,6 +24,7 @@ describe('header', () => {
   it.each([
     ['/', 'Dashboard'],
     ['/transactions', 'Transações'],
+    ['/budgets', 'Orçamentos'],
     ['/account', 'Conta'],
     ['/account/data', 'Conta'], // a sub-page keeps its section highlighted
   ])('highlights the current section on %s: %s', (route, name) => {

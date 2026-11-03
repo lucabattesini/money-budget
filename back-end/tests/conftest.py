@@ -69,7 +69,7 @@ def database():
     connection.Base.metadata.drop_all(engine)
     connection.Base.metadata.create_all(engine)
     with connection.LocalSession() as db:
-        groups = {name: CategoryGroups(name=name) for name in DEFAULT_GROUPS}
+        groups = {name: CategoryGroups(name=name, position=i) for i, name in enumerate(DEFAULT_GROUPS, start=1)}
         db.add_all(groups.values())
         db.flush()
         group_of = {category: group for group, names in DEFAULT_GROUPS.items() for category in names}
