@@ -30,14 +30,29 @@ const previousKey = (key) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
-/** The spending of one month, credits left out. */
-export function spendingOfMonth(transactions, key) {
+/** The transactions of one month. */
+export function transactionsOfMonth(transactions, key) {
   const { year, month } = parts(key)
   return transactions.filter((t) => {
     const date = new Date(t.transactioned_at)
-    return isSpending(t) && date.getFullYear() === year && date.getMonth() === month
+    return date.getFullYear() === year && date.getMonth() === month
   })
 }
+
+/** The spending of one month, credits left out. */
+export const spendingOfMonth = (transactions, key) => transactionsOfMonth(transactions, key).filter(isSpending)
+
+/**
+ * What counts as money that came in: the credits, except those in a transfer between accounts (the other side of a
+ * debit that is not spending either). A salary and a refund both count.
+ */
+export function countsAsIncoming(transactions, categories) {
+  const groupOf = new Map(categories.map((category) => [category.id, category.group_name]))
+  return transactions.filter((t) => t.type === 'credit' && groupOf.get(t.category_id) !== 'Transferências')
+}
+
+/** The total of the transactions, in cents. */
+export const sumCents = (transactions) => transactions.reduce((total, t) => total + t.value, 0)
 
 // What was spent up to each day of the month (index 0 is day 1)
 function runningTotal(transactions, key) {

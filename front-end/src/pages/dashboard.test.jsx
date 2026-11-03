@@ -307,6 +307,84 @@ describe('dashboard', () => {
     })
   })
 
+  describe('what came in and what went out', () => {
+    const text = (label) => plain(screen.getByLabelText(label).textContent)
+    const FLOW = {
+      ...ROUTES,
+      'GET /categories': {
+        data: [
+          { id: 1, name: '🛒 Alimentação', group_name: 'Alimentação' },
+          { id: 3, name: '💳 Fatura', group_name: 'Transferências' },
+          { id: 4, name: '💰 Salário', group_name: 'Receitas' },
+        ],
+      },
+      'POST /transactions': {
+        data: [
+          t(1, 10000, '2026-03-02T10:00:00'), // out
+          t(2, 2550, '2026-03-14T10:00:00'), // out
+          t(3, 300000, '2026-03-05T10:00:00', 4, 'credit'), // salary: in
+          t(4, 5000, '2026-03-08T10:00:00', 1, 'credit'), // a refund: in
+          t(5, 777700, '2026-03-12T10:00:00', 3, 'debit'), // card bill: neither
+          t(6, 555500, '2026-03-12T10:00:00', 3, 'credit'), // the other side of the transfer: neither
+          t(7, 99900, '2026-02-10T10:00:00', 4, 'credit'), // last month's salary
+          t(8, 20000, '2026-02-11T10:00:00'), // last month's spending
+        ],
+      },
+    }
+
+    it('shows the entries, the exits and the balance of the month', async () => {
+      mockApi(FLOW)
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 3.050,00')) // 3.000,00 salary + 50,00 refund
+      expect(text('Saídas do mês')).toBe('R$ 125,50') // 100,00 + 25,50
+      expect(text('Saldo do mês')).toBe('R$ 2.924,50')
+    })
+
+    it('leaves transfers out of both sides', async () => {
+      mockApi(FLOW)
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 3.050,00')) // not 8.605,00
+      expect(text('Saídas do mês')).not.toContain('7.777')
+    })
+
+    it('follows the month chosen', async () => {
+      mockApi({ ...FLOW, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />)
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 3.050,00'))
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 999,00'))
+      expect(text('Saídas do mês')).toBe('R$ 200,00')
+      expect(text('Saldo do mês')).toBe('R$ 799,00')
+    })
+
+    it('shows zeros for a month with nothing in it', async () => {
+      mockApi({ ...FLOW, 'POST /transactions': { data: [] } })
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 0,00'))
+      expect(screen.getByText('Nenhuma entrada ou saída neste mês.')).toBeInTheDocument()
+    })
+
+    it('comes right after the budget in the left column, before the chart', async () => {
+      mockApi(FLOW)
+
+      renderApp(<Dashboard />)
+
+      const [budget, flow, chart] = await Promise.all(
+        ['Orçamento', 'Entradas e saídas', 'Gastos'].map((title) => screen.findByRole('heading', { name: title })),
+      )
+      expect(budget.compareDocumentPosition(flow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(flow.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+  })
+
   describe('month switcher', () => {
     it('starts on the current month and cannot go past it', async () => {
       mockApi(ROUTES)

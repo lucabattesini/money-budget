@@ -4,11 +4,12 @@ import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { getAllCategories, getTransactions, getMe, getBudgets } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { monthKey, monthLabel, shiftMonth } from "../lib/budget";
-import { countsAsSpending, spendingOfMonth } from "../lib/dashboard";
+import { countsAsIncoming, countsAsSpending, spendingOfMonth, sumCents, transactionsOfMonth } from "../lib/dashboard";
 import { useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import BudgetRing from "../components/BudgetRing";
+import CashFlowCard from "../components/CashFlowCard";
 import SpendingCard from "../components/SpendingCard";
 import RecentTransactions from "../components/RecentTransactions";
 import TopCategoriesBarList from "../components/TopCategoriesBarList";
@@ -74,6 +75,8 @@ export default function Dashboard() {
     // Only money that was really spent: no credits, no transfers between accounts, like the budget
     const outgoing = useMemo(() => countsAsSpending(transactions, categories), [transactions, categories]);
     const spending = useMemo(() => spendingOfMonth(outgoing, month), [outgoing, month]);
+    // What came in: credits, but not the other side of a transfer between accounts
+    const entered = useMemo(() => sumCents(transactionsOfMonth(countsAsIncoming(transactions, categories), month)), [transactions, categories, month]);
 
     return (
         <Center>
@@ -104,11 +107,12 @@ export default function Dashboard() {
                         {/* On a phone the two columns become one list and the chart goes last (order); on a wide screen they are columns */}
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
                             <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} /></Box>
-                            <Box order={{ base: 4, lg: 0 }}><SpendingCard transactions={outgoing} month={month} now={now} /></Box>
+                            <Box order={{ base: 2, lg: 0 }}><CashFlowCard entered={entered} spent={sumCents(spending)} /></Box>
+                            <Box order={{ base: 5, lg: 0 }}><SpendingCard transactions={outgoing} month={month} now={now} /></Box>
                         </Stack>
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
-                            <Box order={{ base: 2, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} /></Box>
-                            <Box order={{ base: 3, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
+                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} /></Box>
+                            <Box order={{ base: 4, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
                         </Stack>
                     </Grid>
                 )}
