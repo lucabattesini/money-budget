@@ -11,7 +11,7 @@ import { enqueueExport, followExport } from "../lib/exportJobs";
 const COLUMNS = [
     { name: "Data", required: true, format: "DD/MM/AAAA, não pode ser no futuro", example: "15/03/2026" },
     { name: "Descrição", required: true, format: "Texto, até 25 caracteres", example: "Almoço" },
-    { name: "Categoria", required: true, format: "Uma das categorias listadas abaixo", example: "Alimentação" },
+    { name: "Categoria", required: true, format: "Uma das categorias listadas abaixo", example: "Restaurantes e Bares" },
     { name: "Valor", required: true, format: "Maior que zero, com vírgula e duas casas decimais", example: "1.234,56" },
     { name: "Tipo", required: false, format: "Débito ou Crédito (se vazio, Débito)", example: "Débito" },
 ];

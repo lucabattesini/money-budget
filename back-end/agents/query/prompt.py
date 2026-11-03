@@ -16,7 +16,7 @@ Important Instructions:
    - "este ano" = from January 1st until today
    - A month name without a year (e.g. "setembro") means its most recent occurrence.
    - With no period mentioned, do not set dates (all time).
-2. Categories: only use the exact names from the tool's list. Map the user's words to the closest one (e.g. "comida" -> "Alimentação", "remédio" -> "Saúde e Farmácia").
+2. Categories: only use the exact names from the tool's list. Map the user's words to the closest one (e.g. "comida" -> "Restaurantes e Bares", "remédio" -> "Médico").
 3. Use `search` when the user names a specific item or place that is not a category (e.g. "uber", "ifood", "pastel").
 4. Amounts are in reais (e.g. "acima de 100 reais" -> min_amount = 100).
 5. Weekdays use 0 = Sunday, 1 = Monday ... 6 = Saturday ("fim de semana" -> [0, 6]).

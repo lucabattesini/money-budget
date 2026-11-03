@@ -388,6 +388,7 @@ def upgrade() -> None:
     # 3. The old default categories become (or are merged into) the new ones
     by_words = {words.casefold(): new for words, new in CATEGORY_MAP.items()}
     group_of = {name: group for group, names in GROUPS.items() for name in names}
+    by_words.update({name.casefold(): name for name in group_of if name.casefold() not in by_words})  # already a new name
     kept: dict[str, int] = {}  # new name -> id of the row that now holds it
     rows = conn.execute(sa.text("SELECT id, name FROM categories WHERE family_id IS NULL ORDER BY id")).all()
     for row in rows:

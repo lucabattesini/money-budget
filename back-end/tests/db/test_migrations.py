@@ -927,3 +927,20 @@ def test_undoing_the_monarch_revision_brings_back_the_old_groups_and_names_and_k
         names = conn.execute(text("SELECT name FROM category_groups ORDER BY id")).scalars().all()
         assert conn.execute(text("SELECT category_id FROM transactions WHERE id = 4")).scalar() == 4
     assert names[0] == "Casa" and len(names) == 12
+
+
+def test_a_default_category_that_already_has_a_new_name_is_put_in_its_new_group(url, engine):
+    """Someone may have created a default such as "Telefone" by hand: it must not stay in "Outros", where the seed
+    would then never create the proper one."""
+    command.upgrade(alembic_config(url), "0011")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, name, group_id) "
+                "SELECT 1, 'telefone', id FROM category_groups WHERE name = 'Outros'"
+            )
+        )
+
+    command.upgrade(alembic_config(url), "head")
+
+    assert _category_rows(engine)[1] == ("📱 Telefone", None, "Contas e Serviços")
