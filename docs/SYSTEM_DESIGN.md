@@ -223,7 +223,7 @@ erDiagram
     CATEGORY_GROUPS {
         int id PK
         string name "unique; a fixed set shipped with the app"
-        int position "its place in every list, 1 first; the order is data"
+        int position "its place in every list, 1 is first, set in the database"
     }
     CATEGORIES {
         int id PK
@@ -261,7 +261,7 @@ erDiagram
         int family_id FK
         int category_id FK
         date month "first day of the month"
-        int amount "cents; 0 means no plan from this month on; unique per family, category and month"
+        int amount "cents, 0 means no plan from this month on"
     }
     EXPORT_JOBS {
         int id PK
@@ -389,6 +389,23 @@ whatever their date says, and a person whose previous family is deleted simply h
 | `transactioned_at` | When the money moved. The user can change it (the edit form picks a day and keeps the time of day). Defaults to the moment of creation. Never in the future for entries made in the web app or by the chatbot. This column used to be called `date`. |
 | `created_at` | When the row was first saved. Set by the database, never changed. |
 | `updated_at` | When the row was last edited through `PUT /transactions/{id}`. Empty until the first edit. |
+
+**`category_groups` columns**
+
+| Column | Meaning |
+|---|---|
+| `id` | Primary key. Used by `categories.group_id`. It does **not** decide the order. |
+| `name` | The heading shown to people ("Moradia", "Alimentação"...). Unique, not null. The same set for every family. |
+| `position` | **The order of the groups.** Integer, not null, 1 is first. Every list of groups sorts by it (then by `id` to break a tie): the category list, the Categorias page and the Orçamentos page. Added by migration `0015` (existing groups kept their old order); a new database gets it from `DEFAULT_GROUPS` in `db/seed.py`. The full order is in "Order of the category groups" below. |
+
+**`budgets` columns**
+
+| Column | Meaning |
+|---|---|
+| `family_id` | Whose plan it is. A plan belongs to the family that made it and is never brought to another family. |
+| `category_id` | The spending category the plan is for (never one of the income or transfer groups). |
+| `month` | The first day of the month the amount starts to apply from. With `family_id` and `category_id` it is unique. |
+| `amount` | Planned cents from that month on, until a later month changes it. `0` means "no plan from this month on". |
 
 `created_at` and `transactioned_at` are different on purpose: back-dating an
 entry changes only `transactioned_at`. All timestamps are naive (no time zone)
