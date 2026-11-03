@@ -19,6 +19,7 @@ import argparse
 import random
 from datetime import datetime, timedelta
 
+from api.utils.category_names import plain_name
 from db.connection import LocalSession
 from db.seed import seed_categories
 from schemas.tables import Categories, Families, TransactionDB, Users
@@ -81,7 +82,8 @@ def main():
             print(f"{args.email} already has transactions; use --reset to replace them.")
             return
 
-        categories = {c.name: c.id for c in db.query(Categories).filter(Categories.family_id.is_(None))}
+        # Default categories start with an emoji ("🏠 Aluguel"); the templates use the words
+        categories = {plain_name(c.name): c.id for c in db.query(Categories).filter(Categories.family_id.is_(None))}
         today = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
         rows = []
         for month_offset in range(3):

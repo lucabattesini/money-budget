@@ -265,3 +265,16 @@ def test_the_migrations_frozen_emojis_still_agree_with_the_seed_for_what_it_cove
     spec.loader.exec_module(migration)
 
     assert migration.EMOJIS.items() <= DEFAULT_EMOJIS.items()
+
+
+def test_the_development_seed_works_with_default_categories_that_start_with_an_emoji(url, engine):
+    """db.seed_dev looks the defaults up by their words ("Aluguel"), but they are stored as "🏠 Aluguel"."""
+    upgrade_database(url)
+    _run(url, "-m", "db.seed")
+
+    result = _run(url, "-m", "db.seed_dev")
+
+    assert result.returncode == 0, result.stderr
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM transactions")).scalar() > 50
+        assert conn.execute(text("SELECT count(*) FROM transactions WHERE category_id IS NULL")).scalar() == 0
