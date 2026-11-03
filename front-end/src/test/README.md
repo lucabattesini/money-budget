@@ -63,6 +63,6 @@ Nothing is skipped at the moment.
 
 ## Not covered yet
 
-The chart components (`CategoryPieChart`, `ExpenseTrendLine`) draw with SVG
-sizes that jsdom does not have, so they are only exercised through the
+The charts (the line chart of `SpendingCard`, the bars of `TopCategoriesBarList`) draw with
+sizes that jsdom does not have, so only their texts and numbers are tested, through the
 dashboard; the legacy `login` and `create-account` pages are not tested.

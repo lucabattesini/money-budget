@@ -1,6 +1,6 @@
 import { Box, Stack, Link, Text, Icon } from "@chakra-ui/react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
-import { LuLayoutDashboard, LuReceipt, LuArrowRightLeft, LuTrendingUp, LuUser } from "react-icons/lu";
+import { LuLayoutDashboard, LuArrowRightLeft, LuTrendingUp, LuUser } from "react-icons/lu";
 
 export default function Sidebar() {
     const location = useLocation();
@@ -9,7 +9,6 @@ export default function Sidebar() {
     const navItems = [
         { name: "Dashboard", path: "/", icon: LuLayoutDashboard },
         { name: "Transações", path: "/transactions", icon: LuArrowRightLeft },
-        { name: "Registrar Despesa", path: "/report-expense", icon: LuReceipt },
         { name: "Conta", path: "/account", icon: LuUser },
     ];
 

@@ -1,12 +1,16 @@
-import { useState, useEffect } from "react";
-import { Box, Stack, Center, Heading, SimpleGrid, GridItem, Text, Flex } from "@chakra-ui/react";
-import { getAllCategories, getTransactions, getMe } from "../api/endpoints";
+import { useState, useEffect, useMemo } from "react";
+import { Box, Center, Grid, Heading, HStack, IconButton, Stack } from "@chakra-ui/react";
+import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
+import { getAllCategories, getTransactions, getMe, getBudgets } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { formatDate, formatMoney, useLocale } from "../lib/locale";
+import { monthKey, monthLabel, shiftMonth } from "../lib/budget";
+import { spendingOfMonth } from "../lib/dashboard";
+import { useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
-import CategoryPieChart from "../components/CategoryPieChart";
-import ExpenseTrendLine from "../components/ExpenseTrendLine";
+import BudgetRing from "../components/BudgetRing";
+import SpendingCard from "../components/SpendingCard";
+import RecentTransactions from "../components/RecentTransactions";
 import TopCategoriesBarList from "../components/TopCategoriesBarList";
 
 export default function Dashboard() {
@@ -15,6 +19,10 @@ export default function Dashboard() {
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [user, setUser] = useState(null);
+    const [now] = useState(() => new Date());
+    const thisMonth = monthKey(now);
+    const [month, setMonth] = useState(thisMonth); // every card shows this month
+    const [budget, setBudget] = useState(undefined); // the plan of the month: undefined while loading, null when it failed
 
     useEffect(() => {
         const token = getToken();
@@ -46,68 +54,61 @@ export default function Dashboard() {
         });
     }, []);
 
-    const now = new Date();
-    const monthTotal = transactions
-        .filter(t => {
-            const tDate = new Date(t.transactioned_at);
-            return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
-        })
-        .reduce((sum, t) => sum + t.value / 100, 0);
-    const monthName = formatDate(now, { month: 'long' });
-    const formattedMonthTotal = formatMoney(monthTotal);
+    // The plan of the chosen month. An answer for a month that is no longer on the page is ignored.
+    useEffect(() => {
+        const token = getToken();
+        if (!token) {
+            setBudget(null); // no login (the user is being sent to the login page): nothing to wait for
+            return;
+        }
+        let current = true;
+        setBudget(undefined);
+        getBudgets(month, token).then((result) => {
+            if (current) setBudget(result.ok ? result.data : null);
+        });
+        return () => {
+            current = false;
+        };
+    }, [month]);
+
+    const spending = useMemo(() => spendingOfMonth(transactions, month), [transactions, month]);
 
     return (
         <Center>
-            <Stack
-                minHeight="100vh"
-                gap={6}
-                w="full"
-                maxW="6xl"
-                align="center"
-                justify="flex-start"
-                py={10}
-                px={4}
-            >
-                {user && (
-                    <Heading
-                        size="2xl"
-                        mb={6}
-                        w="full"
-                        textAlign="left"
-                        bgGradient="linear(to-r, teal.400, blue.500)"
-                        bgClip="text"
-                        fontWeight="extrabold"
-                    >
-                        Bem-vindo de volta, {user.name.split(' ')[0]} 👋
-                    </Heading>
-                )}
+            <Stack minHeight="100vh" gap={6} w="full" py={10} px={8}>
+                <HStack justify="space-between" wrap="wrap" gap={4}>
+                    {user ? (
+                        <Heading size="xl">Olá, {user.name.split(' ')[0]} 👋</Heading>
+                    ) : (
+                        <Box />
+                    )}
+                    <HStack gap={2}>
+                        <IconButton aria-label="Mês anterior" variant="outline" size="sm" onClick={() => setMonth(shiftMonth(month, -1))}>
+                            <LuChevronLeft />
+                        </IconButton>
+                        <Heading size="md" minW="10rem" textAlign="center" textTransform="capitalize" aria-live="polite">
+                            {monthLabel(month)}
+                        </Heading>
+                        <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= thisMonth} onClick={() => setMonth(shiftMonth(month, 1))}>
+                            <LuChevronRight />
+                        </IconButton>
+                    </HStack>
+                </HStack>
+
                 {loading ? (
                     <SpinnerLoading />
                 ) : (
-                    <>
-                    <Flex w="full" justify="center" py={{ base: 6, md: 10 }} mb={4}>
-                        {/* Shrink-wrapped box: centered on the page, label aligned to the value's left edge */}
-                        <Box textAlign="left">
-                            <Text fontSize={{ base: "xs", md: "sm" }} color="gray.400" textTransform="uppercase" letterSpacing="0.3em" fontWeight="medium" mb={3}>
-                                Gastos de {monthName}
-                            </Text>
-                            <Text fontSize={{ base: "5xl", sm: "6xl", md: "8xl", lg: "9xl" }} fontWeight="bold" lineHeight="1" letterSpacing="tighter">
-                                {formattedMonthTotal}
-                            </Text>
-                        </Box>
-                    </Flex>
-                    <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6} w="full">
-                        <GridItem>
-                            <CategoryPieChart transactions={transactions} categories={categories} />
-                        </GridItem>
-                        <GridItem>
-                            <TopCategoriesBarList transactions={transactions} categories={categories} />
-                        </GridItem>
-                        <GridItem colSpan={{ base: 1, lg: 2 }}>
-                            <ExpenseTrendLine transactions={transactions} />
-                        </GridItem>
-                    </SimpleGrid>
-                    </>
+                    <Grid templateColumns={{ base: "1fr", lg: "3fr 2fr" }} gap={6} alignItems="start">
+                        {/* On a phone the two columns become one list and the chart goes last (order); on a wide screen they are columns */}
+                        <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
+                            <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} /></Box>
+                            <Box order={{ base: 4, lg: 0 }}><SpendingCard transactions={transactions} month={month} now={now} /></Box>
+                        </Stack>
+                        <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
+                            <Box order={{ base: 2, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} /></Box>
+                            <Box order={{ base: 3, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
+                        </Stack>
+                    </Grid>
                 )}
             </Stack>
         </Center>
