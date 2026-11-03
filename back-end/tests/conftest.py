@@ -32,7 +32,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
 from db import connection
-from schemas.tables import Categories, Families, TransactionDB, Users
+from db.seed import DEFAULT_GROUPS
+from schemas.tables import Categories, CategoryGroups, Families, TransactionDB, Users
 
 # "Pets" is deliberately NOT seeded: it is a valid category name in the agents'
 # schemas, so it lets tests exercise the "known name, missing from the database" path.
@@ -68,7 +69,11 @@ def database():
     connection.Base.metadata.drop_all(engine)
     connection.Base.metadata.create_all(engine)
     with connection.LocalSession() as db:
-        db.add_all(Categories(name=name) for name in TEST_CATEGORIES)
+        groups = {name: CategoryGroups(name=name) for name in DEFAULT_GROUPS}
+        db.add_all(groups.values())
+        db.flush()
+        group_of = {category: group for group, names in DEFAULT_GROUPS.items() for category in names}
+        db.add_all(Categories(name=name, group_id=groups[group_of[name]].id) for name in TEST_CATEGORIES)
         db.commit()
     yield engine
     engine.dispose()

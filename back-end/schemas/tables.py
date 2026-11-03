@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
 
 from db.connection import Base
 
@@ -64,12 +64,33 @@ class FamilyInvites(Base):
     used_at = Column(DateTime, nullable=True)
 
 
+FALLBACK_GROUP = "Outros"  # where a category goes when nobody says which group it belongs to
+
+
+class CategoryGroups(Base):
+    """A heading the categories are listed under (Casa, Lazer...). The same fixed set for everyone."""
+
+    __tablename__ = "category_groups"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, unique=True)
+
+
+def _fallback_group_id(context) -> int:
+    """The default group of a new category: "Outros". Runs inside the insert, on its own connection."""
+    return context.connection.execute(
+        select(CategoryGroups.id).where(CategoryGroups.name == FALLBACK_GROUP)
+    ).scalar_one()
+
+
 class Categories(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=True)  # NULL = default category, shared by all
     name = Column(String(100))
+    # Every category has exactly one group; without one it goes to "Outros"
+    group_id = Column(Integer, ForeignKey("category_groups.id"), nullable=False, default=_fallback_group_id)
 
 
 class ExportJobDB(Base):

@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0009"
+LATEST = "0010"
 
 
 def _version(engine):
@@ -39,6 +39,7 @@ def test_a_new_database_gets_every_table_and_ends_on_the_latest_revision(url, en
         "alembic_version",
         "families",
         "family_invites",
+        "category_groups",
         "users",
         "categories",
         "transactions",
@@ -100,7 +101,19 @@ def _seed_users_and_categories(conn):
         )
     else:
         conn.execute(text("INSERT INTO users (id, google_id, name, email) VALUES (1, 'g', 'Ana', 'a@example.com')"))
-    conn.execute(text("INSERT INTO categories (id, name) VALUES (1, 'Alimentação'), (2, 'Transporte'), (3, 'Outros')"))
+    if "group_id" in {c["name"] for c in inspect(conn).get_columns("categories")}:  # groups came with 0010
+        conn.execute(text("INSERT INTO category_groups (name) VALUES ('Outros') ON CONFLICT (name) DO NOTHING"))
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, name, group_id) SELECT v.id, v.name, g.id "
+                "FROM (VALUES (1, 'Alimentação'), (2, 'Transporte'), (3, 'Outros')) AS v(id, name), category_groups g "
+                "WHERE g.name = 'Outros'"
+            )
+        )
+    else:
+        conn.execute(
+            text("INSERT INTO categories (id, name) VALUES (1, 'Alimentação'), (2, 'Transporte'), (3, 'Outros')")
+        )
 
 
 def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_data(url, engine):
@@ -153,6 +166,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         ("0007", "0007"),
         ("0008", "0008"),
         ("0009", "0009"),
+        ("0010", "0010"),
     ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
@@ -602,3 +616,100 @@ def test_undoing_the_abandoned_families_revision_drops_only_its_columns(url, eng
 
     assert "abandoned_at" not in {c["name"] for c in inspect(engine).get_columns("families")}
     assert "previous_family_id" not in {c["name"] for c in inspect(engine).get_columns("users")}
+
+
+# --- 0010: category groups -----------------------------------------------------------------------------
+
+
+def _database_before_groups(url, engine):
+    command.upgrade(alembic_config(url), "0009")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(
+            text("INSERT INTO users (id, family_id, google_id, name, email) VALUES (1, 1, 'g', 'Ana', 'a@e.com')")
+        )
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, family_id, name) VALUES "
+                "(1, NULL, 'Aluguel'), (2, NULL, 'Supermercado'), (3, NULL, 'investimentos'), (4, NULL, 'Outros'),"
+                "(5, NULL, 'Uma que a lista não conhece'), (6, 1, 'Plantas da família'), (7, 1, 'Aluguel')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, family_id, user_id, label, value, category_id) "
+                "VALUES (1, 1, 1, 'x', 100, 1)"
+            )
+        )
+
+
+def _groups_of_categories(engine):
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT c.id, g.name FROM categories c JOIN category_groups g ON g.id = c.group_id ORDER BY c.id")
+        ).all()
+    return dict(rows)
+
+
+def test_the_nine_groups_exist_after_the_migration(url, engine):
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        names = conn.execute(text("SELECT name FROM category_groups ORDER BY id")).scalars().all()
+    assert names == [
+        "Casa",
+        "Alimentação",
+        "Transporte",
+        "Saúde e bem-estar",
+        "Lazer",
+        "Educação",
+        "Compras e presentes",
+        "Finanças",
+        "Outros",
+    ]
+
+
+def test_existing_default_categories_are_grouped_by_name_and_the_rest_goes_to_outros(url, engine):
+    _database_before_groups(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    assert _groups_of_categories(engine) == {
+        1: "Casa",
+        2: "Alimentação",
+        3: "Finanças",  # the match ignores case
+        4: "Outros",
+        5: "Outros",  # a default category the list does not know
+        6: "Outros",  # a family's own category
+        7: "Outros",  # a family's "Aluguel" is not the default one, so it is not grouped as one
+    }
+
+
+def test_the_migration_keeps_every_category_and_what_points_to_it(url, engine):
+    _database_before_groups(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 7
+        assert conn.execute(text("SELECT category_id FROM transactions")).scalar() == 1
+
+
+def test_every_category_must_have_a_group(url, engine):
+    upgrade_database(url)
+
+    with engine.begin() as conn:
+        with pytest.raises(Exception, match="group_id"):
+            conn.execute(text("INSERT INTO categories (name) VALUES ('sem grupo')"))
+
+
+def test_undoing_the_groups_revision_drops_the_groups_and_keeps_the_categories(url, engine):
+    _database_before_groups(url, engine)
+    command.upgrade(alembic_config(url), "head")
+
+    command.downgrade(alembic_config(url), "0009")
+
+    assert "category_groups" not in inspect(engine).get_table_names()
+    assert "group_id" not in {c["name"] for c in inspect(engine).get_columns("categories")}
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 7
