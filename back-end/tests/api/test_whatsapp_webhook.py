@@ -63,7 +63,7 @@ def test_message_from_a_known_number_goes_through_the_chatbot_and_the_reply_is_s
     response = client.post("/webhook/", json=message_payload(text="gastei 10 de almoço"))
 
     assert response.json() == {"status": "success", "reply": "resposta do bot"}
-    assert graph == [{"user_message": "gastei 10 de almoço", "user_id": user.id}]
+    assert graph == [{"user_message": "gastei 10 de almoço", "user_id": user.id, "family_id": user.family_id}]
     assert sent_messages == [("5511999990000", "resposta do bot")]
 
 
@@ -72,7 +72,7 @@ def test_a_sender_number_written_with_a_plus_sign_is_still_matched(client, make_
 
     client.post("/webhook/", json=message_payload(sender="+55 11 99999-0000", text="oi"))
 
-    assert graph == [{"user_message": "oi", "user_id": user.id}]
+    assert graph == [{"user_message": "oi", "user_id": user.id, "family_id": user.family_id}]
 
 
 def test_message_from_an_unknown_number_gets_a_signup_link_and_never_reaches_the_chatbot(client, graph, sent_messages):

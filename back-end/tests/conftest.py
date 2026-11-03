@@ -32,7 +32,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
 from db import connection
-from schemas.tables import Categories, TransactionDB, Users
+from schemas.tables import Categories, Families, TransactionDB, Users
 
 # "Pets" is deliberately NOT seeded: it is a valid category name in the agents'
 # schemas, so it lets tests exercise the "known name, missing from the database" path.
@@ -149,12 +149,17 @@ def client():
 
 @pytest.fixture
 def make_user(db):
-    """Create a user. Each call gets a unique Google id and email."""
+    """Create a user in a family of their own (or in `family=` when given). Each call gets a unique Google id and email."""
     counter = iter(range(1, 1000))
 
-    def _make(name="Test User", **fields):
+    def _make(name="Test User", family=None, **fields):
         n = next(counter)
+        if family is None:
+            family = Families()
+            db.add(family)
+            db.flush()
         row = Users(
+            family_id=family.id,
             google_id=fields.pop("google_id", f"google-{n}"),
             name=name,
             email=fields.pop("email", f"user{n}@example.com"),
@@ -174,6 +179,7 @@ def make_transaction(db):
 
     def _make(user, category_id, label="Almoço", value=2500, when=None, type="debit"):
         row = TransactionDB(
+            family_id=user.family_id,
             user_id=user.id,
             label=label,
             value=value,

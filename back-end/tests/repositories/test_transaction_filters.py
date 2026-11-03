@@ -34,7 +34,7 @@ def labels(rows):
 
 
 def run(db, user, order_by="date", order_dir="desc", limit=50, offset=0, **filters):
-    return list_transactions(db, user.id, TransactionFilters(**filters), order_by, order_dir, limit, offset)
+    return list_transactions(db, user.family_id, TransactionFilters(**filters), order_by, order_dir, limit, offset)
 
 
 # --- dates -------------------------------------------------------------------
@@ -111,7 +111,12 @@ def test_rows_carry_their_category_name(db, user, seeded):
 
 def test_transaction_without_a_category_is_still_listed(db, user, make_transaction):
     row = TransactionDB(
-        user_id=user.id, label="No category", value=100, transactioned_at=datetime(2026, 1, 1), category_id=None
+        family_id=user.family_id,
+        user_id=user.id,
+        label="No category",
+        value=100,
+        transactioned_at=datetime(2026, 1, 1),
+        category_id=None,
     )
     db.add(row)
     db.commit()
@@ -189,6 +194,7 @@ def test_limit_has_a_floor_of_one(db, user, seeded):
 def test_limit_is_capped_at_200(db, user, category_ids):
     db.add_all(
         TransactionDB(
+            family_id=user.family_id,
             user_id=user.id,
             label=f"t{i}",
             value=1,
@@ -224,7 +230,7 @@ def test_day_filter_matches_only_the_given_date(db, user, make_transaction, cate
     make_transaction(user, cat, "march 5th", when=datetime(2026, 3, 5, 12))
     make_transaction(user, cat, "april 5th", when=datetime(2026, 4, 5, 12))
 
-    rows = get_transactions(db, GetTransactionsParams(organized_by="day", date=datetime(2026, 3, 5)), user.id)
+    rows = get_transactions(db, GetTransactionsParams(organized_by="day", date=datetime(2026, 3, 5)), user.family_id)
 
     assert [r.label for r in rows] == ["march 5th"]
 
@@ -234,7 +240,7 @@ def test_month_filter_matches_only_the_given_year_and_month(db, user, make_trans
     make_transaction(user, cat, "march 2026", when=datetime(2026, 3, 5, 12))
     make_transaction(user, cat, "march 2025", when=datetime(2025, 3, 5, 12))
 
-    rows = get_transactions(db, GetTransactionsParams(organized_by="month", date=datetime(2026, 3, 1)), user.id)
+    rows = get_transactions(db, GetTransactionsParams(organized_by="month", date=datetime(2026, 3, 1)), user.family_id)
 
     assert [r.label for r in rows] == ["march 2026"]
 
@@ -246,7 +252,7 @@ def test_year_filter_still_matches_the_whole_year(db, user, make_transaction, ca
     make_transaction(user, cat, "dec 2026", when=datetime(2026, 12, 31, 23, 59, 59))
     make_transaction(user, cat, "jan 2027", when=datetime(2027, 1, 1, 0, 0, 0))
 
-    rows = get_transactions(db, GetTransactionsParams(organized_by="year", date=datetime(2026, 6, 1)), user.id)
+    rows = get_transactions(db, GetTransactionsParams(organized_by="year", date=datetime(2026, 6, 1)), user.family_id)
 
     assert sorted(r.label for r in rows) == ["dec 2026", "jan 2026"]
 
@@ -256,7 +262,9 @@ def test_december_month_filter_does_not_leak_into_january(db, user, make_transac
     make_transaction(user, cat, "dec", when=datetime(2026, 12, 31, 23, 59, 59))
     make_transaction(user, cat, "jan", when=datetime(2027, 1, 1, 0, 0, 0))
 
-    rows = get_transactions(db, GetTransactionsParams(organized_by="month", date=datetime(2026, 12, 15)), user.id)
+    rows = get_transactions(
+        db, GetTransactionsParams(organized_by="month", date=datetime(2026, 12, 15)), user.family_id
+    )
 
     assert [r.label for r in rows] == ["dec"]
 
@@ -267,7 +275,9 @@ def test_day_filter_includes_the_whole_day_and_nothing_of_the_next(db, user, mak
     make_transaction(user, cat, "last second", when=datetime(2026, 3, 5, 23, 59, 59))
     make_transaction(user, cat, "next day", when=datetime(2026, 3, 6, 0, 0, 0))
 
-    rows = get_transactions(db, GetTransactionsParams(organized_by="day", date=datetime(2026, 3, 5, 15)), user.id)
+    rows = get_transactions(
+        db, GetTransactionsParams(organized_by="day", date=datetime(2026, 3, 5, 15)), user.family_id
+    )
 
     assert sorted(r.label for r in rows) == ["last second", "midnight"]
 
@@ -277,7 +287,7 @@ def test_no_grouping_returns_everything(db, user, make_transaction, category_ids
     make_transaction(user, cat, "a", when=datetime(2025, 1, 1))
     make_transaction(user, cat, "b", when=datetime(2026, 3, 5))
 
-    assert len(get_transactions(db, GetTransactionsParams(), user.id)) == 2
+    assert len(get_transactions(db, GetTransactionsParams(), user.family_id)) == 2
 
 
 @pytest.mark.parametrize("organized_by", ["year", "month", "day"])
@@ -286,6 +296,8 @@ def test_the_last_year_the_calendar_has_does_not_crash_the_filter(
 ):
     make_transaction(user, category_ids["Outros"], "recent", when=datetime(2026, 3, 5, 12))
 
-    rows = get_transactions(db, GetTransactionsParams(organized_by=organized_by, date=datetime(9999, 12, 31)), user.id)
+    rows = get_transactions(
+        db, GetTransactionsParams(organized_by=organized_by, date=datetime(9999, 12, 31)), user.family_id
+    )
 
     assert rows == []

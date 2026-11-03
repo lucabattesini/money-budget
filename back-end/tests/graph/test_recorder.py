@@ -23,7 +23,7 @@ def recorder(monkeypatch):
 
 
 def run(user):
-    return node_recorder({"user_message": "irrelevant", "user_id": user.id})
+    return node_recorder({"user_message": "irrelevant", "user_id": user.id, "family_id": user.family_id})
 
 
 def rows(db):
@@ -45,7 +45,12 @@ def test_the_expense_is_saved_for_the_right_user_and_category(db, user, other_us
     run(user)
 
     [row] = rows(db)
-    assert (row.user_id, row.label, row.category_id) == (user.id, "Uber", category_ids["Transporte"])
+    assert (row.user_id, row.family_id, row.label, row.category_id) == (
+        user.id,
+        user.family_id,
+        "Uber",
+        category_ids["Transporte"],
+    )
 
 
 def test_the_reply_confirms_each_expense_in_brazilian_format(db, user, recorder):

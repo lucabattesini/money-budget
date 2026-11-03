@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0006"
+LATEST = "0007"
 
 
 def _version(engine):
@@ -37,6 +37,7 @@ def test_a_new_database_gets_every_table_and_ends_on_the_latest_revision(url, en
 
     assert set(inspect(engine).get_table_names()) == {
         "alembic_version",
+        "families",
         "users",
         "categories",
         "transactions",
@@ -58,7 +59,10 @@ def test_the_migrations_build_exactly_what_the_models_describe(url, engine):
 def test_running_the_upgrade_again_changes_nothing(url, engine):
     upgrade_database(url)
     with engine.begin() as conn:
-        conn.execute(text("INSERT INTO users (google_id, name, email) VALUES ('g', 'Ana', 'a@example.com')"))
+        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(
+            text("INSERT INTO users (family_id, google_id, name, email) VALUES (1, 'g', 'Ana', 'a@example.com')")
+        )
 
     upgrade_database(url)
 
@@ -87,7 +91,14 @@ def _old_database(url, engine, revision):
 
 
 def _seed_users_and_categories(conn):
-    conn.execute(text("INSERT INTO users (id, google_id, name, email) VALUES (1, 'g', 'Ana', 'a@example.com')"))
+    """One user and three categories, in whatever shape the database has (users only got a family in 0007)."""
+    if "family_id" in {c["name"] for c in inspect(conn).get_columns("users")}:
+        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(
+            text("INSERT INTO users (id, family_id, google_id, name, email) VALUES (1, 1, 'g', 'Ana', 'a@example.com')")
+        )
+    else:
+        conn.execute(text("INSERT INTO users (id, google_id, name, email) VALUES (1, 'g', 'Ana', 'a@example.com')"))
     conn.execute(text("INSERT INTO categories (id, name) VALUES (1, 'Alimentação'), (2, 'Transporte'), (3, 'Outros')"))
 
 
@@ -132,7 +143,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
 
 @pytest.mark.parametrize(
     ("revision", "expected_detection"),
-    [("0002", "0002"), ("0003", "0003"), ("0004", "0004"), ("0005", "0005"), ("0006", "0006")],
+    [("0002", "0002"), ("0003", "0003"), ("0004", "0004"), ("0005", "0005"), ("0006", "0006"), ("0007", "0007")],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
     _old_database(url, engine, revision)
@@ -344,8 +355,8 @@ def test_undoing_the_revisions_on_a_database_with_data_drops_only_what_the_old_s
         _seed_users_and_categories(conn)
         conn.execute(
             text(
-                "INSERT INTO transactions (id, user_id, label, value, type, transactioned_at, category_id) "
-                "VALUES (1, 1, 'salário', 5000, 'credit', '2026-03-01 10:00', 1)"
+                "INSERT INTO transactions (id, family_id, user_id, label, value, type, transactioned_at, category_id) "
+                "VALUES (1, 1, 1, 'salário', 5000, 'credit', '2026-03-01 10:00', 1)"
             )
         )
 
@@ -415,3 +426,116 @@ def test_duplicate_and_badly_formatted_phone_numbers_are_cleaned_before_the_numb
     with engine.connect() as conn:
         phones = dict(conn.execute(text("SELECT id, whatsapp_phone FROM users ORDER BY id")).all())
     assert phones == {1: "5511999990000", 2: None, 3: "5522888880000", 4: None, 5: None, 6: None}
+
+
+# --- 0007: ownership moves from the user to the family ----------------------------------------
+
+
+def _database_before_families(url, engine):
+    """Two users who each own data, a default category, and a transaction nobody owns."""
+    command.upgrade(alembic_config(url), "0006")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO users (id, google_id, name, email) VALUES "
+                "(1, 'g1', 'Ana', 'a@example.com'), (2, 'g2', 'Bia', 'b@example.com')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, user_id, name) VALUES "
+                "(1, NULL, 'Outros'), (2, 1, 'Pets da Ana'), (3, 2, 'Plantas da Bia')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, user_id, label, value, type, transactioned_at, category_id) VALUES "
+                "(1, 1, 'ana 1', 100, 'debit', '2026-01-01', 1), (2, 1, 'ana 2', 200, 'credit', '2026-01-02', 2),"
+                "(3, 2, 'bia 1', 300, 'debit', '2026-01-03', 3), (4, NULL, 'nobody', 400, 'debit', '2026-01-04', 1)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO export_jobs (id, user_id, format, status) VALUES (1, 1, 'csv', 'done'), (2, 2, 'xlsx', 'queued')"
+            )
+        )
+
+
+def test_every_existing_user_gets_a_family_of_their_own(url, engine):
+    _database_before_families(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        families = dict(conn.execute(text("SELECT id, family_id FROM users")).all())
+        assert conn.execute(text("SELECT count(*) FROM families")).scalar() == 2
+    assert families[1] != families[2]
+
+
+def test_data_follows_its_owner_into_the_family_and_keeps_who_created_it(url, engine):
+    _database_before_families(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        family = dict(conn.execute(text("SELECT id, family_id FROM users")).all())
+        transactions = {r.id: (r.family_id, r.user_id) for r in conn.execute(text("SELECT * FROM transactions"))}
+        categories = {r.id: r.family_id for r in conn.execute(text("SELECT * FROM categories"))}
+        jobs = {r.id: (r.family_id, r.requested_by) for r in conn.execute(text("SELECT * FROM export_jobs"))}
+    assert transactions[1] == (family[1], 1)
+    assert transactions[2] == (family[1], 1)
+    assert transactions[3] == (family[2], 2)  # nothing of Bia's ended up with Ana
+    assert categories == {1: None, 2: family[1], 3: family[2]}  # the default category stays shared
+    assert jobs == {1: (family[1], 1), 2: (family[2], 2)}
+
+
+def test_a_transaction_nobody_owned_is_dropped_and_everything_else_is_kept(url, engine):
+    _database_before_families(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        assert sorted(conn.execute(text("SELECT label FROM transactions")).scalars()) == ["ana 1", "ana 2", "bia 1"]
+
+
+def test_the_old_user_columns_are_gone_except_the_authors_of_transactions(url, engine):
+    _database_before_families(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    for table in ("categories", "export_jobs"):  # transactions keep it: it says who entered the row
+        assert "user_id" not in {c["name"] for c in inspect(engine).get_columns(table)}
+    columns = {c["name"]: c for c in inspect(engine).get_columns("transactions")}
+    assert "user_id" in columns and columns["user_id"]["nullable"] is False
+
+
+def test_undoing_the_family_revision_gives_every_row_its_user_back(url, engine):
+    _database_before_families(url, engine)
+    command.upgrade(alembic_config(url), "head")
+
+    command.downgrade(alembic_config(url), "0006")
+
+    with engine.connect() as conn:
+        transactions = dict(conn.execute(text("SELECT id, user_id FROM transactions")).all())
+        categories = dict(conn.execute(text("SELECT id, user_id FROM categories")).all())
+        jobs = dict(conn.execute(text("SELECT id, user_id FROM export_jobs")).all())
+    assert transactions == {1: 1, 2: 1, 3: 2}
+    assert categories == {1: None, 2: 1, 3: 2}
+    assert jobs == {1: 1, 2: 2}
+    assert "families" not in inspect(engine).get_table_names()
+
+
+def test_a_transaction_that_used_another_persons_category_loses_it_instead_of_showing_it_to_the_wrong_family(
+    url, engine
+):
+    _database_before_families(url, engine)
+    with engine.begin() as conn:  # Ana's transaction 1 now points at Bia's private category (3)
+        conn.execute(text("UPDATE transactions SET category_id = 3 WHERE id = 1"))
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        categories = dict(conn.execute(text("SELECT id, category_id FROM transactions")).all())
+    assert categories[1] is None  # was Bia's private category
+    assert categories[2] is not None  # Ana's own category is kept
+    assert categories[3] == 3  # Bia's own is kept

@@ -28,19 +28,19 @@ def _to_cents(amount: float | None) -> int | None:
     return None if amount is None else round(amount * 100)
 
 
-def _category_ids(db: Session, names: list[str] | None) -> list[int] | None:
+def _category_ids(db: Session, family_id: int, names: list[str] | None) -> list[int] | None:
     if not names:
         return None
     # An unknown name maps to -1 so it matches nothing instead of silently widening the filter
-    return [cat.id if (cat := get_category_by_name(db, name)) else -1 for name in names]
+    return [cat.id if (cat := get_category_by_name(db, name, family_id)) else -1 for name in names]
 
 
-def _to_filters(db: Session, args: QueryFiltersArgs) -> TransactionFilters:
+def _to_filters(db: Session, family_id: int, args: QueryFiltersArgs) -> TransactionFilters:
     return TransactionFilters(
         start_date=args.start_date,
         end_date=args.end_date,
-        category_ids=_category_ids(db, args.categories),
-        exclude_category_ids=_category_ids(db, args.exclude_categories),
+        category_ids=_category_ids(db, family_id, args.categories),
+        exclude_category_ids=_category_ids(db, family_id, args.exclude_categories),
         search=args.search,
         min_value=_to_cents(args.min_amount),
         max_value=_to_cents(args.max_amount),
@@ -48,15 +48,15 @@ def _to_filters(db: Session, args: QueryFiltersArgs) -> TransactionFilters:
     )
 
 
-def _run_query_tool(db: Session, call: ToolCall, user_id: int) -> dict:
-    """Execute one query tool call for the user and return its result with amounts in reais."""
+def _run_query_tool(db: Session, call: ToolCall, family_id: int) -> dict:
+    """Execute one query tool call for the family and return its result with amounts in reais."""
     try:
         if call.name == LIST_TRANSACTIONS:
             args = ListTransactionsArgs(**call.args)
             rows = list_transactions(
                 db,
-                user_id,
-                _to_filters(db, args),
+                family_id,
+                _to_filters(db, family_id, args),
                 order_by="value" if args.order_by == "amount" else "date",
                 order_dir=args.order_dir,
                 limit=args.limit,
@@ -72,7 +72,7 @@ def _run_query_tool(db: Session, call: ToolCall, user_id: int) -> dict:
             ]
         elif call.name == SUMMARIZE_TRANSACTIONS:
             args = SummarizeTransactionsArgs(**call.args)
-            rows = aggregate_transactions(db, user_id, _to_filters(db, args), args.group_by)
+            rows = aggregate_transactions(db, family_id, _to_filters(db, family_id, args), args.group_by)
             result = []
             for row in rows:
                 item = {}
@@ -110,7 +110,9 @@ def node_recorder(state: AssistantState):
     registered = []
     with session_scope() as db:
         for item in response.items:
-            cat_obj = get_category_by_name(db, item.category) or get_category_by_name(db, "Outros")
+            cat_obj = get_category_by_name(db, item.category, state["family_id"]) or get_category_by_name(
+                db, "Outros", state["family_id"]
+            )
             # Keep the current time so same-day ordering still makes sense; never store future dates
             expense_date = item.date if item.date and item.date <= date.today() else now.date()
 
@@ -120,7 +122,7 @@ def node_recorder(state: AssistantState):
                 category_id=cat_obj.id,
                 transactioned_at=datetime.combine(expense_date, now.time()),
             )
-            create_transaction(db, t, state["user_id"])
+            create_transaction(db, t, state["family_id"], state["user_id"])
             registered.append(
                 f"• {_format_brl(item.amount)} em {cat_obj.name} ({item.description}, {expense_date.strftime('%d/%m')})"
             )
@@ -143,7 +145,7 @@ def node_query(state: AssistantState):
 
 def node_db_execute(state: AssistantState):
     with session_scope() as db:
-        db_results = [_run_query_tool(db, call, state["user_id"]) for call in state["query_tool_calls"]]
+        db_results = [_run_query_tool(db, call, state["family_id"]) for call in state["query_tool_calls"]]
     return {"db_results": db_results}
 
 

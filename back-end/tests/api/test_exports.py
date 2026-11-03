@@ -150,7 +150,12 @@ def test_the_file_has_every_transaction_not_just_one_page(client, db, user, auth
 
     db.add_all(
         TransactionDB(
-            user_id=user.id, label=f"t{i}", value=100, transactioned_at=datetime(2026, 1, 1), category_id=None
+            family_id=user.family_id,
+            user_id=user.id,
+            label=f"t{i}",
+            value=100,
+            transactioned_at=datetime(2026, 1, 1),
+            category_id=None,
         )
         for i in range(250)
     )
@@ -190,7 +195,7 @@ def test_a_description_cannot_run_as_a_formula(client, user, auth_headers, make_
 
 
 def test_the_file_is_not_available_before_the_job_is_done(client, db, user, auth_headers):
-    job = ExportJobDB(user_id=user.id, format="csv", status="queued")
+    job = ExportJobDB(family_id=user.family_id, requested_by=user.id, format="csv", status="queued")
     db.add(job)
     db.commit()
 
@@ -235,9 +240,30 @@ def test_queueing_deletes_every_expired_job_not_just_the_callers_but_keeps_recen
     ancient = datetime(2020, 1, 1)
     db.add_all(
         [
-            ExportJobDB(user_id=user.id, format="csv", status="done", content=b"x", created_at=ancient),
-            ExportJobDB(user_id=other_user.id, format="csv", status="done", content=b"y", created_at=ancient),
-            ExportJobDB(user_id=other_user.id, format="csv", status="done", content=b"z", created_at=datetime.now()),
+            ExportJobDB(
+                family_id=user.family_id,
+                requested_by=user.id,
+                format="csv",
+                status="done",
+                content=b"x",
+                created_at=ancient,
+            ),
+            ExportJobDB(
+                family_id=other_user.family_id,
+                requested_by=other_user.id,
+                format="csv",
+                status="done",
+                content=b"y",
+                created_at=ancient,
+            ),
+            ExportJobDB(
+                family_id=other_user.family_id,
+                requested_by=other_user.id,
+                format="csv",
+                status="done",
+                content=b"z",
+                created_at=datetime.now(),
+            ),
         ]
     )
     db.commit()
@@ -246,13 +272,14 @@ def test_queueing_deletes_every_expired_job_not_just_the_callers_but_keeps_recen
 
     db.expire_all()
     remaining = db.query(ExportJobDB).order_by(ExportJobDB.id).all()
-    assert [(j.user_id, j.content) for j in remaining[:1]] == [(other_user.id, b"z")]  # the recent one survives
+    assert [(j.requested_by, j.content) for j in remaining[:1]] == [(other_user.id, b"z")]  # the recent one survives
     assert len(remaining) == 2  # that one and the job just queued
 
 
 def test_an_expired_job_and_its_file_are_gone_even_if_nobody_queued_anything_since(client, db, user, auth_headers):
     old = ExportJobDB(
-        user_id=user.id,
+        family_id=user.family_id,
+        requested_by=user.id,
         format="csv",
         status="done",
         filename="a.csv",
@@ -296,7 +323,11 @@ def test_a_job_stuck_in_queued_or_running_is_cancelled_and_no_longer_blocks_new_
     client, db, user, auth_headers, queue
 ):
     stuck = ExportJobDB(
-        user_id=user.id, format="csv", status="running", created_at=datetime.now() - timedelta(minutes=10)
+        family_id=user.family_id,
+        requested_by=user.id,
+        format="csv",
+        status="running",
+        created_at=datetime.now() - timedelta(minutes=10),
     )
     db.add(stuck)
     db.commit()
@@ -309,7 +340,13 @@ def test_a_job_stuck_in_queued_or_running_is_cancelled_and_no_longer_blocks_new_
 
 def test_a_new_export_is_not_blocked_by_a_stuck_one(client, db, user, auth_headers, queue):
     db.add(
-        ExportJobDB(user_id=user.id, format="csv", status="queued", created_at=datetime.now() - timedelta(minutes=10))
+        ExportJobDB(
+            family_id=user.family_id,
+            requested_by=user.id,
+            format="csv",
+            status="queued",
+            created_at=datetime.now() - timedelta(minutes=10),
+        )
     )
     db.commit()
 
@@ -318,7 +355,11 @@ def test_a_new_export_is_not_blocked_by_a_stuck_one(client, db, user, auth_heade
 
 def test_a_job_that_is_only_a_little_old_is_not_cancelled(client, db, user, auth_headers):
     recent = ExportJobDB(
-        user_id=user.id, format="csv", status="running", created_at=datetime.now() - timedelta(minutes=1)
+        family_id=user.family_id,
+        requested_by=user.id,
+        format="csv",
+        status="running",
+        created_at=datetime.now() - timedelta(minutes=1),
     )
     db.add(recent)
     db.commit()
@@ -355,7 +396,7 @@ def test_asking_for_the_status_does_not_load_the_file(db, user):
     from api.repositories.exports_repo import get_export_job
     from db.connection import session_scope
 
-    job = ExportJobDB(user_id=user.id, format="csv", status="done", content=b"x" * 1000)
+    job = ExportJobDB(family_id=user.family_id, requested_by=user.id, format="csv", status="done", content=b"x" * 1000)
     db.add(job)
     db.commit()
 
@@ -382,7 +423,12 @@ def test_a_category_name_and_the_excel_file_cannot_run_as_a_formula(client, db, 
     db.commit()
     db.add(
         TransactionDB(
-            user_id=user.id, label="+cmd", value=100, transactioned_at=datetime(2026, 3, 15), category_id=category.id
+            family_id=user.family_id,
+            user_id=user.id,
+            label="+cmd",
+            value=100,
+            transactioned_at=datetime(2026, 3, 15),
+            category_id=category.id,
         )
     )
     db.commit()

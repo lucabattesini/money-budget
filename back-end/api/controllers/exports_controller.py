@@ -26,31 +26,33 @@ FAILED_MESSAGE = "Não foi possível gerar o arquivo."
 STUCK_MESSAGE = "A exportação demorou demais e foi cancelada."
 
 
-def enqueue_export(db: Session, user_id: int, file_format: str) -> ExportJobDB:
+def enqueue_export(db: Session, family_id: int, user_id: int, file_format: str) -> ExportJobDB:
     """Record the request. The file is built later by run_export_job.
 
-    One export at a time per user: every job loads all their transactions and keeps a copy of the file.
+    One export at a time per family: every job loads all its transactions and keeps a copy of the file.
     """
     delete_old_export_jobs(db)
-    fail_stuck_export_jobs(db, user_id, STUCK_MESSAGE)
-    if has_active_export_job(db, user_id):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Você já tem uma exportação em andamento.")
-    return create_export_job(db, user_id, file_format)
+    fail_stuck_export_jobs(db, family_id, STUCK_MESSAGE)
+    if has_active_export_job(db, family_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Já existe uma exportação em andamento na sua família."
+        )
+    return create_export_job(db, family_id, user_id, file_format)
 
 
-def get_export(db: Session, job_id: int, user_id: int, with_file: bool = False) -> ExportJobDB:
-    job = get_export_job(db, job_id, user_id, with_file=with_file)
-    # Missing, someone else's and expired all look the same, so ids of other users are not revealed
+def get_export(db: Session, job_id: int, family_id: int, user_id: int, with_file: bool = False) -> ExportJobDB:
+    job = get_export_job(db, job_id, family_id, user_id, with_file=with_file)
+    # Missing, another family's, another person's and expired all look the same, so ids of other users are not revealed
     if job is None or is_expired(job, db):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Export not found")
     if job.status in ("queued", "running"):
-        fail_stuck_export_jobs(db, user_id, STUCK_MESSAGE)
+        fail_stuck_export_jobs(db, family_id, STUCK_MESSAGE)
         db.refresh(job)
     return job
 
 
-def get_export_file(db: Session, job_id: int, user_id: int) -> ExportJobDB:
-    job = get_export(db, job_id, user_id, with_file=True)
+def get_export_file(db: Session, job_id: int, family_id: int, user_id: int) -> ExportJobDB:
+    job = get_export(db, job_id, family_id, user_id, with_file=True)
     if job.status != "done":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Export is {job.status}, not ready")
     return job
@@ -64,7 +66,7 @@ def run_export_job(job_id: int) -> None:
             return
         try:
             mark_running(db, job)
-            document = export_transactions(list_all_transactions(db, job.user_id), job.format)
+            document = export_transactions(list_all_transactions(db, job.family_id), job.format)
             filename = f"transacoes-{date.today().isoformat()}.{document.extension}"
             mark_done(db, job, filename, document.media_type, document.content)
         except Exception:

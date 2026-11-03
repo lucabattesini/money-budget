@@ -53,7 +53,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nusers / categories / transactions / export_jobs")]
+    DB[("PostgreSQL\nfamilies / users / categories / transactions / export_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -154,13 +154,17 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   returns an app-issued JWT (HS256, 7-day expiry). The signing key comes from
   `JWT_SECRET`; the API refuses to start without it unless `APP_ENV=development`.
 - Every protected endpoint depends on `get_current_user_id` (FastAPI
-  `HTTPBearer` + `decode_jwt`).
+  `HTTPBearer` + `decode_jwt`; the token only carries the user id). Endpoints
+  that read or write budget data depend on `get_current_family_id`, which looks
+  up the user's family and is the only scope they use (see "Families" in 3.5).
+  A token whose user no longer exists answers `401`.
 - In the web app, any `401` from the API (expired or invalid token) clears the
   stored token and sends the user to `#/login-google` (`api/endpoints.js`).
   A failed read is never treated as data; the dashboard and transactions pages
   show an error message when their data cannot be loaded.
 - A user can also be matched by `whatsapp_phone`, which is how the chatbot
-  resolves an inbound WhatsApp number to an account. The number is stored as
+  resolves an inbound WhatsApp number to an account (a person); that person's
+  family decides where the assistant saves and reads. The number is stored as
   digits only and is unique (a database constraint); claiming one that belongs
   to another account, from the login or `PATCH /user/me/phone`, answers `409`.
 
@@ -184,8 +188,13 @@ request/response schemas (`schemas/agents_schemas.py`).
 ### 3.5 Data model
 ```mermaid
 erDiagram
+    FAMILIES {
+        int id PK
+        datetime created_at
+    }
     USERS {
         int id PK
+        int family_id FK
         string google_id
         string name
         string email
@@ -197,12 +206,13 @@ erDiagram
     }
     CATEGORIES {
         int id PK
-        int user_id FK
+        int family_id FK "empty = default category, shared by all"
         string name
     }
     TRANSACTIONS {
         int id PK
-        int user_id FK
+        int family_id FK
+        int user_id FK "the person who entered it"
         string label
         int value "cents, always positive"
         string type "debit or credit"
@@ -214,7 +224,8 @@ erDiagram
 
     EXPORT_JOBS {
         int id PK
-        int user_id FK
+        int family_id FK
+        int requested_by FK "only this person gets the file"
         string format "csv or xlsx"
         string status "queued, running, done or failed"
         string filename
@@ -225,11 +236,28 @@ erDiagram
         datetime finished_at
     }
 
-    USERS ||--o{ EXPORT_JOBS : "asks for"
-    USERS ||--o{ TRANSACTIONS : "owns"
-    USERS ||--o{ CATEGORIES : "owns"
+    FAMILIES ||--|{ USERS : "has"
+    FAMILIES ||--o{ TRANSACTIONS : "owns"
+    FAMILIES ||--o{ CATEGORIES : "owns"
+    FAMILIES ||--o{ EXPORT_JOBS : "owns"
+    USERS ||--o{ TRANSACTIONS : "created"
+    USERS ||--o{ EXPORT_JOBS : "asked for"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
 ```
+**Families.** Data belongs to a family (the people who share one budget), not to a
+person. A user is in exactly one family (`users.family_id`, not null; no membership
+table). Every new user gets a family of their own on their first login, so for now
+every family has one person; inviting people comes with TKT-43. `transactions`,
+`categories` and `export_jobs` carry `family_id`, and every list, create, edit,
+delete, export and chatbot action filters by the caller's family. A foreign id
+answers `404`, the same as a missing one. `transactions.user_id` records who
+entered a row (shown later in the UI, never used for permission). A category with no
+`family_id` is a default one, visible to everyone; `GET /categories` now requires
+login and returns the defaults plus the family's own. Export jobs read the family's
+transactions, but only the person in `requested_by` can see or download the job, and a
+family can have one export queued or running at a time. The chatbot state carries both
+`user_id` (who spoke, saved on the transaction) and `family_id` (what it reads and writes).
+
 **`transactions` columns**
 
 | Column | Meaning |
@@ -251,13 +279,15 @@ unknown values go to "Outros"), `0003` `type` (old rows become `debit`), `0004` 
 renamed to `transactioned_at` with `created_at` back-filled from it (before the rename,
 `date` was always the save time) and `updated_at` empty, `0005` the `export_jobs` table, `0006` a unique
 `users.whatsapp_phone` (numbers are cleaned to digits first; when several users shared one, the
-oldest account keeps it).
+oldest account keeps it), `0007` families (one per existing user; rows move from `user_id` to
+`family_id` (and `requested_by` on exports; transactions keep `user_id` as the author); transactions with no user, which nobody could read, are deleted; a transaction that pointed at another
+person's category becomes uncategorised).
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
 `POST /transactions/create`, `PUT /transactions/{id}` (label, value, category,
 and optionally `type` / `transactioned_at`; omitted fields keep their value) and
-`DELETE /transactions/{id}`. A missing id, another user's id, or an unknown
+`DELETE /transactions/{id}`. A missing id, another family's id, or an unknown
 category answers `404`, the same for missing and foreign ids so other users' ids
 are not revealed. The two list endpoints take an optional `{organized_by: day|month|year, date}`:
 the period is the full day, month or year of `date` (March 2026 is not March 2025), and
@@ -268,11 +298,11 @@ job as `queued`, answers `202` at once and builds the file in a FastAPI backgrou
 task (own session via `session_scope`; no extra service to run). The job goes
 `queued -> running -> done | failed`. `GET /exports/{id}` shows the state and
 `GET /exports/{id}/file` downloads it (`409` until it is done). The file is every
-transaction of the caller, newest first, with no page limit. A user can have one
+transaction of the caller's family, newest first, with no page limit. A family can have one
 export queued or running at a time (`409` otherwise). Finished files are kept in
 the table for a day: whenever anyone queues an export, every job older than a day
 is deleted, and an expired job answers `404` even before it is deleted. A failed
-job stores a generic message (the details go to the log); another user's job
+job stores a generic message (the details go to the log); another person's job
 answers `404`. The task runs inside the API process, so a job that is running when
 the server restarts would stay `running`: a job queued or running for over five
 minutes is marked failed the next time it is read or the user queues an export,
@@ -320,7 +350,7 @@ sequenceDiagram
     alt unknown phone
         WC-->>WR: "create an account" link
     else known user
-        WC->>G: app.invoke({user_message, user_id})
+        WC->>G: app.invoke({user_message, user_id, family_id})
         G->>G: orchestrator -> classify intent
         alt intent = registry
             G->>Repo: create_transaction(...)

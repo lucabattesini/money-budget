@@ -47,36 +47,36 @@ def _parse_date(transaction: GetTransactionsParams):
     return start, end
 
 
-def create_transaction(db: Session, transaction: Transaction, user_id: int):
-    if transaction.category_id is not None and not category_exists(db, transaction.category_id):
+def create_transaction(db: Session, transaction: Transaction, family_id: int, user_id: int):
+    if transaction.category_id is not None and not category_exists(db, transaction.category_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
     transaction.transactioned_at = transaction.transactioned_at or datetime.now()
-    return create_transaction_repo(db, transaction, user_id)
+    return create_transaction_repo(db, transaction, family_id, user_id)
 
 
-def get_transactions(db: Session, transaction: GetTransactionsParams, user_id: int):
+def get_transactions(db: Session, transaction: GetTransactionsParams, family_id: int):
     start, end = _parse_date(transaction)
-    return get_transactions_repo(db, start, end, user_id)
+    return get_transactions_repo(db, start, end, family_id)
 
 
-def get_transactions_summed_by_category(db: Session, transaction: GetTransactionsParams, user_id: int):
+def get_transactions_summed_by_category(db: Session, transaction: GetTransactionsParams, family_id: int):
     start, end = _parse_date(transaction)
-    rows = get_transactions_summed_by_category_repo(db, start, end, user_id)
+    rows = get_transactions_summed_by_category_repo(db, start, end, family_id)
     return [{"category_id": category_id, "total": total} for category_id, total in rows]
 
 
-def delete_transaction(db: Session, id, user_id: int):
-    # Same answer for "missing" and "someone else's", so other users' ids are not revealed
-    if not delete_transaction_repo(db, id, user_id):
+def delete_transaction(db: Session, id, family_id: int):
+    # Same answer for "missing" and "another family's", so other families' ids are not revealed
+    if not delete_transaction_repo(db, id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return {"message": "Transaction deleted"}
 
 
-def update_transaction(db: Session, id: int, changes: TransactionUpdate, user_id: int):
-    if not category_exists(db, changes.category_id):
+def update_transaction(db: Session, id: int, changes: TransactionUpdate, family_id: int):
+    if not category_exists(db, changes.category_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    # Same answer for "missing" and "someone else's", so other users' ids are not revealed
-    transaction = update_transaction_repo(db, id, user_id, changes)
+    # Same answer for "missing" and "another family's", so other families' ids are not revealed
+    transaction = update_transaction_repo(db, id, family_id, changes)
     if transaction is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return {
