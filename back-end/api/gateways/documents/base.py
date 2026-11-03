@@ -30,6 +30,10 @@ class Document:
 # What a file may be before it is refused. Checked while reading, so a huge file is never loaded unchecked.
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_ROWS = 20000
+# Empty rows are not rows, but they cost memory and time too: a tiny file can declare a million of them. So the rows
+# read, empty or not, are limited as well (a few blank lines between and after the data are fine), and so is the width.
+MAX_BLANK_ROWS = 1000
+MAX_COLUMNS = 100
 
 
 class UnreadableDocument(ValueError):

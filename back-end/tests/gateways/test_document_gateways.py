@@ -253,3 +253,86 @@ def test_the_row_limit_is_twenty_thousand_for_both_formats():
     assert len(XlsxGateway().read(xlsx).rows) == MAX_ROWS
     with pytest.raises(UnreadableDocument, match="linhas demais"):
         XlsxGateway().read(_xlsx([["Data", "D", "C", "V"]] + [[date(2026, 3, 15), "a", "b", 1]] * (MAX_ROWS + 1)))
+
+
+# --- a small file must not be able to cost a lot -------------------------------------------------------------------------
+
+
+def test_an_xlsx_with_a_cell_a_million_rows_down_is_refused_before_the_rows_are_built():
+    # A few KB on disk, but openpyxl pads the gap with empty rows
+    content = _xlsx([["Data"]])
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    workbook.active["A1"] = "Data"
+    workbook.active["A1000000"] = "x"
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+
+    assert len(buffer.getvalue()) < 10_000 and content
+    with pytest.raises(UnreadableDocument, match="linhas demais"):
+        XlsxGateway().read(buffer.getvalue())
+
+
+def test_a_csv_of_blank_lines_is_refused_while_it_is_read():
+    blank = b"Data;D\n" + b"\n" * 50_000 + b"1;2\n"
+
+    with pytest.raises(UnreadableDocument, match="linhas demais"):
+        CsvGateway().read(blank)
+
+
+def test_a_few_blank_lines_are_fine_in_both_formats():
+    assert len(CsvGateway().read(b"A;B\n1;2\n" + b"\n" * 200 + b"3;4\n").rows) == 202
+    assert len(XlsxGateway().read(_xlsx([["A"], [1]] + [[None]] * 200 + [[3]])).rows) == 202
+
+
+def test_only_the_first_hundred_columns_are_read():
+    wide = ";".join(f"c{n}" for n in range(150)) + "\n" + ";".join("x" for _ in range(150)) + "\n"
+
+    assert len(CsvGateway().read(wide.encode()).columns) == 100
+    assert len(XlsxGateway().read(_xlsx([[f"c{n}" for n in range(150)]])).columns) == 100
+
+
+def test_xlsx_rows_are_not_padded_to_the_full_width():
+    table = XlsxGateway().read(_xlsx([["Data", "Valor"], ["15/03/2026", 5]]))
+
+    assert table.columns == ["Data", "Valor"]
+    assert table.rows == [["15/03/2026", Decimal("5")]]
+
+
+def test_time_and_duration_cells_become_text_instead_of_breaking_the_upload():
+    from datetime import time, timedelta
+
+    table = XlsxGateway().read(_xlsx([["Hora", "Duração"], [time(10, 30), timedelta(hours=26, minutes=5)]]))
+
+    assert table.rows == [["10:30:00", "26:05:00"]]
+
+
+def test_an_amount_with_the_float_noise_of_a_calculation_is_read_as_what_excel_shows():
+    from api.services.import_service import _read_amount
+
+    noisy = XlsxGateway._cell(0.1 + 0.2)  # 0.30000000000000004, shown as 0.3
+
+    assert noisy == Decimal("0.3")
+    assert _read_amount(noisy, "auto") == (30, None)
+    assert XlsxGateway._cell(1234.56) == Decimal("1234.56")
+    assert XlsxGateway._cell(12) == Decimal("12")
+
+
+def test_a_damaged_sheet_is_refused_with_a_message_not_a_crash():
+    import zipfile
+
+    good = zipfile.ZipFile(io.BytesIO(_xlsx([["a"], ["b"]])))
+    damaged = io.BytesIO()
+    with zipfile.ZipFile(damaged, "w") as archive:
+        for name in good.namelist():
+            archive.writestr(name, b"<broken" if name.startswith("xl/worksheets/sheet1") else good.read(name))
+
+    with pytest.raises(UnreadableDocument, match="Excel"):
+        XlsxGateway().read(damaged.getvalue())
+
+
+def test_openpyxl_reads_untrusted_files_with_defusedxml():
+    import openpyxl
+
+    assert openpyxl.DEFUSEDXML is True  # without it, a crafted file can blow up the memory (entity expansion)

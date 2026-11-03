@@ -134,7 +134,7 @@ function FileStep({ file, setFile, checking, error }) {
         <Stack gap={5}>
             <Section
                 title="Planilha"
-                hint="Escolha o arquivo (.xlsx ou .csv). Nos próximos passos você diz como ele escreve datas e valores e qual coluna é qual, e conferimos o arquivo inteiro antes de salvar qualquer coisa."
+                hint="Escolha o arquivo (.xlsx ou .csv, até 5 MB). Em planilhas, fórmulas precisam ter sido calculadas e salvas no Excel. Nos próximos passos você diz como ele escreve datas e valores e qual coluna é qual, e conferimos o arquivo inteiro antes de salvar qualquer coisa."
             >
                 <Field.Root invalid={!!error}>
                     <Field.Label>Arquivo</Field.Label>
@@ -212,7 +212,7 @@ function FormatsStep({ job, formats, setFormats }) {
         <Stack gap={5}>
             <Section
                 title="Como o arquivo escreve os valores"
-                hint="Conferimos cada linha pelo formato que você escolher. No automático, olhamos o arquivo todo; uma data como 05/03/2026, que pode ser dos dois jeitos, segue o idioma da sua família."
+                hint="Conferimos cada linha pelo formato que você escolher. No automático, olhamos o arquivo todo; uma data como 05/03/2026, que pode ser dos dois jeitos, é lida como dia/mês/ano, o formato do arquivo que o app exporta."
             >
                 <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={5}>
                     <FormatSelect label="Formato das datas" value={formats.dateOrder} options={DATE_FORMATS} onChange={(dateOrder) => setFormats((c) => ({ ...c, dateOrder }))} />
@@ -651,7 +651,7 @@ export default function ImportDialog({ open, onClose }) {
     return (
         <Dialog.Root
             open={open}
-            onOpenChange={(e) => !e.open && !busy && close()}
+            onOpenChange={(e) => !e.open && !busy && !checking && close()}
             size="xl"
             scrollBehavior="inside"
             closeOnInteractOutside={false}

@@ -2,7 +2,16 @@ import csv
 import io
 from datetime import date
 
-from api.gateways.documents.base import MAX_FILE_BYTES, MAX_ROWS, Cell, Document, Table, UnreadableDocument
+from api.gateways.documents.base import (
+    MAX_BLANK_ROWS,
+    MAX_COLUMNS,
+    MAX_FILE_BYTES,
+    MAX_ROWS,
+    Cell,
+    Document,
+    Table,
+    UnreadableDocument,
+)
 from api.utils.formatting import format_amount_br, format_date_br, neutralize_formula
 
 
@@ -49,13 +58,18 @@ class CsvGateway:
         if not header_line.strip():
             raise UnreadableDocument("O arquivo está vazio.")
         delimiter = ";" if header_line.count(";") >= header_line.count(",") else ","
+        lines: list[list[str]] = []
+        filled = 0
         try:
-            lines = list(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter))
+            for line in csv.reader(io.StringIO(text, newline=""), delimiter=delimiter):
+                lines.append(line[:MAX_COLUMNS])
+                filled += any(cell.strip() for cell in line)
+                # Counted while reading: five million empty lines must not be built first and refused afterwards
+                if filled > MAX_ROWS + 1 or len(lines) > MAX_ROWS + MAX_BLANK_ROWS + 1:  # +1: the header
+                    raise UnreadableDocument(f"O arquivo tem linhas demais (o máximo é {MAX_ROWS}).")
         except csv.Error:
             raise UnreadableDocument("Não foi possível ler o arquivo CSV.") from None
         rows = [[cell.strip() or None for cell in line] for line in lines[1:]]
         while rows and not any(rows[-1]):  # blank lines at the end are not rows
             rows.pop()
-        if sum(1 for row in rows if any(row)) > MAX_ROWS:
-            raise UnreadableDocument(f"O arquivo tem linhas demais (o máximo é {MAX_ROWS}).")
         return Table(columns=[cell.strip() for cell in lines[0]], rows=rows)

@@ -1,4 +1,6 @@
 from api.gateways.documents.base import (
+    MAX_BLANK_ROWS,
+    MAX_COLUMNS,
     MAX_FILE_BYTES,
     MAX_ROWS,
     Cell,
@@ -30,6 +32,8 @@ def get_document_gateway(file_format: str) -> DocumentGateway:
 
 
 __all__ = [
+    "MAX_BLANK_ROWS",
+    "MAX_COLUMNS",
     "MAX_FILE_BYTES",
     "MAX_ROWS",
     "UnreadableDocument",

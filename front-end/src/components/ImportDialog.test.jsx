@@ -206,6 +206,32 @@ describe('import dialog', () => {
     })
   })
 
+  describe('while the file is being sent', () => {
+    it('does not close with Esc, which would leave the file on the server with nobody to use or delete it', async () => {
+      let answer
+      mockApi({ 'POST /imports': () => new Promise((resolve) => (answer = () => resolve(jsonResponse({ data: uploaded() }, 201)))) })
+      open()
+      await chooseFile()
+      await userEvent.click(screen.getByRole('button', { name: 'Enviar arquivo' }))
+
+      await userEvent.keyboard('{Escape}')
+
+      expect(onClose).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled()
+      await act(async () => answer())
+      expect(await screen.findByLabelText('Formato das datas')).toBeInTheDocument() // and it went on normally
+    })
+
+    it('closes with Esc when nothing is being sent', async () => {
+      mockApi({})
+      open()
+
+      await userEvent.keyboard('{Escape}')
+
+      await waitFor(() => expect(onClose).toHaveBeenCalled())
+    })
+  })
+
   describe('step 2: formats', () => {
     const putBody = (api) => JSON.parse(api.mock.calls.find(([, o]) => o?.method === 'PUT')[1].body)
     const options = (label) => within(screen.getByLabelText(label)).getAllByRole('option').map((o) => o.textContent)

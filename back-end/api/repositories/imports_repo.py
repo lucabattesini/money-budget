@@ -12,6 +12,11 @@ STUCK_AFTER = timedelta(minutes=5)
 # All times come from the database clock, so the app and the database can never disagree about "now".
 
 
+def _last_touched():
+    """When the person last did something with the job: confirmed it, or else uploaded it."""
+    return func.coalesce(ImportJobDB.queued_at, ImportJobDB.created_at)
+
+
 def create_import_job(
     db: Session, family_id: int, user_id: int, filename: str, columns: list[str], raw_rows: list
 ) -> ImportJobDB:
@@ -125,14 +130,18 @@ def fail_stuck_import_jobs(db: Session, family_id: int, error: str) -> None:
 
 
 def delete_old_import_jobs(db: Session) -> None:
-    """Throw away every job (and its rows) that is older than a day, whoever it belongs to."""
-    db.query(ImportJobDB).filter(ImportJobDB.created_at < func.now() - KEEP_JOBS_FOR).delete(synchronize_session=False)
+    """Throw away every job (and its rows) that is older than a day, whoever it belongs to. A job counts from the moment
+    it was confirmed, if it was: one that waited a long time for the person must not vanish while it runs."""
+    db.query(ImportJobDB).filter(_last_touched() < func.now() - KEEP_JOBS_FOR).delete(synchronize_session=False)
     db.commit()
 
 
 def is_expired(job: ImportJobDB, db: Session) -> bool:
-    """True if the job is older than the time jobs are kept (asked of the database clock)."""
-    return db.query(func.now() - KEEP_JOBS_FOR > job.created_at).scalar() is True
+    """True if the job is older than the time jobs are kept (asked of the database clock), counted as above."""
+    return (
+        db.query(ImportJobDB.id).filter(ImportJobDB.id == job.id, _last_touched() < func.now() - KEEP_JOBS_FOR).first()
+        is not None
+    )
 
 
 def existing_transaction_keys(db: Session, family_id: int, first: date, last: date) -> set[tuple]:

@@ -12,3 +12,4 @@ requests==2.34.2
 openpyxl==3.1.5
 alembic==1.20.1
 python-multipart==0.0.20
+defusedxml==0.7.1

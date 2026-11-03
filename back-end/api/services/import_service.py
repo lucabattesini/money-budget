@@ -85,7 +85,9 @@ def encode_cell(cell: Cell):
         return {"n": str(cell)}
     if isinstance(cell, date):
         return {"d": cell.isoformat()}
-    return cell
+    if cell is None or isinstance(cell, str):
+        return cell
+    return str(cell)  # nothing else can be kept in the database as it is
 
 
 def decode_cell(value) -> Cell:
@@ -116,12 +118,13 @@ def _text(cell) -> str:
     return remove_formula_guard(str(cell)).strip()
 
 
-def resolve_date_order(raw_rows: list[list], date_position: int, requested: str, language: str) -> str:
+def resolve_date_order(raw_rows: list[list], date_position: int, requested: str) -> str:
     """Whether the dates written as text are day first or month first.
 
     `requested` is what the person chose; "auto" looks at the file: a first number above 12 (15/03/2026) can only be a
     day, a second number above 12 (03/15/2026) can only be a day too, so the order is known as soon as one date shows
-    it. If no date does, or they contradict each other, the family's language decides: English writes the month first.
+    it. If no date does, or they contradict each other, it is day first: the order of the file the app itself exports
+    (and of the page that describes the format). The person is told how the dates were read and can choose.
     Real date cells are the same in every order, and "2026-03-15" too unless the person chose a strict format.
     """
     if requested in (DAY_FIRST, MONTH_FIRST, ISO):
@@ -135,7 +138,7 @@ def resolve_date_order(raw_rows: list[list], date_position: int, requested: str,
             month_first = month_first or parts[1] > 12
     if day_first != month_first:
         return DAY_FIRST if day_first else MONTH_FIRST
-    return MONTH_FIRST if language == "en" else DAY_FIRST
+    return DAY_FIRST
 
 
 def _read_date(cell, today: date, order: str, strict: bool) -> tuple[date | None, str | None]:
@@ -223,6 +226,8 @@ def check_table(
         category = _text(cell("Categoria"))
         if not category:
             found.append("a categoria é obrigatória.")
+        if "\x00" in label or "\x00" in category:  # the database cannot hold it
+            found.append("a descrição ou a categoria tem um caractere inválido.")
 
         cents, error = _read_amount(cell("Valor"), amount_style)
         kind = "debit"

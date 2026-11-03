@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from api.gateways.documents import MAX_FILE_BYTES, UnreadableDocument, get_document_gateway
 from api.repositories.categories_repo import get_all_categories as get_all_categories_repo
 from api.repositories.categories_repo import lock_family
-from api.repositories.families_repo import get_family
 from api.repositories.imports_repo import (
     add_transactions,
     create_import_job,
@@ -232,7 +231,7 @@ def match_columns(
         raise _unprocessable("Formato desconhecido.")
     if sign != TYPE_COLUMN and mapping.get("Tipo") is not None:
         raise _unprocessable("Com o sinal do valor dizendo se é débito ou crédito, não escolha uma coluna para o Tipo.")
-    order = resolve_date_order(job.raw_rows, mapping["Data"], date_order, get_family(db, family_id).language)
+    order = resolve_date_order(job.raw_rows, mapping["Data"], date_order)
     rows, problems = check_table(
         job.raw_rows, mapping, date.today(), order, amount_style, sign, strict_dates=date_order != "auto"
     )
@@ -268,11 +267,12 @@ def cancel_import(db: Session, job_id: int, family_id: int, user_id: int) -> Non
 def start_import(db: Session, job_id: int, family_id: int, user_id: int) -> ImportJobDB:
     """Step 4: queue the import. The transactions are saved later by run_import_job.
 
-    One import at a time per family. The family row is locked so two clicks cannot both get through the check.
+    One import at a time per family. The family row is locked so two clicks cannot both get through the check. Nothing
+    may commit between taking the lock and queueing the job (a commit gives the lock up), so stuck jobs are cleared first.
     """
+    fail_stuck_import_jobs(db, family_id, STUCK_MESSAGE)  # commits: before the lock
     lock_family(db, family_id)
     job = _checked(_staged(db, job_id, family_id, user_id))
-    fail_stuck_import_jobs(db, family_id, STUCK_MESSAGE)
     if has_active_import_job(db, family_id):
         db.rollback()
         raise HTTPException(

@@ -171,8 +171,12 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   so a new format is a new gateway and nothing else changes. Each gateway also has a **reading side**,
   `read(bytes) -> Table`: CSV is UTF-8 with or without a BOM, separated by `;` or `,` (whichever the header uses
   more); Excel is read in read-only mode from the first sheet, keeping real dates and numbers. Reading enforces the
-  limits (5 MB, 20,000 rows with something in them) while it reads, so a huge file is never loaded unchecked, and
-  raises `UnreadableDocument` with a message for the person.
+  limits (5 MB, 20,000 rows with something in them, and at most 1,000 empty rows on top of that, because a few KB of
+  Excel can declare a million; only the first 100 columns) while it reads, so a huge file is never built, and raises
+  `UnreadableDocument` with a message for the person for anything it cannot read (a damaged sheet included). Times and
+  durations in Excel are read as text, and a number is read as Excel shows it (15 significant digits, so a cell that
+  holds 0.30000000000000004 is 0.3); formulas are read as their last saved result, so an Excel file whose formulas
+  were never calculated has empty cells.
 - `utils/formatting.py` — pure helpers for how values are shown: `1.234,56`,
   `DD/MM/YYYY`, Débito / Crédito, and `neutralize_formula`, which stops text a
   user typed (a description) from running as a formula when the file is opened
@@ -573,7 +577,8 @@ separate worker would be the next step if exports ever get large.
 
 **Import jobs** (`import_jobs` table, `/imports`): importing is a conversation in steps, so the file waits on the
 server between them. The job goes `staged -> queued -> running -> done | failed`.
-1. `POST /imports` (multipart upload, needs `python-multipart`) reads the file through the document gateway (`.xlsx`
+1. `POST /imports` (multipart upload, needs `python-multipart`; one declared as larger than 5 MB is refused with `413`
+   before its body is read, even before the login is checked) reads the file through the document gateway (`.xlsx`
    or `.csv`; unreadable files are a `422` with a message: wrong type, over 5 MB or 20,000 rows, empty, not UTF-8) and
    stores it as it is (`columns`, `raw_rows`, status `staged`). The answer has the column names, a suggested matching
    (the column named like each field, ignoring case and accents), a suggested sign convention and the first rows.
@@ -583,8 +588,8 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    Descrição, Categoria, Valor and Tipo (only Tipo may be null; a column serves one field only). `date_order` is
    `auto`, `day_first` (15/03/2026), `month_first` (03/15/2026) or `iso` (2026-10-13); separators `/ - .` are accepted,
    and a real Excel date is accepted in any case. `auto` reads the file: a number above 12 in the first place proves
-   day first, in the second place month first, and if no date proves it the family's language decides (English:
-   month first); `auto` also accepts year-first dates, while a chosen format is strict. `amount_style` is `auto`,
+   day first, in the second place month first, and if no date proves it, it is day first, the order of the file the app
+   exports and of the page that describes it, whatever the family's language; `auto` also accepts year-first dates, while a chosen format is strict. `amount_style` is `auto`,
    `br` (`1.234,56`) or `us` (`1,234.56`); `auto` takes the last mark as the decimal mark, decimals are at most two, so
    three digits after a mark are a group (`1,234` and `1.234` are 1234), and `R$`/`$` are accepted. `sign` is
    `type_column` (the amount must not be negative and Tipo, empty meaning Débito, says the direction), `negative_debit`
@@ -609,8 +614,10 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    imported. Imported rows belong to the family and `user_id` is the person who uploaded. If a chosen category was
    deleted in between, the job fails and nothing is saved. `DELETE /imports/{id}` gives up a staged job.
 
-Like exports: one import at a time per family (the family row is locked while checking, so two clicks cannot both
-pass), a job older than a day is deleted whenever anyone uploads and answers `404` before that, a job queued for
+Like exports: one import at a time per family (stuck jobs are cleared first, then the family row is locked and nothing
+commits until the job is queued, because a commit gives the lock up; so two members pressing Import together cannot
+both pass), a job is deleted whenever anyone uploads once a day has passed since it was confirmed (since it was
+uploaded, if it never was) and answers `404` from then on, a job queued for
 over five minutes is marked failed the next time it is read or started, a failed job shows a generic message (details
 in the log), and a foreign family's or another person's job answers `404`. The file and the rows are dropped from the job when it
 finishes.
@@ -712,7 +719,8 @@ sequenceDiagram
   is no SQLite fallback.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
   calls), Meta WhatsApp Cloud API (chat channel). Libraries: `openpyxl` (writes
-  and reads Excel files in the document gateway), `python-multipart` (file uploads for the import) and `alembic`
+  and reads Excel files in the document gateway), `defusedxml` (makes openpyxl safe against crafted XML in uploaded
+  files), `python-multipart` (file uploads for the import) and `alembic`
   (database migrations).
 
 ## 6. Testing

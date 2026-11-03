@@ -438,7 +438,9 @@ def test_a_day_above_twelve_in_the_second_place_shows_the_dates_are_month_first(
     assert [day for day, _, _ in saved] == [date(2026, 3, 5), date(2026, 3, 15)]  # the 5th of March, not of May
 
 
-def test_dates_that_could_be_either_follow_the_language_of_the_family(client, db, user, auth_headers, queue):
+def test_dates_that_could_be_either_are_day_first_whatever_the_language_of_the_family(
+    client, db, user, auth_headers, queue
+):
     answer, saved = _read_back(client, queue, db, user, auth_headers, "05/03/2026;a;Aluguel;1,00")
     assert answer["date_order"] == "day_first"
     assert saved[0][0] == date(2026, 3, 5)
@@ -447,8 +449,9 @@ def test_dates_that_could_be_either_follow_the_language_of_the_family(client, db
     db.get(Families, user.family_id).language = "en"
     db.commit()
     answer, saved = _read_back(client, queue, db, user, auth_headers, "05/03/2026;a;Aluguel;1,00")
-    assert answer["date_order"] == "month_first"
-    assert saved[0][0] == date(2026, 5, 3)  # the same text, read the American way
+    # The file the app itself exports is day first, in any language, so a file that cannot tell is read that way
+    assert answer["date_order"] == "day_first"
+    assert saved[0][0] == date(2026, 3, 5)
 
 
 @pytest.mark.parametrize("order, day", [("day_first", date(2026, 3, 5)), ("month_first", date(2026, 5, 3))])
@@ -1206,3 +1209,152 @@ def test_nobody_else_can_see_or_use_a_job_not_even_in_the_same_family(
 
 def test_an_unknown_job_is_not_found(client, auth_headers):
     assert client.get("/imports/999999", headers=auth_headers).status_code == 404
+
+
+# --- found in review ------------------------------------------------------------------------------------------------
+
+
+def test_an_exported_file_of_an_english_speaking_family_is_read_back_the_same(client, db, user, auth_headers, queue):
+    db.get(Families, user.family_id).language = "en"
+    db.commit()
+
+    _, saved = _read_back(client, queue, db, user, auth_headers, "03/02/2026;a;Aluguel;1,00;Débito")  # 3 February
+
+    assert saved[0][0] == date(2026, 2, 3)
+
+
+def test_an_excel_file_with_a_time_column_can_be_imported(client, db, user, auth_headers, queue):
+    from datetime import time
+
+    content = _xlsx(
+        [
+            ["Data", "Hora", "Descrição", "Categoria", "Valor"],
+            [datetime(2026, 3, 15), time(10, 30), "Almoço", "Aluguel", 12.5],
+        ]
+    )
+    uploaded = _upload(client, auth_headers, content, "extrato.xlsx")
+    assert uploaded.status_code == 201, uploaded.text
+    job = uploaded.json()["data"]
+    assert job["sample"] == [["15/03/2026", "10:30:00", "Almoço", "Aluguel", "12.5"]]
+    _match(client, auth_headers, job["id"], {"Data": 0, "Descrição": 2, "Categoria": 3, "Valor": 4, "Tipo": None})
+    _start(client, auth_headers, job["id"])
+    queue.run()
+
+    assert _types(db, user) == [("Almoço", 1250, "debit")]
+
+
+def test_a_damaged_excel_file_is_refused_with_a_message(client, auth_headers):
+    import zipfile
+
+    good = zipfile.ZipFile(io.BytesIO(_xlsx([["a"], ["b"]])))
+    damaged = io.BytesIO()
+    with zipfile.ZipFile(damaged, "w") as archive:
+        for name in good.namelist():
+            archive.writestr(name, b"<broken" if name.startswith("xl/worksheets/sheet1") else good.read(name))
+
+    response = _upload(client, auth_headers, damaged.getvalue(), "extrato.xlsx")
+
+    assert response.status_code == 422
+    assert "Excel" in response.json()["detail"]
+
+
+def test_an_upload_declared_over_the_limit_is_refused_before_anything_is_read(client, db):
+    big = b"x" * (6 * 1024 * 1024)
+
+    response = client.post("/imports", files={"file": ("grande.csv", big, "text/csv")})  # not even logged in
+
+    assert response.status_code == 413
+    assert "5 MB" in response.json()["detail"]
+    assert db.query(ImportJobDB).count() == 0
+
+
+def test_an_upload_under_the_limit_still_goes_through_the_size_check(client, auth_headers):
+    assert _upload(client, auth_headers, _csv(GOOD_ROW)).status_code == 201
+
+
+def test_a_nul_character_in_a_description_is_a_problem_not_a_failed_import():
+    from api.services.import_service import check_table
+
+    rows, problems = check_table(
+        [["15/03/2026", "a\x00b", "Aluguel", "1,00"]],
+        {"Data": 0, "Descrição": 1, "Categoria": 2, "Valor": 3, "Tipo": None},
+        date(2026, 11, 3),
+    )
+
+    assert rows == []
+    assert [p.row for p in problems] == [2]
+
+
+def test_if_the_end_of_the_save_fails_after_the_rows_were_written_none_of_them_stay(
+    client, db, user, auth_headers, queue, monkeypatch
+):
+    job = _stage(client, auth_headers, GOOD_ROW, "01/03/2026;Salário;Aluguel;5,00;Crédito")
+    _start(client, auth_headers, job["id"])
+    real = imports_controller.mark_done
+
+    def fails_after_the_rows_were_sent_to_the_database(session, *args, **kwargs):
+        session.flush()  # the rows are really in the transaction now
+        assert db.query(TransactionDB).count() == 2
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr(imports_controller, "mark_done", fails_after_the_rows_were_sent_to_the_database)
+
+    queue.run()
+
+    monkeypatch.setattr(imports_controller, "mark_done", real)
+    after = client.get(f"/imports/{job['id']}", headers=auth_headers).json()["data"]
+    assert after["status"] == "failed" and after["error"] == imports_controller.FAILED_MESSAGE
+    assert _saved(db, user) == []
+
+
+def test_starting_clears_stuck_jobs_before_taking_the_family_lock_and_commits_nothing_in_between(
+    client, db, user, auth_headers, monkeypatch
+):
+    """A commit gives the row lock up. If one happened between the lock and queueing the job, two members pressing
+    Import together could both pass the "one at a time" check."""
+    from sqlalchemy.orm import Session
+
+    job = _stage(client, auth_headers, GOOD_ROW)
+    events = []
+    real_lock, real_stuck, real_commit = (
+        imports_controller.lock_family,
+        imports_controller.fail_stuck_import_jobs,
+        Session.commit,
+    )
+
+    monkeypatch.setattr(
+        imports_controller,
+        "fail_stuck_import_jobs",
+        lambda *a, **k: (events.append("clear stuck"), real_stuck(*a, **k))[1],
+    )
+    monkeypatch.setattr(
+        imports_controller, "lock_family", lambda *a, **k: (events.append("lock"), real_lock(*a, **k))[1]
+    )
+    monkeypatch.setattr(Session, "commit", lambda self: (events.append("commit"), real_commit(self))[1])
+    real_queue = imports_controller.mark_queued
+    monkeypatch.setattr(
+        imports_controller, "mark_queued", lambda *a, **k: (events.append("queue"), real_queue(*a, **k))[1]
+    )
+
+    assert _start(client, auth_headers, job["id"]).status_code == 202
+
+    assert events.index("clear stuck") < events.index("lock") < events.index("queue")
+    assert (
+        "commit" not in events[events.index("lock") : events.index("queue")]
+    )  # the lock is held until the job is queued
+
+
+def test_a_job_confirmed_just_now_does_not_expire_because_it_was_uploaded_long_ago(
+    client, db, user, auth_headers, queue
+):
+    job = _stage(client, auth_headers, GOOD_ROW)
+    _start(client, auth_headers, job["id"])
+    row = db.get(ImportJobDB, job["id"])
+    row.created_at = datetime.now() - timedelta(days=2)  # waited a long time for the person
+    db.commit()
+
+    assert client.get(f"/imports/{job['id']}", headers=auth_headers).status_code == 200
+    _stage(client, auth_headers, "01/03/2026;Salário;Aluguel;5,00;Crédito")  # another upload cleans up old jobs
+    assert db.query(ImportJobDB).filter_by(id=job["id"]).count() == 1
+    queue.run()
+    assert client.get(f"/imports/{job['id']}", headers=auth_headers).json()["data"]["status"] == "done"
