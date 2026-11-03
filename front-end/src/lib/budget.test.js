@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { budgetStatus, monthKey, monthLabel, shiftMonth } from './budget'
+import { budgetsLink, budgetStatus, monthDays, monthFromLink, monthKey, monthLabel, shiftMonth, transactionsLink } from './budget'
 import { setLocale } from './locale'
 
 describe('months', () => {
@@ -43,5 +43,50 @@ describe('how a category is going', () => {
   it('has no bar when nothing is planned, however much was spent', () => {
     expect(budgetStatus(5000, 0)).toEqual({ state: 'none', percent: 0 })
     expect(budgetStatus(5000, null)).toEqual({ state: 'none', percent: 0 })
+  })
+})
+
+describe('monthFromLink', () => {
+  it('takes the month a link asks for', () => {
+    expect(monthFromLink('2026-03', '2026-11')).toBe('2026-03')
+    expect(monthFromLink('2000-01', '2026-11')).toBe('2000-01')
+    expect(monthFromLink('2099-12', '2026-11')).toBe('2099-12')
+  })
+
+  it.each([null, undefined, '', 'março', '2026-3', '2026-13', '2026-00', '2026-03-15', '1999-12', '2100-01', '26-03'])(
+    'falls back to the given month for %j',
+    (value) => {
+      expect(monthFromLink(value, '2026-11')).toBe('2026-11')
+    },
+  )
+})
+
+describe('monthDays', () => {
+  it('gives the first and last day of the month', () => {
+    expect(monthDays('2026-03')).toEqual({ from: '2026-03-01', to: '2026-03-31' })
+    expect(monthDays('2026-04')).toEqual({ from: '2026-04-01', to: '2026-04-30' })
+    expect(monthDays('2026-12')).toEqual({ from: '2026-12-01', to: '2026-12-31' })
+  })
+
+  it('knows February, leap years included', () => {
+    expect(monthDays('2026-02').to).toBe('2026-02-28')
+    expect(monthDays('2028-02').to).toBe('2028-02-29')
+    expect(monthDays('2100-02').to).toBe('2100-02-28') // a century that is not a leap year
+  })
+})
+
+describe('links from the dashboard', () => {
+  it('opens the budgets on that month', () => {
+    expect(budgetsLink('2026-03')).toBe('/budgets?month=2026-03')
+  })
+
+  it('opens the transactions with the days of that month, and optionally only debits or credits', () => {
+    expect(transactionsLink('2026-02')).toBe('/transactions?from=2026-02-01&to=2026-02-28')
+    expect(transactionsLink('2026-02', 'debit')).toBe('/transactions?from=2026-02-01&to=2026-02-28&type=debit')
+    expect(transactionsLink('2026-02', 'credit')).toBe('/transactions?from=2026-02-01&to=2026-02-28&type=credit')
+  })
+
+  it('makes links the pages read back to the same month', () => {
+    expect(monthFromLink(new URLSearchParams(budgetsLink('2027-05').split('?')[1]).get('month'), 'x')).toBe('2027-05')
   })
 })

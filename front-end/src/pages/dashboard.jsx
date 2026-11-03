@@ -106,12 +106,12 @@ export default function Dashboard() {
                     <Grid templateColumns={{ base: "1fr", lg: "3fr 2fr" }} gap={6} alignItems="start">
                         {/* On a phone the two columns become one list and the chart goes last (order); on a wide screen they are columns */}
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
-                            <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} /></Box>
-                            <Box order={{ base: 2, lg: 0 }}><CashFlowCard entered={entered} spent={sumCents(spending)} /></Box>
+                            <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} month={month} /></Box>
+                            <Box order={{ base: 2, lg: 0 }}><CashFlowCard entered={entered} spent={sumCents(spending)} month={month} /></Box>
                             <Box order={{ base: 5, lg: 0 }}><SpendingCard transactions={outgoing} month={month} now={now} /></Box>
                         </Stack>
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
-                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} /></Box>
+                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} month={month} /></Box>
                             <Box order={{ base: 4, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
                         </Stack>
                     </Grid>

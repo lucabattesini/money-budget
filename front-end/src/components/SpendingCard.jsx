@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Box, HStack, Stack, Text } from "@chakra-ui/react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { shiftMonth } from "../lib/budget";
+import { shiftMonth, transactionsLink } from "../lib/budget";
 import { spendingByDay } from "../lib/dashboard";
 import { formatDate, formatMoney, useLocale } from "../lib/locale";
 import { formatCents } from "../lib/money";
@@ -24,7 +24,7 @@ export default function SpendingCard({ transactions, month, now }) {
     const percent = series.change === null ? null : Math.round(Math.abs(series.change) * 100);
 
     return (
-        <DashboardCard title="Gastos" to="/transactions" linkText="Ver transações">
+        <DashboardCard title="Gastos" to={transactionsLink(month, "debit")} linkText="Ver transações">
             <Stack gap={1} mb={4}>
                 <Text fontSize="2xl" fontWeight="bold" lineHeight="1.1" aria-label="Total gasto no mês">
                     {formatCents(series.spent)}

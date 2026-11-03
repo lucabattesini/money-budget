@@ -162,7 +162,7 @@ describe('dashboard', () => {
 
     const panel = within(await waitFor(() => card('Orçamento')))
     expect(await panel.findByText(/Nenhum orçamento definido/)).toBeInTheDocument()
-    expect(panel.getByRole('link', { name: 'Definir orçamentos' })).toHaveAttribute('href', '/budgets')
+    expect(panel.getByRole('link', { name: 'Definir orçamentos' })).toHaveAttribute('href', '/budgets?month=2026-03')
   })
 
   it('still shows the rest of the page, without an error message, when the budgets cannot be loaded', async () => {
@@ -382,6 +382,53 @@ describe('dashboard', () => {
       )
       expect(budget.compareDocumentPosition(flow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       expect(flow.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+  })
+
+  describe('links to the other pages', () => {
+    const link = (name) => screen.getByRole('link', { name })
+
+    it('opens each page on the month the dashboard shows', async () => {
+      mockApi(ROUTES)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByLabelText('Total gasto no mês')
+      expect(link('Ver orçamentos')).toHaveAttribute('href', '/budgets?month=2026-03')
+      const transactions = screen.getAllByRole('link', { name: /^Ver transações$|^Ver todas$/ }).map((a) => a.getAttribute('href'))
+      expect(transactions).toEqual(expect.arrayContaining(['/transactions?from=2026-03-01&to=2026-03-31&type=debit']))
+      expect(link('Ver todas')).toHaveAttribute('href', '/transactions?from=2026-03-01&to=2026-03-31&type=debit')
+    })
+
+    it('sends the entries and exits panel to all the transactions of the month, credits included', async () => {
+      mockApi(ROUTES)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByLabelText('Total gasto no mês')
+      const hrefs = screen.getAllByRole('link', { name: 'Ver transações' }).map((a) => a.getAttribute('href'))
+      expect(hrefs).toEqual(
+        expect.arrayContaining(['/transactions?from=2026-03-01&to=2026-03-31', '/transactions?from=2026-03-01&to=2026-03-31&type=debit']),
+      )
+    })
+
+    it('follows the month chosen with the switcher', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />)
+      await screen.findByLabelText('Total gasto no mês')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+
+      await waitFor(() => expect(link('Ver orçamentos')).toHaveAttribute('href', '/budgets?month=2026-02'))
+      expect(link('Ver todas')).toHaveAttribute('href', '/transactions?from=2026-02-01&to=2026-02-28&type=debit')
+    })
+
+    it('opens the budgets on the same month when the plan is still to be made', async () => {
+      mockApi({ ...ROUTES, [MARCH]: { data: budgetOf('2026-03', 0, 0) } })
+
+      renderApp(<Dashboard />)
+
+      expect(await screen.findByRole('link', { name: 'Definir orçamentos' })).toHaveAttribute('href', '/budgets?month=2026-03')
     })
   })
 

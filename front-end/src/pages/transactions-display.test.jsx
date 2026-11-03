@@ -54,6 +54,53 @@ describe('transactions page', () => {
     vi.setSystemTime(new Date(2026, 2, 15, 12, 0, 0))
   })
 
+  describe('opened from a link with filters', () => {
+    it('shows only the transactions of the month in the link, and says the filters are on', async () => {
+      mockApi(routes())
+
+      renderApp(<TransactionsDisplay />, { route: '/transactions?from=2026-03-01&to=2026-03-31&type=debit' })
+
+      await screen.findByText('Mercado')
+      expect(rowsOnPage()).toHaveLength(3)
+      ;['Almoço', 'Mercado', 'Uber'].forEach((label) => expect(screen.getByText(label)).toBeInTheDocument())
+      expect(screen.queryByText('Presente')).not.toBeInTheDocument() // February
+      await openFilters()
+      expect(screen.getByLabelText('De')).toHaveValue('2026-03-01')
+      expect(screen.getByLabelText('Até')).toHaveValue('2026-03-31')
+      expect(screen.getByLabelText('Tipo')).toHaveValue('debit')
+    })
+
+    it('leaves out credits when the link asks for debits only', async () => {
+      mockApi(routes({ data: [{ ...t(1, 'Salário', 300000, '2026-03-05T10:00:00'), type: 'credit' }, t(2, 'Mercado', 12000, '2026-03-06T10:00:00')] }))
+
+      renderApp(<TransactionsDisplay />, { route: '/transactions?from=2026-03-01&to=2026-03-31&type=debit' })
+
+      await screen.findByText('Mercado')
+      expect(screen.queryByText('Salário')).not.toBeInTheDocument()
+    })
+
+    it('includes the last day of the month', async () => {
+      mockApi(routes({ data: [t(1, 'Último dia', 100, '2026-03-31T23:30:00'), t(2, 'Dia seguinte', 100, '2026-04-01T00:10:00')] }))
+
+      renderApp(<TransactionsDisplay />, { route: '/transactions?from=2026-03-01&to=2026-03-31' })
+
+      await screen.findByText('Último dia')
+      expect(screen.queryByText('Dia seguinte')).not.toBeInTheDocument()
+    })
+
+    it('shows everything without a link, and ignores a link that makes no sense', async () => {
+      mockApi(routes())
+      const { unmount } = renderApp(<TransactionsDisplay />)
+      await screen.findByText('Presente')
+      unmount()
+
+      mockApi(routes())
+      renderApp(<TransactionsDisplay />, { route: '/transactions?from=ontem&type=pix' })
+
+      expect(await screen.findByText('Presente')).toBeInTheDocument()
+    })
+  })
+
   it('asks for the categories and for all transactions, with the user token', async () => {
     const api = mockApi(routes())
 

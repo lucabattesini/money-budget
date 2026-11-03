@@ -1,4 +1,5 @@
 import { Box, HStack, Separator, Stack, Text } from "@chakra-ui/react";
+import { transactionsLink } from "../lib/budget";
 import { useLocale } from "../lib/locale";
 import { formatCents } from "../lib/money";
 import DashboardCard from "./DashboardCard";
@@ -19,13 +20,13 @@ function Flow({ label, ariaLabel, cents, largest, color }) {
 }
 
 // What came in and what went out in the month, and what was left over. Both are in cents.
-export default function CashFlowCard({ entered, spent }) {
+export default function CashFlowCard({ entered, spent, month }) {
     useLocale(); // amounts follow the family's currency
     const balance = entered - spent;
     const largest = Math.max(entered, spent);
 
     return (
-        <DashboardCard title="Entradas e saídas">
+        <DashboardCard title="Entradas e saídas" to={transactionsLink(month)} linkText="Ver transações">
             <Stack gap={4}>
                 <Flow label="Entradas" ariaLabel="Entradas do mês" cents={entered} largest={largest} color="green.500" />
                 <Flow label="Saídas" ariaLabel="Saídas do mês" cents={spent} largest={largest} color="red.500" />
