@@ -57,7 +57,10 @@ export default function Dashboard() {
     // The plan of the chosen month. An answer for a month that is no longer on the page is ignored.
     useEffect(() => {
         const token = getToken();
-        if (!token) return;
+        if (!token) {
+            setBudget(null); // no login (the user is being sent to the login page): nothing to wait for
+            return;
+        }
         let current = true;
         setBudget(undefined);
         getBudgets(month, token).then((result) => {

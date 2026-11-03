@@ -176,6 +176,16 @@ describe('dashboard', () => {
     expect(customToaster).not.toHaveBeenCalled()
   })
 
+  it('does not wait forever for the plan when there is no login', async () => {
+    const api = mockApi(ROUTES)
+    localStorage.clear()
+
+    renderApp(<Dashboard />)
+
+    expect(await screen.findByText('Não foi possível carregar os orçamentos.')).toBeInTheDocument()
+    expect(requestsMade(api)).not.toContain(MARCH)
+  })
+
   it('compares the month with the one before, up to the same day', async () => {
     mockApi(ROUTES)
 
