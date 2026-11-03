@@ -1,4 +1,12 @@
-from api.gateways.documents.base import Cell, Document, DocumentGateway, Table
+from api.gateways.documents.base import (
+    MAX_FILE_BYTES,
+    MAX_ROWS,
+    Cell,
+    Document,
+    DocumentGateway,
+    Table,
+    UnreadableDocument,
+)
 from api.gateways.documents.csv_gateway import CsvGateway
 from api.gateways.documents.xlsx_gateway import XlsxGateway
 
@@ -22,6 +30,9 @@ def get_document_gateway(file_format: str) -> DocumentGateway:
 
 
 __all__ = [
+    "MAX_FILE_BYTES",
+    "MAX_ROWS",
+    "UnreadableDocument",
     "Cell",
     "Document",
     "DocumentGateway",

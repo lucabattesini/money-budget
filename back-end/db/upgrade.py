@@ -63,7 +63,9 @@ def detect_revision(inspector) -> str | None:
         return "0013"
     if "position" not in {c["name"] for c in inspector.get_columns("category_groups")}:
         return "0014"
-    return "0015"
+    if not inspector.has_table("import_jobs"):
+        return "0015"
+    return "0016"
 
 
 def upgrade_database(url: str = DATABASE_URL) -> None:

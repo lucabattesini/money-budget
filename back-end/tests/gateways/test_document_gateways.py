@@ -9,6 +9,7 @@ from api.gateways.documents import (
     SUPPORTED_FORMATS,
     CsvGateway,
     Table,
+    UnreadableDocument,
     UnsupportedFormat,
     XlsxGateway,
     get_document_gateway,
@@ -127,3 +128,109 @@ def test_xlsx_with_no_rows_is_just_the_header():
     _, sheet = _sheet(Table(columns=["A", "B"], rows=[]))
 
     assert sheet.max_row == 1
+
+
+# --- reading -----------------------------------------------------------------
+
+
+def _xlsx(rows):
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    for row in rows:
+        workbook.active.append(row)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("delimiter", [";", ","])
+def test_csv_is_read_with_either_separator(delimiter):
+    text = f"Data{delimiter}Descrição{delimiter}Valor\n15/03/2026{delimiter}Almoço{delimiter}\"1.234,50\"\n"
+
+    table = CsvGateway().read(text.encode("utf-8"))
+
+    assert table.columns == ["Data", "Descrição", "Valor"]
+    assert table.rows == [["15/03/2026", "Almoço", "1.234,50"]]
+
+
+def test_csv_written_by_the_gateway_is_read_back():
+    table = CsvGateway().read(CsvGateway().build(TABLE).content)
+
+    assert table.columns == TABLE.columns
+    assert table.rows[1] == ["01/03/2026", 'Aluguel; "março"', "0,05"]
+
+
+def test_csv_empty_cells_are_none_and_trailing_blank_lines_are_dropped():
+    table = CsvGateway().read(b"A;B\n1;\n\n;\n")
+
+    assert table.rows == [["1", None]]
+
+
+def test_csv_blank_lines_in_the_middle_keep_their_place():
+    table = CsvGateway().read(b"A;B\n1;2\n\n3;4\n")
+
+    assert len(table.rows) == 3  # so the third data row is still row 4 of the file
+
+
+def test_csv_that_is_not_utf8_is_refused():
+    with pytest.raises(UnreadableDocument, match="UTF-8"):
+        CsvGateway().read("Data;Descrição\n".encode("latin-1"))
+
+
+def test_an_empty_csv_is_refused():
+    with pytest.raises(UnreadableDocument, match="vazio"):
+        CsvGateway().read(b"")
+
+
+def test_csv_with_too_many_rows_or_bytes_is_refused(monkeypatch):
+    from api.gateways.documents import csv_gateway
+
+    monkeypatch.setattr(csv_gateway, "MAX_ROWS", 2)
+    with pytest.raises(UnreadableDocument, match="linhas demais"):
+        CsvGateway().read(b"A\n1\n2\n3\n")
+
+    monkeypatch.setattr(csv_gateway, "MAX_FILE_BYTES", 5)
+    with pytest.raises(UnreadableDocument, match="grande demais"):
+        CsvGateway().read(b"A;B\n1;2\n")
+
+
+def test_xlsx_keeps_real_dates_and_numbers():
+    content = _xlsx([["Data", "Valor"], [datetime(2026, 3, 15), 12.5], ["  texto  ", 3]])
+
+    table = XlsxGateway().read(content)
+
+    assert table.columns == ["Data", "Valor"]
+    assert table.rows[0] == [date(2026, 3, 15), Decimal("12.5")]
+    assert table.rows[1] == ["texto", Decimal("3")]
+
+
+def test_xlsx_written_by_the_gateway_is_read_back():
+    table = XlsxGateway().read(XlsxGateway().build(TABLE).content)
+
+    assert table.columns == TABLE.columns
+    assert table.rows == [[date(2026, 3, 15), "Almoço", Decimal("1234.5")], [date(2026, 3, 1), 'Aluguel; "março"', Decimal("0.05")]]
+
+
+def test_xlsx_blank_rows_keep_their_place():
+    table = XlsxGateway().read(_xlsx([["A"], [1], [None], [3]]))
+
+    assert len(table.rows) == 3
+
+
+def test_something_that_is_not_an_xlsx_is_refused():
+    with pytest.raises(UnreadableDocument, match="Excel"):
+        XlsxGateway().read(b"just text, not a zip")
+
+
+def test_an_xlsx_with_nothing_in_it_is_refused():
+    with pytest.raises(UnreadableDocument, match="vazio"):
+        XlsxGateway().read(_xlsx([]))
+
+
+def test_xlsx_with_too_many_rows_is_refused(monkeypatch):
+    from api.gateways.documents import xlsx_gateway
+
+    monkeypatch.setattr(xlsx_gateway, "MAX_ROWS", 2)
+    with pytest.raises(UnreadableDocument, match="linhas demais"):
+        XlsxGateway().read(_xlsx([["A"], [1], [2], [3]]))

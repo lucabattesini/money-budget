@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
+from sqlalchemy import JSON, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
 
 from db.connection import Base
 
@@ -118,6 +118,32 @@ class Budgets(Base):
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     month = Column(Date, nullable=False)  # always the first day of the month
     amount = Column(Integer, nullable=False)  # cents; 0 stops the plan from this month on
+
+
+class ImportJobDB(Base):
+    """A spreadsheet of transactions on its way into the family's data, in steps.
+
+    The file is checked when it is uploaded and its rows are kept here ("staged") while the person settles the
+    categories the file mentions that the family does not have yet. Only then is it queued and imported, in one go,
+    in the background.
+    """
+
+    __tablename__ = "import_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # where the transactions go
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # who uploaded it; only they can follow it
+    status = Column(String(10), nullable=False, default="staged")  # staged -> queued -> running -> done | failed
+    filename = Column(String(255))  # the name of the uploaded file, to talk about it
+    rows = Column(JSON)  # the checked rows, [{"row", "date", "label", "value", "type", "category"}]; emptied when done
+    category_map = Column(JSON)  # {name in the file: id of the category the person chose for it}
+    total_rows = Column(Integer)
+    imported_count = Column(Integer)
+    skipped = Column(JSON)  # the rows left out because the family already had them
+    error = Column(String(255))
+    created_at = Column(DateTime, server_default=func.now())  # when the file was uploaded
+    queued_at = Column(DateTime)  # when the person confirmed; a job queued or running for too long is stuck
+    finished_at = Column(DateTime)
 
 
 class ExportJobDB(Base):

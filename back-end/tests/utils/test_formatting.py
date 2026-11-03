@@ -3,7 +3,16 @@ from decimal import Decimal
 
 import pytest
 
-from api.utils.formatting import format_amount_br, format_date_br, neutralize_formula, type_label
+from api.utils.formatting import (
+    format_amount_br,
+    format_date_br,
+    neutralize_formula,
+    parse_amount,
+    parse_date_br,
+    parse_type,
+    remove_formula_guard,
+    type_label,
+)
 
 
 @pytest.mark.parametrize(
@@ -70,3 +79,61 @@ def test_the_day_and_month_follow_the_language():
 
     assert format_day_month(date(2026, 3, 5), "pt") == "05/03"
     assert format_day_month(date(2026, 3, 5), "en") == "03/05"
+
+
+# --- reading what the export writes ------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("1.234,56", Decimal("1234.56")),
+        ("12,5", Decimal("12.5")),
+        ("12,50", Decimal("12.50")),
+        ("12.50", Decimal("12.50")),
+        ("1234", Decimal("1234")),
+        ("1.234", Decimal("1234")),  # dots grouped in threes are thousands
+        ("1.234.567,89", Decimal("1234567.89")),
+        ("R$ 1.234,56", Decimal("1234.56")),
+        ("-5,00", Decimal("-5.00")),
+        (" 7 ", Decimal("7")),
+    ],
+)
+def test_parse_amount_reads_brazilian_and_plain_numbers(text, expected):
+    assert parse_amount(text) == expected
+
+
+@pytest.mark.parametrize("text", ["", "abc", "1,234,56", "12,345", "1e5", "NaN", "Infinity", "1 2 a", "--3", "1,"])
+def test_parse_amount_rejects_what_is_not_an_amount(text):
+    assert parse_amount(text) is None
+
+
+def test_parse_amount_undoes_format_amount_br():
+    for amount in (Decimal("0.05"), Decimal("1234.5"), Decimal("1000000")):
+        assert parse_amount(format_amount_br(amount)) == amount
+
+
+def test_parse_date_br_reads_only_real_days_in_that_format():
+    assert parse_date_br("15/03/2026") == date(2026, 3, 15)
+    assert parse_date_br(" 01/12/2025 ") == date(2025, 12, 1)
+    for bad in ["2026-03-15", "15/3/2026", "31/02/2026", "15/13/2026", "", "ontem"]:
+        assert parse_date_br(bad) is None
+
+
+def test_parse_type_accepts_the_labels_and_defaults_to_debit():
+    assert parse_type("Débito") == "debit"
+    assert parse_type("crédito") == "credit"
+    assert parse_type("CREDITO") == "credit"
+    assert parse_type("") == "debit"
+    assert parse_type(None) == "debit"
+    assert parse_type("Pix") is None
+
+
+@pytest.mark.parametrize("text", ["=1+1", "+55", "-5", "@user"])
+def test_the_formula_guard_is_removed_again(text):
+    assert remove_formula_guard(neutralize_formula(text)) == text
+
+
+def test_an_apostrophe_in_front_of_ordinary_text_stays():
+    assert remove_formula_guard("'Almoço") == "'Almoço"
+    assert remove_formula_guard("Almoço") == "Almoço"

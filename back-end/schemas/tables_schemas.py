@@ -153,6 +153,12 @@ class ExportJobCreate(BaseModel):
     format: ExportFormat = "csv"
 
 
+class ImportCategoriesChoice(BaseModel):
+    """Which of the family's categories each category name in the file stands for: {"Pets": 12}."""
+
+    mapping: dict[str, int] = Field(max_length=500)
+
+
 class ExportJobOut(BaseModel):
     id: int
     format: ExportFormat

@@ -12,6 +12,7 @@ from api.routers import (
     categories_router,
     exports_router,
     families_router,
+    imports_router,
     transactions_router,
     users_router,
     whatsapp_router,
@@ -34,5 +35,6 @@ app.include_router(categories_router.router)
 app.include_router(budgets_router.router)
 app.include_router(transactions_router.router)
 app.include_router(exports_router.router)
+app.include_router(imports_router.router)
 app.include_router(families_router.router)
 app.include_router(whatsapp_router.router)
