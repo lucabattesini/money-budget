@@ -43,3 +43,31 @@ def test_names_with_the_same_words_are_the_same_whatever_their_emoji_or_case(a, 
 @pytest.mark.parametrize("a, b", [("🛒 Supermercado", "Mercado"), ("Alimentação", "Alimentacao"), ("", "x")])
 def test_different_words_are_different_names(a, b):
     assert not same_name(a, b)
+
+
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        ("Supermercado", "Supermercado​"),  # a zero-width space at the end
+        ("Supermercado", "Super​mercado"),  # in the middle
+        ("Supermercado", "Super‍mercado"),  # a zero-width joiner
+        ("Supermercado", "Super‏mercado"),  # a right-to-left mark
+        ("Supermercado", "Supermercado️"),  # a variation selector
+        ("Super  mercado", "Super mercado"),  # runs of spaces
+        ("Super mercado", "Super mercado"),  # a non-breaking space
+        ("Saúde e Farmácia", "Saúde e Farmácia"),  # accents written as base letter + combining mark
+        ("Ｓupermercado", "Supermercado"),  # a full-width letter
+    ],
+)
+def test_invisible_characters_spaces_and_the_way_an_accent_is_written_do_not_make_a_different_name(a, b):
+    assert same_name(a, b)
+
+
+def test_a_name_made_only_of_invisible_characters_or_an_emoji_has_no_words():
+    from api.utils.category_names import name_key
+
+    assert name_key("​") == name_key("🛒 ‍") == name_key("   ") == ""
+
+
+def test_accents_still_tell_names_apart():
+    assert not same_name("Alimentacao", "Alimentação")

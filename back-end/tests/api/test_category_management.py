@@ -304,7 +304,7 @@ def test_a_name_may_start_with_an_emoji_and_is_kept_as_typed(client, auth_header
     assert "🌱 Plantas" in _list(client, auth_headers)
 
 
-@pytest.mark.parametrize("name", ["🛒", "🛒 ", "🧑‍💻"])
+@pytest.mark.parametrize("name", ["🛒", "🛒 ", "🧑\u200d💻"])
 def test_a_name_with_only_an_emoji_is_refused(client, auth_headers, name):
     response = _post(client, auth_headers, name=name)
 
@@ -334,3 +334,51 @@ def test_renaming_can_add_change_or_drop_the_emoji_without_clashing_with_itself(
 
         assert response.status_code == 200
         assert response.json()["data"]["name"] == new_name
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["Alimentação\u200b", "Alimenta\u200bção", "Alimentac\u0327a\u0303o", "  alimentação  ", "🍴 ALIMENTAÇÃO"],
+)
+def test_a_look_alike_of_a_default_name_is_refused(client, auth_headers, name):
+    """ "Alimentação" is a default in the test database. Invisible characters, accents written in two parts and
+    emoji must not get a second category that looks identical."""
+    assert _post(client, auth_headers, name=name).status_code == 409
+
+
+@pytest.mark.parametrize("name", ["\u200b", "🛒\u200b", "\u200d"])
+def test_a_name_with_nothing_visible_is_refused_as_empty(client, auth_headers, name):
+    response = _post(client, auth_headers, name=name)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O nome da categoria não pode ficar vazio."
+
+
+def test_a_category_that_a_transaction_takes_while_it_is_being_deleted_is_in_use_not_a_server_error(
+    client, user, auth_headers, own, monkeypatch
+):
+    """The count said 0, then a transaction took the category before the delete: the database refuses the delete."""
+    from api.controllers import categories_controller
+    from schemas.tables import TransactionDB
+
+    real = categories_controller.count_transactions_using
+    calls = []
+
+    def stale_then_real(session, category_id):
+        calls.append(category_id)
+        if len(calls) == 1:
+            # What another request did between the count and the delete, in the same transaction here
+            session.add(
+                TransactionDB(family_id=user.family_id, user_id=user.id, label="late", value=1, category_id=category_id)
+            )
+            session.flush()
+            return 0
+        return real(session, category_id)
+
+    monkeypatch.setattr(categories_controller, "count_transactions_using", stale_then_real)
+
+    response = client.delete(f"/categories/{own['id']}", headers=auth_headers)
+
+    assert response.status_code == 409
+    assert "Mude a categoria" in response.json()["detail"]
+    assert "Plantas" in _list(client, auth_headers)

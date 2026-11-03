@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from api.utils.category_names import plain_name
 from schemas.tables import Categories, ExportJobDB, Families, FamilyInvites, TransactionDB, Users
 
 INVITE_LIFETIME = timedelta(days=7)  # asked of the database clock, like the export times
@@ -81,8 +82,8 @@ def cancel_invite(db: Session, family_id: int, invite_id: int) -> bool:
 
 
 def _fold(name: str | None) -> str:
-    """A name without case, accents or surrounding spaces, so "Alimentação" and " alimentacao" match."""
-    decomposed = unicodedata.normalize("NFKD", (name or "").strip())
+    """A name without emoji, case, accents or surrounding spaces, so "🍽️ Alimentação" and " alimentacao" match."""
+    decomposed = unicodedata.normalize("NFKD", plain_name(name))
     return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
 
 
