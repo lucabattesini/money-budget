@@ -349,15 +349,23 @@ person's category becomes uncategorised), `0008` `users.role` (everyone is an ow
 are already empty start their 30 days) and `users.previous_family_id`, `0010` `category_groups` and `categories.group_id`
 (default categories are grouped by name; every other category, such as a family's own, goes to "Outros"; the
 new default categories are created by the seed command), `0011` an emoji in front of the name of each default
-category (data only: no column; a family's own categories are untouched).
+category (data only: no column; a family's own categories are untouched), `0012` the default categories of Monarch
+Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
+into the closest new one, and when several become one their transactions move to the one kept; a family's own
+categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
+names, but merged categories stay merged).
 
-**Category groups.** Categories are listed under a group (Casa, Alimentação, Transporte, Saúde e bem-estar,
-Lazer, Educação, Compras e presentes, Finanças, Receitas, Transferências, Investimentos, Outros). The groups are a fixed set, the same for every family:
+**Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
+Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de
+Vida, Filhos, Educação, Saúde e Bem-estar, Finanças, Outros, Transferências). The groups are a fixed set, the same for every family:
 nothing in the API creates, renames or deletes one. Each category has exactly one (`categories.group_id`, not
-null, a foreign key), and a category saved without one goes to "Outros". The grouping of the 39 default
-categories (26 for spending, plus income, transfer and investment ones such as "Salário", "Transferência entre contas" and "Renda fixa") lives in `db/seed.py` (`DEFAULT_GROUPS`) for new databases; migration `0010` keeps its own copy for
-existing ones. The Categorias page lists the categories under their groups; filters and totals per group are not built yet. The assistant's own
-category list (`schemas/agents_schemas.py`) is separate and does not use groups.
+null, a foreign key), and a category saved without one goes to "Outros". The 51 default
+categories mirror Monarch's (for example "Supermercado", "Restaurantes e Bares", "Luz e gás", "Salário", "Transferência";
+"Sem categoria" in "Outros" is where the assistant puts an expense it cannot place) and live in `db/seed.py`
+(`DEFAULT_GROUPS`) for new databases; migration `0012` keeps its own copy for existing ones, and a test fails when the
+two differ, so changing a default category later needs a new migration. The Categorias page lists the categories under their groups; filters and totals per group are not built yet. The assistant's own
+category list (`schemas/agents_schemas.py`) is separate and does not use groups: it is the default categories
+except income and transfers (a test keeps it in step with the seed).
 
 **Managing categories** (`/categories`, all require login). A family manages only its own categories; the default
 ones (no `family_id`, `is_default` true in the list) are shown but cannot be changed. `POST /categories {name,

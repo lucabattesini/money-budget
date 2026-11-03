@@ -94,9 +94,11 @@ def test_queueing_rejects_an_unknown_format(client, db, auth_headers, file_forma
 def test_csv_file_has_the_documented_columns_and_brazilian_formatting(
     client, user, auth_headers, make_transaction, category_ids, queue
 ):
-    make_transaction(user, category_ids["Alimentação"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0))
     make_transaction(
-        user, category_ids["Transporte"], label="Salário", value=5, when=datetime(2026, 3, 1), type="credit"
+        user, category_ids["Restaurantes e Bares"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0)
+    )
+    make_transaction(
+        user, category_ids["Transporte público"], label="Salário", value=5, when=datetime(2026, 3, 1), type="credit"
     )
     job_id = _run(client, queue, auth_headers, "csv")
 
@@ -107,13 +109,15 @@ def test_csv_file_has_the_documented_columns_and_brazilian_formatting(
     assert response.headers["content-disposition"].startswith('attachment; filename="transacoes-')
     assert _csv_rows(response) == [
         "Data;Descrição;Categoria;Valor;Tipo",
-        "15/03/2026;Almoço;Alimentação;1.234,56;Débito",
-        "01/03/2026;Salário;Transporte;0,05;Crédito",
+        "15/03/2026;Almoço;Restaurantes e Bares;1.234,56;Débito",
+        "01/03/2026;Salário;Transporte público;0,05;Crédito",
     ]
 
 
 def test_xlsx_file_has_real_dates_and_numbers(client, user, auth_headers, make_transaction, category_ids, queue):
-    make_transaction(user, category_ids["Alimentação"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0))
+    make_transaction(
+        user, category_ids["Restaurantes e Bares"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0)
+    )
     job_id = _run(client, queue, auth_headers, "xlsx")
 
     response = _file(client, auth_headers, job_id)
@@ -125,7 +129,7 @@ def test_xlsx_file_has_real_dates_and_numbers(client, user, auth_headers, make_t
     assert (when.value, label.value, category.value, amount.value, kind.value) == (
         datetime(2026, 3, 15, 12, 0),
         "Almoço",
-        "Alimentação",
+        "Restaurantes e Bares",
         1234.56,
         "Débito",
     )
@@ -134,7 +138,7 @@ def test_xlsx_file_has_real_dates_and_numbers(client, user, auth_headers, make_t
 def test_the_file_only_contains_the_callers_transactions(
     client, user, other_user, auth_headers, make_transaction, category_ids, queue
 ):
-    food = category_ids["Alimentação"]
+    food = category_ids["Restaurantes e Bares"]
     make_transaction(user, food, label="Meu")
     make_transaction(other_user, food, label="Segredo do outro")
     job_id = _run(client, queue, auth_headers)
@@ -185,7 +189,7 @@ def test_an_export_without_transactions_is_just_the_header(client, auth_headers,
 
 
 def test_a_description_cannot_run_as_a_formula(client, user, auth_headers, make_transaction, category_ids, queue):
-    make_transaction(user, category_ids["Alimentação"], label='=HYPERLINK("http://evil")')
+    make_transaction(user, category_ids["Restaurantes e Bares"], label='=HYPERLINK("http://evil")')
     job_id = _run(client, queue, auth_headers)
 
     assert "'=HYPERLINK" in _file(client, auth_headers, job_id).content.decode("utf-8-sig")

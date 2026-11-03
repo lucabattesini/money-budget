@@ -37,7 +37,7 @@ from schemas.tables import Categories, CategoryGroups, Families, TransactionDB, 
 
 # "Pets" is deliberately NOT seeded: it is a valid category name in the agents'
 # schemas, so it lets tests exercise the "known name, missing from the database" path.
-TEST_CATEGORIES = ["Alimentação", "Transporte", "Supermercado", "Aluguel", "Outros"]
+TEST_CATEGORIES = ["Restaurantes e Bares", "Transporte público", "Supermercado", "Aluguel", "Sem categoria", "Educação"]
 
 
 def _create_test_database_if_missing():
@@ -234,4 +234,4 @@ def category_ids(db):
 
 @pytest.fixture
 def category_id(db):
-    return db.query(Categories).filter_by(name="Alimentação").one().id
+    return db.query(Categories).filter_by(name="Restaurantes e Bares").one().id

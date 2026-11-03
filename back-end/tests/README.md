@@ -30,8 +30,8 @@ Style is checked by a separate workflow, `.github/workflows/lint.yml` (ruff and 
 - **No real Gemini calls.** An autouse fixture makes `generate_content` raise.
   To test an agent, stub its `run_*` function (see `tests/graph`).
 - **Fixtures** (`conftest.py`): `client` (FastAPI `TestClient`), `db`, `user`,
-  `other_user`, `auth_headers`, `category_id`. Three categories are seeded once
-  per run (`Alimentação`, `Transporte`, `Outros`).
+  `other_user`, `auth_headers`, `category_id`. Six categories are seeded once
+  per run (see below).
 - **Test environment** is set at the top of `conftest.py` before the app is
   imported (`DB_URL`, `JWT_SECRET`, dummy `GEMINI_API_KEY`).
 
@@ -58,9 +58,9 @@ tests/
 `make_user(name, family=None, ...)` (each user gets a family of their own unless `family=` is given, so
 `user` and `other_user` are in different families), `make_transaction(user, category_id, label, value, when)`
 (saved for the user's family, `user_id` the user),
-`headers_for(user)`. `category_ids` maps names to ids. Five categories are
-seeded once per run (`Alimentação`, `Transporte`, `Supermercado`, `Aluguel`,
-`Outros`), each in its group, and all twelve category groups exist; `Pets` is deliberately missing, to test names that are valid for the
+`headers_for(user)`. `category_ids` maps names to ids. Six categories are
+seeded once per run (`Restaurantes e Bares`, `Transporte público`, `Supermercado`, `Aluguel`, `Educação`,
+`Sem categoria`), each in its group, and all fourteen category groups exist; `Pets` is deliberately missing, to test names that are valid for the
 agents but absent from the database. `sent_messages` captures outgoing WhatsApp
 messages.
 

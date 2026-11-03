@@ -111,7 +111,7 @@ def node_recorder(state: AssistantState):
     with session_scope() as db:
         for item in response.items:
             cat_obj = get_category_by_name(db, item.category, state["family_id"]) or get_category_by_name(
-                db, "Outros", state["family_id"]
+                db, "Sem categoria", state["family_id"]
             )
             # Keep the current time so same-day ordering still makes sense; never store future dates
             expense_date = item.date if item.date and item.date <= date.today() else now.date()

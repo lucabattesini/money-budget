@@ -29,19 +29,19 @@ DEMO_EMAIL = "demo@example.com"
 # (label, category, min cents, max cents, monthly occurrences)
 TEMPLATES = [
     ("Aluguel", "Aluguel", 180000, 180000, 1),
-    ("Conta de luz", "Contas Básicas", 9000, 18000, 1),
-    ("Internet", "Internet e Telefone", 11990, 11990, 1),
-    ("Netflix", "Assinaturas", 5590, 5590, 1),
-    ("Spotify", "Assinaturas", 2190, 2190, 1),
-    ("Academia", "Exercícios e Esportes", 12900, 12900, 1),
+    ("Conta de luz", "Luz e gás", 9000, 18000, 1),
+    ("Internet", "Internet e TV", 11990, 11990, 1),
+    ("Netflix", "Entretenimento e Lazer", 5590, 5590, 1),
+    ("Spotify", "Entretenimento e Lazer", 2190, 2190, 1),
+    ("Academia", "Academia e Fitness", 12900, 12900, 1),
     ("Supermercado", "Supermercado", 8000, 32000, 4),
-    ("Almoço", "Alimentação", 2500, 6500, 8),
-    ("iFood", "Alimentação", 3500, 9000, 3),
-    ("Uber", "Transporte", 1200, 4500, 5),
-    ("Farmácia", "Saúde e Farmácia", 2000, 15000, 2),
-    ("Cinema", "Entretenimento", 3000, 8000, 1),
+    ("Almoço", "Restaurantes e Bares", 2500, 6500, 8),
+    ("iFood", "Restaurantes e Bares", 3500, 9000, 3),
+    ("Uber", "Táxi e apps de transporte", 1200, 4500, 5),
+    ("Farmácia", "Médico", 2000, 15000, 2),
+    ("Cinema", "Entretenimento e Lazer", 3000, 8000, 1),
     ("Roupas", "Compras", 8000, 25000, 1),
-    ("Presente", "Presentes e Doações", 5000, 20000, 1),
+    ("Presente", "Presentes", 5000, 20000, 1),
 ]
 
 

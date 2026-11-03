@@ -41,7 +41,7 @@ def _exists(db, model, id):
 
 def _joiner_with_data(client, db, user, other_user, auth_headers, headers_for, make_transaction, category_ids, bring):
     """other_user has a transaction and a category of their own, then joins user's family."""
-    make_transaction(other_user, category_ids["Outros"], label="Joiner's old")
+    make_transaction(other_user, category_ids["Sem categoria"], label="Joiner's old")
     category = Categories(name="Plantas", family_id=other_user.family_id)
     db.add(category)
     db.commit()
@@ -137,7 +137,7 @@ def test_what_was_entered_in_the_new_family_stays_in_it(
     )
     client.post(
         "/transactions/create",
-        json={"label": "Entered while in the family", "value": 100, "category_id": category_ids["Outros"]},
+        json={"label": "Entered while in the family", "value": 100, "category_id": category_ids["Sem categoria"]},
         headers=headers_for(other_user),
     )
 
@@ -225,7 +225,7 @@ def test_the_last_day_still_counts_and_the_day_after_does_not(
 
 def _abandoned_family_with_everything(client, db, user, other_user, auth_headers, headers_for, make_transaction, ids):
     old = other_user.family_id
-    row = make_transaction(other_user, ids["Outros"], label="Joiner's old")
+    row = make_transaction(other_user, ids["Sem categoria"], label="Joiner's old")
     category = Categories(name="Plantas", family_id=old)
     job = ExportJobDB(family_id=old, requested_by=other_user.id, format="csv", status="done", content=b"x")
     db.add_all([category, job])

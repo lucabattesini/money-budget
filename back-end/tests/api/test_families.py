@@ -79,11 +79,11 @@ def test_a_family_member_sees_what_another_member_entered_and_who_entered_it(
 def test_a_family_member_can_edit_and_delete_what_another_member_entered(
     client, db, user, partner, headers_for, make_transaction, category_ids
 ):
-    row = make_transaction(user, category_ids["Alimentação"], label="Almoço", value=1000)
+    row = make_transaction(user, category_ids["Restaurantes e Bares"], label="Almoço", value=1000)
 
     edited = client.put(
         f"/transactions/{row.id}",
-        json={"label": "Jantar", "value": 2000, "category_id": category_ids["Alimentação"]},
+        json={"label": "Jantar", "value": 2000, "category_id": category_ids["Restaurantes e Bares"]},
         headers=headers_for(partner),
     )
     assert edited.status_code == 200
@@ -95,12 +95,12 @@ def test_a_family_member_can_edit_and_delete_what_another_member_entered(
 
 
 def test_the_summary_adds_up_the_whole_family(client, user, partner, auth_headers, make_transaction, category_ids):
-    make_transaction(user, category_ids["Outros"], value=1000)
-    make_transaction(partner, category_ids["Outros"], value=500)
+    make_transaction(user, category_ids["Sem categoria"], value=1000)
+    make_transaction(partner, category_ids["Sem categoria"], value=500)
 
     response = client.post("/transactions/summed-by-category", json={}, headers=auth_headers)
 
-    assert response.json()["data"] == [{"category_id": category_ids["Outros"], "total": 1500}]
+    assert response.json()["data"] == [{"category_id": category_ids["Sem categoria"], "total": 1500}]
 
 
 # --- another family sees and changes nothing -------------------------------------------------
@@ -109,13 +109,13 @@ def test_the_summary_adds_up_the_whole_family(client, user, partner, auth_header
 def test_another_family_cannot_see_edit_or_delete_a_transaction(
     client, db, user, other_user, headers_for, make_transaction, category_ids
 ):
-    row = make_transaction(user, category_ids["Alimentação"], label="Private", value=1000)
+    row = make_transaction(user, category_ids["Restaurantes e Bares"], label="Private", value=1000)
     stranger = headers_for(other_user)
 
     assert client.post("/transactions/", json={}, headers=stranger).json()["data"] == []
     edit = client.put(
         f"/transactions/{row.id}",
-        json={"label": "Hacked", "value": 1, "category_id": category_ids["Outros"]},
+        json={"label": "Hacked", "value": 1, "category_id": category_ids["Sem categoria"]},
         headers=stranger,
     )
     delete = client.delete(f"/transactions/{row.id}", headers=stranger)
@@ -132,7 +132,7 @@ def test_another_family_cannot_see_edit_or_delete_a_transaction(
 def test_another_family_cannot_use_a_category_that_is_not_theirs(
     client, db, user, auth_headers, headers_for, other_user, make_transaction, private_category, category_ids
 ):
-    row = make_transaction(user, category_ids["Alimentação"])
+    row = make_transaction(user, category_ids["Restaurantes e Bares"])
 
     create = client.post(
         "/transactions/create",
@@ -151,7 +151,7 @@ def test_another_family_cannot_use_a_category_that_is_not_theirs(
     assert (create.status_code, update.status_code) == (404, 404)
     assert create.json() == unknown.json()
     db.expire_all()
-    assert db.get(TransactionDB, row.id).category_id == category_ids["Alimentação"]
+    assert db.get(TransactionDB, row.id).category_id == category_ids["Restaurantes e Bares"]
     # ...while its owners can use it
     ok = client.post(
         "/transactions/create",
@@ -182,9 +182,9 @@ def export_queue(monkeypatch):
 def test_an_export_holds_the_whole_family_and_nobody_elses(
     client, user, partner, other_user, auth_headers, headers_for, make_transaction, category_ids, export_queue
 ):
-    make_transaction(user, category_ids["Outros"], label="Mine")
-    make_transaction(partner, category_ids["Outros"], label="Partner's")
-    make_transaction(other_user, category_ids["Outros"], label="Stranger's")
+    make_transaction(user, category_ids["Sem categoria"], label="Mine")
+    make_transaction(partner, category_ids["Sem categoria"], label="Partner's")
+    make_transaction(other_user, category_ids["Sem categoria"], label="Stranger's")
     job_id = client.post("/exports", json={"format": "csv"}, headers=auth_headers).json()["data"]["id"]
     export_queue()
 
@@ -226,7 +226,7 @@ def _record(user, items):
 def test_the_assistant_saves_in_the_speakers_family_and_remembers_who_spoke(
     db, user, partner, other_user, monkeypatch, category_ids
 ):
-    reply = RecorderResponse(items=[ExpenseItem(amount=10.0, category="Outros", description="Café")])
+    reply = RecorderResponse(items=[ExpenseItem(amount=10.0, category="Sem categoria", description="Café")])
     monkeypatch.setattr(nodes, "run_recorder", lambda message: reply)
 
     _record(partner, None)
@@ -245,4 +245,4 @@ def test_the_assistant_cannot_file_an_expense_under_another_familys_category(
     _record(user, None)
 
     [row] = db.query(TransactionDB).all()
-    assert row.category_id == category_ids["Outros"]  # unknown to this family, so it falls back
+    assert row.category_id == category_ids["Sem categoria"]  # unknown to this family, so it falls back

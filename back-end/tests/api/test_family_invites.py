@@ -183,8 +183,8 @@ def test_joining_asks_whether_to_bring_the_data(client, user, other_user, auth_h
 def test_starting_empty_keeps_the_old_data_behind_and_out_of_sight(
     client, db, user, other_user, auth_headers, headers_for, make_transaction, category_ids
 ):
-    mine = make_transaction(user, category_ids["Outros"], label="Family's")
-    old = make_transaction(other_user, category_ids["Outros"], label="Joiner's old")
+    mine = make_transaction(user, category_ids["Sem categoria"], label="Family's")
+    old = make_transaction(other_user, category_ids["Sem categoria"], label="Joiner's old")
     old_category = _category(db, other_user, "Pets da Bia")
     old_family = other_user.family_id
 
@@ -203,8 +203,8 @@ def test_starting_empty_keeps_the_old_data_behind_and_out_of_sight(
 def test_bringing_the_data_moves_the_transactions_and_keeps_who_entered_them(
     client, db, user, other_user, auth_headers, headers_for, make_transaction, category_ids
 ):
-    make_transaction(user, category_ids["Outros"], label="Family's")
-    old = make_transaction(other_user, category_ids["Alimentação"], label="Joiner's old", value=1234)
+    make_transaction(user, category_ids["Sem categoria"], label="Family's")
+    old = make_transaction(other_user, category_ids["Restaurantes e Bares"], label="Joiner's old", value=1234)
 
     _join(client, headers_for(other_user), _invite(client, auth_headers)["code"], bring_data=True)
 
@@ -248,19 +248,22 @@ def test_categories_without_a_match_come_along_as_they_are(
 def test_default_categories_are_never_touched_when_joining(
     client, db, user, other_user, auth_headers, headers_for, make_transaction, category_ids
 ):
-    make_transaction(other_user, category_ids["Outros"])
+    make_transaction(other_user, category_ids["Sem categoria"])
     before = db.query(Categories).filter(Categories.family_id.is_(None)).count()
 
     _join(client, headers_for(other_user), _invite(client, auth_headers)["code"], bring_data=True)
 
     assert db.query(Categories).filter(Categories.family_id.is_(None)).count() == before
-    assert {c.name for c in db.query(Categories).filter(Categories.family_id.is_(None))} >= {"Outros", "Alimentação"}
+    assert {c.name for c in db.query(Categories).filter(Categories.family_id.is_(None))} >= {
+        "Sem categoria",
+        "Restaurantes e Bares",
+    }
 
 
 def test_joining_is_all_or_nothing(
     client, db, user, other_user, auth_headers, headers_for, make_transaction, category_ids, monkeypatch
 ):
-    old = make_transaction(other_user, category_ids["Outros"])
+    old = make_transaction(other_user, category_ids["Sem categoria"])
     created = _invite(client, auth_headers)
     old_family = other_user.family_id
 
@@ -382,10 +385,10 @@ def test_the_codes_of_a_family_someone_left_stop_working(
 def test_the_joiner_shares_the_budget_afterwards(
     client, user, other_user, auth_headers, headers_for, make_transaction, category_ids, joined
 ):
-    make_transaction(user, category_ids["Outros"], label="Owner's")
+    make_transaction(user, category_ids["Sem categoria"], label="Owner's")
     created = client.post(
         "/transactions/create",
-        json={"label": "Joiner's", "value": 100, "category_id": category_ids["Outros"]},
+        json={"label": "Joiner's", "value": 100, "category_id": category_ids["Sem categoria"]},
         headers=headers_for(other_user),
     )
     assert created.status_code == 201
