@@ -201,6 +201,7 @@ export const getFamily = (token) => familyCall("/me", "get", token);
 export const getInvites = (token) => familyCall("/invites", "get", token);
 export const createInvite = (token) => familyCall("/invites", "post", token);
 export const cancelInvite = (id, token) => familyCall(`/invites/${id}`, "delete", token);
+export const returnToPreviousFamily = (token) => familyCall("/rollback", "post", token);
 export const joinFamily = (code, bringData, token) => familyCall("/join", "post", token, { code, bring_data: bringData });
 
 export function updateTransaction(id, payload, token) {

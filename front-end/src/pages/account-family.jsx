@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Avatar, Badge, Box, Button, Code, Field, Heading, HStack, Input, RadioGroup, Separator, Spinner, Stack, Text } from "@chakra-ui/react";
 import { LuCopy } from "react-icons/lu";
-import { cancelInvite, createInvite, getFamily, getInvites, joinFamily } from "../api/endpoints";
+import { cancelInvite, createInvite, getFamily, getInvites, joinFamily, returnToPreviousFamily } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import customToaster from "../utils/customToaster";
 
@@ -9,7 +9,7 @@ const ROLE_NAMES = { owner: "Dono", member: "Membro" };
 
 const JOIN_CHOICES = [
     { value: "bring", label: "Trazer meus dados", hint: "Minhas transações e categorias passam a fazer parte da nova família." },
-    { value: "empty", label: "Começar vazio", hint: "Só vejo os dados da nova família. Os meus ficam guardados, sem aparecer." },
+    { value: "empty", label: "Começar vazio", hint: "Só vejo os dados da nova família. Os meus ficam guardados por 30 dias, sem aparecer: nesse prazo você pode voltar. Depois disso, são apagados." },
 ];
 
 const formatDate = (iso) => new Date(iso).toLocaleDateString("pt-BR");
@@ -24,6 +24,7 @@ export default function AccountFamily() {
     const [code, setCode] = useState("");
     const [choice, setChoice] = useState("");
     const [joining, setJoining] = useState(false);
+    const [returning, setReturning] = useState(false);
 
     const load = useCallback(async () => {
         const token = getToken();
@@ -91,6 +92,20 @@ export default function AccountFamily() {
         customToaster("Pronto", "success", "Você entrou na família.");
         setCode("");
         setChoice("");
+        setNewCode(null);
+        load();
+    };
+
+    const handleReturn = async () => {
+        setReturning(true);
+        const result = await returnToPreviousFamily(getToken());
+        setReturning(false);
+        if (!result.ok) {
+            customToaster("Erro", "error", result.detail || "Não foi possível voltar. Tente novamente.");
+            load(); // the page may be out of date (for example, the 30 days ended)
+            return;
+        }
+        customToaster("Pronto", "success", "Você voltou para a sua família anterior.");
         setNewCode(null);
         load();
     };
@@ -173,6 +188,23 @@ export default function AccountFamily() {
                                 </Stack>
                             </Stack>
                         )}
+                    </Stack>
+                </>
+            )}
+
+            {family.previous_family && (
+                <>
+                    <Separator />
+                    <Stack gap={3}>
+                        <Heading size="md">Voltar para a minha família anterior</Heading>
+                        <Text color="fg.muted">
+                            Você deixou seus dados na família anterior. Pode voltar até {formatDate(family.previous_family.available_until)};
+                            depois dessa data ela e tudo o que há nela são apagados. O que você registrou nesta família
+                            continua nela.
+                        </Text>
+                        <Button alignSelf="start" variant="outline" onClick={handleReturn} loading={returning}>
+                            Voltar para a minha família anterior
+                        </Button>
                     </Stack>
                 </>
             )}

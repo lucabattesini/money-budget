@@ -188,3 +188,71 @@ describe('family page: joining', () => {
     expect(members()).toEqual(['AAnaDono']) // still in the old family
   })
 })
+
+describe('family page: going back to the family left behind', () => {
+  const BACK = { ...MEMBER_VIEW, previous_family: { available_until: '2026-12-02T10:00:00' } }
+  const goBack = () => screen.getByRole('button', { name: 'Voltar para a minha família anterior' })
+
+  it('offers it only while there is a family to go back to, with the last day and the warning', async () => {
+    mockApi({ 'GET /families/me': { data: BACK } })
+
+    renderApp(<AccountFamily />)
+
+    expect(await screen.findByRole('heading', { name: 'Voltar para a minha família anterior' })).toBeInTheDocument()
+    expect(screen.getByText(/até 02\/12\/2026/)).toBeInTheDocument()
+    expect(screen.getByText(/ela e tudo o que há nela são apagados/)).toBeInTheDocument()
+    expect(goBack()).toBeEnabled()
+  })
+
+  it('is not shown to someone with nothing to go back to', async () => {
+    mockApi({ 'GET /families/me': { data: { ...MEMBER_VIEW, previous_family: null } } })
+
+    renderApp(<AccountFamily />)
+
+    await screen.findByRole('list', { name: 'Pessoas da família' })
+    expect(screen.queryByRole('button', { name: 'Voltar para a minha família anterior' })).not.toBeInTheDocument()
+  })
+
+  it('warns, when choosing to start empty, that the old data is deleted after 30 days', async () => {
+    mockApi({ 'GET /families/me': { data: OWNER_ALONE }, 'GET /families/invites': { data: [] } })
+
+    renderApp(<AccountFamily />)
+
+    expect(await screen.findByText(/guardados por 30 dias/)).toBeInTheDocument()
+  })
+
+  it('goes back and then shows the old family', async () => {
+    const answers = [BACK, OWNER_ALONE]
+    const api = mockApi({
+      'GET /families/me': () => jsonResponse({ data: answers.shift() ?? OWNER_ALONE }),
+      'GET /families/invites': { data: [] },
+      'POST /families/rollback': { data: OWNER_ALONE },
+    })
+    renderApp(<AccountFamily />)
+    await screen.findByRole('heading', { name: 'Voltar para a minha família anterior' })
+
+    await userEvent.click(goBack())
+
+    expect(await screen.findByText('Você voltou para a sua família anterior.')).toBeInTheDocument()
+    await waitFor(() => expect(members()).toEqual(['AAnaDono']))
+    expect(requestsMade(api)).toContain('POST /families/rollback')
+    expect(screen.queryByRole('button', { name: 'Voltar para a minha família anterior' })).not.toBeInTheDocument()
+  })
+
+  it('shows the server message when the time is over and refreshes the page', async () => {
+    const answers = [BACK, { ...MEMBER_VIEW, previous_family: null }]
+    mockApi({
+      'GET /families/me': () => jsonResponse({ data: answers.shift() ?? MEMBER_VIEW }),
+      'POST /families/rollback': [{ detail: 'Não há uma família anterior para voltar, ou o prazo acabou.' }, 404],
+    })
+    renderApp(<AccountFamily />)
+    await screen.findByRole('heading', { name: 'Voltar para a minha família anterior' })
+
+    await userEvent.click(goBack())
+
+    expect(await screen.findByText('Não há uma família anterior para voltar, ou o prazo acabou.')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Voltar para a minha família anterior' })).not.toBeInTheDocument(),
+    )
+  })
+})

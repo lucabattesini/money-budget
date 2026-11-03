@@ -6,6 +6,7 @@ import {
   getFamily,
   getInvites,
   joinFamily,
+  returnToPreviousFamily,
   getAllCategories,
   getMe,
   getSummedTransactionsByCategory,
@@ -177,6 +178,7 @@ describe('an expired login', () => {
     ['updatePhone', () => updatePhone('5511999999999', 'old'), 'PATCH /user/me/phone'],
     ['getFamily', () => getFamily('old'), 'GET /families/me'],
     ['joinFamily', () => joinFamily('CODE', true, 'old'), 'POST /families/join'],
+    ['returnToPreviousFamily', () => returnToPreviousFamily('old'), 'POST /families/rollback'],
   ])('%s forgets the token and sends the user to the login page', async (_name, call, route) => {
     saveToken('old')
     window.location.hash = '#/transactions'
