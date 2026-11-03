@@ -60,7 +60,7 @@ tests/
 (saved for the user's family, `user_id` the user),
 `headers_for(user)`. `category_ids` maps names to ids. Five categories are
 seeded once per run (`Alimentação`, `Transporte`, `Supermercado`, `Aluguel`,
-`Outros`), each in its group, and all nine category groups exist; `Pets` is deliberately missing, to test names that are valid for the
+`Outros`), each in its group, and all twelve category groups exist; `Pets` is deliberately missing, to test names that are valid for the
 agents but absent from the database. `sent_messages` captures outgoing WhatsApp
 messages.
 
