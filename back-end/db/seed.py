@@ -1,6 +1,7 @@
-from sqlalchemy import func, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from api.utils.category_names import same_name
 from schemas.tables import Categories, CategoryGroups
 
 from .connection import LocalSession
@@ -38,6 +39,54 @@ DEFAULT_GROUPS: dict[str, list[str]] = {
 
 default_categories = [name for names in DEFAULT_GROUPS.values() for name in names]
 
+# The emoji each default category starts with. It is part of the stored name ("🛒 Supermercado"), not a field.
+DEFAULT_EMOJIS: dict[str, str] = {
+    "Aluguel": "🏠",
+    "Contas Básicas": "💡",
+    "Internet e Telefone": "📶",
+    "Manutenção da Casa": "🔧",
+    "Pets": "🐾",
+    "Supermercado": "🛒",
+    "Alimentação": "🍽️",
+    "Transporte": "🚗",
+    "Saúde e Farmácia": "💊",
+    "Cuidados Pessoais": "🧴",
+    "Exercícios e Esportes": "🏋️",
+    "Entretenimento": "🎬",
+    "Hobbies": "🎨",
+    "Viagem": "✈️",
+    "Assinaturas": "📺",
+    "Eventos Especiais": "🎉",
+    "Educação": "🎓",
+    "Compras": "🛍️",
+    "Presentes e Doações": "🎁",
+    "Seguros": "🛡️",
+    "Pagamento de Dívidas": "💸",
+    "Impostos": "🧾",
+    "Emergências": "🚨",
+    "Salário": "💰",
+    "Renda extra e freelance": "💼",
+    "Rendimentos de investimentos": "📈",
+    "Reembolsos": "↩️",
+    "Presentes recebidos": "🎀",
+    "Outras receitas": "➕",
+    "Transferência entre contas": "🔄",
+    "Pagamento de fatura do cartão": "💳",
+    "Retirada e depósito": "🏧",
+    "Investimentos": "💹",
+    "Fundo de Emergência": "🏦",
+    "Renda fixa": "🏛️",
+    "Ações e fundos": "📊",
+    "Previdência privada": "👴",
+    "Criptomoedas": "🪙",
+    "Outros": "📦",
+}
+
+
+def display_name(name: str) -> str:
+    """The name a default category is stored under: its emoji, a space, then the name."""
+    return f"{DEFAULT_EMOJIS[name]} {name}"
+
 
 def seed_categories():
     """Create the groups and the default categories that are missing. Safe to run any number of times."""
@@ -55,15 +104,11 @@ def seed_categories():
                 db.add(group)
                 db.flush()
             for name in category_names:
-                # Only default categories count: a family may have its own category with the same name
-                # (ignoring case, like the migration does when it groups the categories that already exist)
-                exist = (
-                    db.query(Categories)
-                    .filter(func.lower(Categories.name) == name.lower(), Categories.family_id.is_(None))
-                    .first()
-                )
-                if not exist:
-                    db.add(Categories(name=name, group_id=group.id))
+                # Only default categories count: a family may have its own category with the same name. Names are
+                # compared by their words, so a default stored with or without its emoji is found either way.
+                defaults = db.query(Categories).filter(Categories.family_id.is_(None))
+                if not any(same_name(category.name, name) for category in defaults):
+                    db.add(Categories(name=display_name(name), group_id=group.id))
 
         db.commit()
         print("Default categories created successfully")
