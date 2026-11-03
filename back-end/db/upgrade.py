@@ -51,7 +51,9 @@ def detect_revision(inspector) -> str | None:
         return "0005"
     if not inspector.has_table("families"):
         return "0006"
-    return "0007"
+    if not inspector.has_table("family_invites"):
+        return "0007"
+    return "0008"
 
 
 def upgrade_database(url: str = DATABASE_URL) -> None:

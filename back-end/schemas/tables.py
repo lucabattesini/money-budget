@@ -34,6 +34,7 @@ class Users(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # a person is in exactly one family
+    role = Column(String(10), nullable=False, default="owner", server_default="owner")  # "owner" | "member"
     google_id = Column(String(100), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
@@ -42,6 +43,22 @@ class Users(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
     last_login = Column(DateTime)
+
+
+class FamilyInvites(Base):
+    """A code that lets one signed-in person join a family. It works once and expires."""
+
+    __tablename__ = "family_invites"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    code_hash = Column(String(64), nullable=False, unique=True)  # the code itself is shown once and never stored
+    code_hint = Column(String(4), nullable=False)  # its last characters, to tell codes apart in a list
+    created_at = Column(DateTime, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
+    used_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    used_at = Column(DateTime, nullable=True)
 
 
 class Categories(Base):
