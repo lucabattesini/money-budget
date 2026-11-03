@@ -17,6 +17,9 @@ from schemas.tables_schemas import CategoryCreate, CategoryUpdate
 router = APIRouter(prefix="/categories", tags=["categories"], responses={404: {"description": "Not found"}})
 
 
+# Both spellings: the web app asks for "/categories". Once POST "/categories" exists, that path stops being
+# redirected to "/categories/" and a GET on it would answer 405.
+@router.get("")
 @router.get("/")
 async def get_all_categories_router(family_id: int = Depends(get_current_family_id), db: Session = Depends(get_db)):
     categories = get_all_categories(db, family_id)

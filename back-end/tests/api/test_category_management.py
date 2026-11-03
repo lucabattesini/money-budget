@@ -40,6 +40,32 @@ def test_the_list_marks_the_default_categories(client, auth_headers, own):
     assert categories["Plantas"]["is_default"] is False
 
 
+def test_the_list_is_served_at_the_address_the_web_app_uses_without_a_redirect(client, auth_headers):
+    """The web app calls GET /categories (no trailing slash). It once answered 405 once POST /categories existed."""
+    response = client.get("/categories", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.history == []  # not redirected: the Authorization header must survive
+    assert any(c["name"] == "Alimentação" for c in response.json()["data"])
+
+
+def test_every_address_the_web_app_calls_works_exactly_as_written(client, auth_headers, own):
+    """Guards against a path that exists for one method only, which turns the others into a 405."""
+    category = own["id"]
+
+    calls = [
+        client.get("/categories", headers=auth_headers),
+        client.get("/categories/", headers=auth_headers),
+        client.get("/categories/groups", headers=auth_headers),
+        client.post("/categories", json={"name": "Nova"}, headers=auth_headers),
+        client.patch(f"/categories/{category}", json={"name": "Outra"}, headers=auth_headers),
+        client.delete(f"/categories/{category}", headers=auth_headers),
+    ]
+
+    assert [c.status_code for c in calls] == [200, 200, 200, 201, 200, 200]
+    assert all(c.history == [] for c in calls)
+
+
 # --- adding ----------------------------------------------------------------------------------------------
 
 
