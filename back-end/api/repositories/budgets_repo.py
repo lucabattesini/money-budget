@@ -52,12 +52,13 @@ def set_budget(db: Session, family_id: int, category_id: int, month: date, amoun
 
 
 def copy_budgets(db: Session, family_id: int, from_month: date, to_month: date) -> int:
-    """Copy the budgets of one month to another, only for the categories that have none there yet.
-    Returns how many were copied."""
+    """Copy the budgets of one month to another, only for the categories that have none there yet and that can
+    still be planned (a category may have moved to an income or transfer group since). Returns how many were copied."""
     already = budgets_of_month(db, family_id, to_month)
+    allowed = {category.id for category, _ in budgetable_categories(db, family_id)}
     copied = 0
     for category_id, amount in budgets_of_month(db, family_id, from_month).items():
-        if category_id not in already:
+        if category_id not in already and category_id in allowed:
             db.add(Budgets(family_id=family_id, category_id=category_id, month=to_month, amount=amount))
             copied += 1
     db.commit()

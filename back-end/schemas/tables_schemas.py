@@ -129,7 +129,7 @@ class FamilySettings(BaseModel):
     language: Optional[Language] = None
 
 
-MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"  # "2026-11"
+MONTH_PATTERN = r"^20\d\d-(0[1-9]|1[0-2])$"  # "2026-11"; the years 2000-2099, so every month is a valid date
 
 
 class BudgetSet(BaseModel):

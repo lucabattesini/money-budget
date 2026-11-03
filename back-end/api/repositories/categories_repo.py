@@ -1,7 +1,7 @@
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from api.repositories.budgets_repo import delete_budgets_of_category
+from api.repositories.budgets_repo import UNBUDGETED_GROUPS, delete_budgets_of_category
 from api.utils.category_names import same_name
 from schemas.tables import Categories, CategoryGroups, Families, TransactionDB
 
@@ -81,6 +81,8 @@ def update_category(db: Session, category: Categories, name: str | None, group_i
         category.name = name
     if group_id is not None:
         category.group_id = group_id
+        if db.query(CategoryGroups.name).filter(CategoryGroups.id == group_id).scalar() in UNBUDGETED_GROUPS:
+            delete_budgets_of_category(db, category.id)  # income and transfers have no budget: do not keep hidden ones
     db.commit()
     db.refresh(category)
     return category

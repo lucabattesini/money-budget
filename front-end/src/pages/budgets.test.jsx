@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toaster } from '../components/ui/toaster'
 import { saveToken } from '../lib/auth'
 import { monthKey, shiftMonth } from '../lib/budget'
@@ -335,5 +335,70 @@ describe('budgets page: months', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(screen.getByText(/Nada planejado/)).toBeInTheDocument()
     expect(within(document.body).queryByText('R$ 2.400,00')).not.toBeInTheDocument()
+  })
+})
+
+describe('budgets page: slow and failing answers', () => {
+  const withBudgets = (...changes) => {
+    const data = structuredClone(month(NOW))
+    for (const [id, amount] of changes)
+      for (const g of data.groups) for (const c of g.categories) if (c.id === id) c.budgeted = amount
+    return data
+  }
+  const answer = (data) => new Response(JSON.stringify({ data }), { status: 200 })
+
+  it('keeps the newest answer when an older save finishes late', async () => {
+    let finishFirst
+    let puts = 0
+    mockApi({
+      [`GET /budgets?month=${NOW}`]: { data: month(NOW) },
+      'PUT /budgets': () => {
+        puts += 1
+        if (puts === 1) return new Promise((resolve) => (finishFirst = () => resolve(answer(withBudgets([11, 30000])))))
+        return Promise.resolve(answer(withBudgets([11, 30000], [40, 70000]))) // the server had both by then
+      },
+    })
+    renderApp(<Budgets />)
+    await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '30000')
+    await userEvent.tab() // the first save is still on its way
+    await userEvent.click(screen.getByRole('button', { name: 'Viagem e Estilo de Vida: abrir' }))
+    await userEvent.type(screen.getByLabelText('Orçamento de Pets'), '70000')
+    await userEvent.tab()
+    await waitFor(() => expect(screen.getByLabelText('Orçamento de Pets')).toHaveValue('700,00'))
+
+    finishFirst() // the older answer arrives last, and knows nothing about Pets
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.getByLabelText('Orçamento de Pets')).toHaveValue('700,00')
+    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('300,00')
+  })
+
+  it('stops showing the error once another month loads', async () => {
+    mockApi({
+      [`GET /budgets?month=${NOW}`]: [{}, 500],
+      [`GET /budgets?month=${NEXT}`]: { data: { ...EMPTY, month: NEXT } },
+    })
+    renderApp(<Budgets />)
+    await screen.findByText(/Não foi possível carregar o orçamento/)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
+
+    expect(await screen.findByText(/Nada planejado/)).toBeInTheDocument()
+    expect(screen.queryByText(/Não foi possível carregar o orçamento/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [new Date(2000, 0, 15), 'Mês anterior'],
+    [new Date(2099, 11, 15), 'Próximo mês'],
+  ])('does not go past the years the server offers (%s: %s is off)', async (now, button) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    const key = monthKey(now)
+    mockApi({ [`GET /budgets?month=${key}`]: { data: { ...EMPTY, month: key } } })
+
+    renderApp(<Budgets />)
+
+    await screen.findByText(/Nada planejado/)
+    expect(screen.getByRole('button', { name: button })).toBeDisabled()
   })
 })

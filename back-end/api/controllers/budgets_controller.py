@@ -10,6 +10,7 @@ from api.repositories.budgets_repo import (
     month_bounds,
     set_budget,
 )
+from api.repositories.categories_repo import lock_family
 from api.repositories.transactions_repo import get_transactions_summed_by_category
 from api.utils.category_names import name_key
 
@@ -58,9 +59,13 @@ def get_month_budget(db: Session, family_id: int, month_text: str) -> dict:
 
 
 def set_category_budget(db: Session, family_id: int, category_id: int, month_text: str, amount: int) -> dict:
+    # Under the same lock the categories use: two requests cannot both create the row, and a category being deleted
+    # at this very moment is seen as gone
+    lock_family(db, family_id)
     allowed = {category.id for category, _ in budgetable_categories(db, family_id)}
     if category_id not in allowed:
         # Another family's category, an income or transfer one and an id that does not exist answer the same
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria não encontrada.")
     set_budget(db, family_id, category_id, parse_month(month_text), amount)
     return get_month_budget(db, family_id, month_text)
@@ -71,5 +76,6 @@ def copy_month_budgets(db: Session, family_id: int, from_text: str, to_text: str
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Escolha dois meses diferentes para copiar."
         )
+    lock_family(db, family_id)
     copied = copy_budgets(db, family_id, parse_month(from_text), parse_month(to_text))
     return {"copied": copied, **get_month_budget(db, family_id, to_text)}

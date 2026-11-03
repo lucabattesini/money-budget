@@ -3,7 +3,7 @@ import { Badge, Box, Button, Heading, HStack, IconButton, Input, Progress, Simpl
 import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp, LuCopy } from "react-icons/lu";
 import { copyBudgets, getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { budgetStatus, monthKey, monthLabel, shiftMonth } from "../lib/budget";
+import { budgetStatus, FIRST_MONTH, LAST_MONTH, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { plainName } from "../lib/categoryName";
 import { useLocale } from "../lib/locale";
 import { digitsToCents, formatCents, maskAmount } from "../lib/money";
@@ -53,12 +53,14 @@ export default function Budgets() {
     const [copying, setCopying] = useState(false);
     const shown = useRef(month); // an answer for a month that is no longer on the page must be ignored
     shown.current = month;
+    const latest = useRef(0); // and so must an answer that a newer request has already replaced
 
     const load = useCallback(async (key) => {
         const token = getToken();
         if (!token) return;
+        const mine = ++latest.current;
         const result = await getBudgets(key, token);
-        if (shown.current !== key) return;
+        if (shown.current !== key || latest.current !== mine) return;
         if (!result.ok) {
             setFailed(true);
             return;
@@ -69,6 +71,7 @@ export default function Budgets() {
 
     useEffect(() => {
         setData(null);
+        setFailed(false);
         setDrafts({});
         load(month);
     }, [month, load]);
@@ -89,19 +92,21 @@ export default function Budgets() {
             clearDraft(category.id);
             return;
         }
+        const mine = ++latest.current;
         const result = await setBudget(category.id, forMonth, cents, getToken());
         if (!result.ok) {
             customToaster("Erro", "error", result.detail || "Não foi possível salvar o orçamento. Tente novamente.");
             clearDraft(category.id); // back to what is saved
             return;
         }
-        if (shown.current !== forMonth) return;
-        setData(result.data);
         clearDraft(category.id);
+        if (shown.current !== forMonth || latest.current !== mine) return; // a newer answer already shows the month
+        setData(result.data);
     };
 
     const copyFromPreviousMonth = async () => {
         setCopying(true);
+        const mine = ++latest.current;
         const result = await copyBudgets(shiftMonth(month, -1), month, getToken());
         setCopying(false);
         if (!result.ok) {
@@ -109,7 +114,7 @@ export default function Budgets() {
             return;
         }
         const { copied, ...view } = result.data;
-        if (shown.current === view.month) {
+        if (shown.current === view.month && latest.current === mine) {
             setData(view);
             setDrafts({});
         }
@@ -130,13 +135,13 @@ export default function Budgets() {
 
             <HStack justify="space-between" wrap="wrap" gap={3}>
                 <HStack gap={2}>
-                    <IconButton aria-label="Mês anterior" variant="outline" size="sm" onClick={() => setMonth(shiftMonth(month, -1))}>
+                    <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
                         <LuChevronLeft />
                     </IconButton>
                     <Heading size="lg" minW="11rem" textAlign="center" textTransform="capitalize" aria-live="polite">
                         {monthLabel(month)}
                     </Heading>
-                    <IconButton aria-label="Próximo mês" variant="outline" size="sm" onClick={() => setMonth(shiftMonth(month, 1))}>
+                    <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
                         <LuChevronRight />
                     </IconButton>
                 </HStack>

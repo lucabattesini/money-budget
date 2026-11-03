@@ -151,6 +151,10 @@ def test_removing_a_budget_that_was_never_set_is_fine(client, auth_headers, food
         {"month": "2026-1", "amount": 100},
         {"month": "novembro", "amount": 100},
         {"month": "2026-11-01", "amount": 100},
+        {"month": "0000-01", "amount": 100},  # not a date Python can write
+        {"month": "9999-12", "amount": 100},  # its next month does not exist
+        {"month": "1999-12", "amount": 100},
+        {"month": "2100-01", "amount": 100},
         {"month": NOV, "amount": -1},
         {"month": NOV, "amount": 2147483648},  # does not fit the database column
         {"month": NOV, "amount": 12.5},
@@ -456,3 +460,77 @@ def test_deleting_an_abandoned_family_deletes_its_budgets_and_no_one_elses(db, u
     families_repo.purge_abandoned_families(db)
 
     assert [(b.family_id, b.amount) for b in db.query(Budgets)] == [(user.family_id, 200)]
+
+
+@pytest.mark.parametrize("month", ["0000-01", "9999-12", "2100-01", "1999-12"])
+def test_a_month_outside_the_years_offered_is_refused_everywhere_not_a_server_error(client, auth_headers, month):
+    assert client.get("/budgets", params={"month": month}, headers=auth_headers).status_code == 422
+    assert _copy(client, auth_headers, source=month, target=NOV).status_code == 422
+    assert _copy(client, auth_headers, source=NOV, target=month).status_code == 422
+
+
+def test_the_first_and_last_months_offered_work(client, auth_headers):
+    assert _month(client, auth_headers, "2000-01")["month"] == "2000-01"
+    assert _month(client, auth_headers, "2099-12")["month"] == "2099-12"
+
+
+def test_a_category_moved_to_an_income_group_loses_its_budgets(client, db, auth_headers, user):
+    group = db.query(CategoryGroups).filter_by(name="Outros").one()
+    income = db.query(CategoryGroups).filter_by(name="Receitas").one()
+    plants = Categories(name="Plantas", group_id=group.id, family_id=user.family_id)
+    db.add(plants)
+    db.commit()
+    _plan(client, auth_headers, plants.id, 5000)
+
+    assert (
+        client.patch(f"/categories/{plants.id}", json={"group_id": income.id}, headers=auth_headers).status_code == 200
+    )
+
+    assert db.query(Budgets).count() == 0  # nothing hidden is kept, so nothing can be copied later
+
+
+def test_a_category_moved_to_another_spending_group_keeps_its_budgets(client, db, auth_headers, user):
+    group = db.query(CategoryGroups).filter_by(name="Outros").one()
+    other = db.query(CategoryGroups).filter_by(name="Moradia").one()
+    plants = Categories(name="Plantas", group_id=group.id, family_id=user.family_id)
+    db.add(plants)
+    db.commit()
+    _plan(client, auth_headers, plants.id, 5000)
+
+    client.patch(f"/categories/{plants.id}", json={"group_id": other.id}, headers=auth_headers)
+
+    assert _row(_month(client, auth_headers), plants.id)["budgeted"] == 5000
+    groups = {g["name"]: [c["id"] for c in g["categories"]] for g in _month(client, auth_headers)["groups"]}
+    assert plants.id in groups["Moradia"]
+
+
+def test_copying_skips_budgets_that_can_no_longer_be_seen(client, db, auth_headers, user):
+    """A hidden budget (a category that went to an income group some other way) must not be copied, nor counted."""
+    income = db.query(CategoryGroups).filter_by(name="Receitas").one()
+    hidden = Categories(name="Antiga", group_id=income.id, family_id=user.family_id)
+    db.add(hidden)
+    db.commit()
+    db.add(Budgets(family_id=user.family_id, category_id=hidden.id, month=date(2026, 11, 1), amount=100))
+    db.commit()
+
+    response = _copy(client, auth_headers)
+
+    assert response.json()["data"]["copied"] == 0
+    assert db.query(Budgets).count() == 1
+
+
+def test_planning_and_copying_take_the_familys_lock_like_the_categories_do(client, auth_headers, food, monkeypatch):
+    """Two members setting the same amount for the first time, or a category being deleted at that moment, must not
+    end in a server error: the requests wait for each other on the family."""
+    from api.controllers import budgets_controller
+
+    locked = []
+    real = budgets_controller.lock_family
+    monkeypatch.setattr(
+        budgets_controller, "lock_family", lambda db, family_id: (locked.append(family_id), real(db, family_id))
+    )
+
+    _plan(client, auth_headers, food, 100)
+    _copy(client, auth_headers)
+
+    assert len(locked) == 2

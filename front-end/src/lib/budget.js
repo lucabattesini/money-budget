@@ -4,6 +4,10 @@ import { formatDate } from './locale'
 /** The month a date falls in: "2026-11". */
 export const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
+// The server offers the years 2000 to 2099
+export const FIRST_MONTH = '2000-01'
+export const LAST_MONTH = '2099-12'
+
 /** "2026-12" + 1 -> "2027-01"; -1 goes back. */
 export function shiftMonth(key, delta) {
   const [year, month] = key.split('-').map(Number)

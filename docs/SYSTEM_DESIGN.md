@@ -311,14 +311,19 @@ amount in cents; one row per family, category and month, and no budget is no row
 (debits of the month in that category, credits never count; the month runs from its first moment to the first moment
 of the next), and totals. `totals.spent` only counts categories that have a budget, so it compares with
 `totals.budgeted`; `totals.remaining` is the difference (negative when over) and `totals.unbudgeted_spent` is what
-was spent in the others. `PUT /budgets {category_id, month, amount}` sets one amount (0 removes it) and answers with
+was spent in the other spending categories (debits with no category, and debits in an income or transfer
+category, are in neither number, so the two do not add up to every debit of the month). `PUT /budgets {category_id, month, amount}` sets one amount (0 removes it) and answers with
 the month as `GET` shows it; another family's category, an income or transfer one and an unknown id all answer `404`,
-and a bad month or an amount that is negative or over the 32-bit limit `422`. `POST /budgets/copy {from_month,
+and a bad month (only the years 2000 to 2099 are offered, and the page's buttons stop there) or an amount that is
+negative or over the 32-bit limit `422`. `PUT` and `copy` take the same family lock as the category changes, so two
+requests (two members, two tabs) cannot both create the same row, and a category being deleted at that moment is
+seen as gone. `POST /budgets/copy {from_month,
 to_month}` copies the budgets of one month to another only for categories that have none there yet (answers `copied`
 and the month; the same month twice is `422`). The Orçamentos page (`/budgets`, in the top menu) shows one month with
 buttons to move between months, totals with a bar, the groups (open when they have a plan or spending) and a field
 per category that saves when it is left or Enter is pressed; a bar turns orange from 80% of the plan and red when it
-is exceeded. Budgets follow their categories: deleting a category deletes its budgets; joining another family with the
+is exceeded. Budgets follow their categories: deleting a category deletes its budgets, and so does moving it to an income or
+transfer group (nothing hidden is kept; copying also skips any that are); joining another family with the
 data brings the budgets along (when both families planned the same category and month, the family being joined
 keeps its own); a family that is deleted after 30 days takes its budgets with it. Not built yet: carrying unused
 money over to the next month, budgets for a group or for income, a yearly view and alerts.
