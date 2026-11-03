@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Box, Button, CloseButton, Drawer, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Text, Wrap } from "@chakra-ui/react";
 import { LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 import { createCategory, deleteCategory, getAllCategories, getCategoryGroups, updateCategory } from "../api/endpoints";
@@ -6,7 +6,8 @@ import { getToken } from "../lib/auth";
 import { EMOJI_CHOICES, compareCategories, joinName, splitName } from "../lib/categoryName";
 import customToaster from "../utils/customToaster";
 
-const MAX_NAME = 100;
+const MAX_NAME = 100; // characters of the whole name, emoji included: the size of the database column
+const length = (text) => Array.from(text).length; // by characters, like the server (an emoji can be two UTF-16 units)
 const FALLBACK_GROUP = "Outros";
 
 // A label with a red asterisk, like the transaction form.
@@ -14,29 +15,47 @@ function RequiredLabel({ children }) {
     return <Field.Label _after={{ content: '" *"', color: "red.500", fontWeight: "bold" }}>{children}</Field.Label>;
 }
 
-// The emojis to choose from (one, or none). An emoji the category already has stays selectable even if it is not
-// in the list.
+// The emojis to choose from (one, or none), as a real radio group: one tab stop (the selected one), the arrow keys
+// move and select, Home and End jump to the ends. An emoji the category already has stays selectable even if it is
+// not in the list.
 function EmojiGrid({ value, onChange }) {
     const choices = value && !EMOJI_CHOICES.includes(value) ? [value, ...EMOJI_CHOICES] : EMOJI_CHOICES;
+    const options = ["", ...choices]; // "" is "Sem emoji"
+    const buttons = useRef([]);
+    const selected = Math.max(0, options.indexOf(value));
+
+    const move = (to) => {
+        const next = (to + options.length) % options.length;
+        onChange(options[next]);
+        buttons.current[next]?.focus();
+    };
+    const handleKeyDown = (event, index) => {
+        const keys = { ArrowRight: index + 1, ArrowDown: index + 1, ArrowLeft: index - 1, ArrowUp: index - 1, Home: 0, End: options.length - 1 };
+        if (event.key in keys) {
+            event.preventDefault();
+            move(keys[event.key]);
+        }
+    };
+
     return (
         <Wrap role="radiogroup" aria-label="Emoji" gap={1}>
-            <Button size="xs" variant={value === "" ? "solid" : "outline"} role="radio" aria-checked={value === ""} onClick={() => onChange("")}>
-                Sem emoji
-            </Button>
-            {choices.map((emoji) => (
+            {options.map((emoji, index) => (
                 <Button
-                    key={emoji}
-                    size="sm"
-                    variant={value === emoji ? "solid" : "ghost"}
+                    key={emoji || "none"}
+                    ref={(element) => (buttons.current[index] = element)}
+                    size={emoji ? "sm" : "xs"}
+                    variant={value === emoji ? "solid" : emoji ? "ghost" : "outline"}
                     role="radio"
                     aria-checked={value === emoji}
-                    aria-label={emoji}
+                    aria-label={emoji || undefined}
+                    tabIndex={index === selected ? 0 : -1}
                     onClick={() => onChange(emoji)}
-                    fontSize="lg"
-                    px={1}
-                    minW="9"
+                    onKeyDown={(event) => handleKeyDown(event, index)}
+                    fontSize={emoji ? "lg" : undefined}
+                    px={emoji ? 1 : undefined}
+                    minW={emoji ? "9" : undefined}
                 >
-                    {emoji}
+                    {emoji || "Sem emoji"}
                 </Button>
             ))}
         </Wrap>
@@ -44,7 +63,7 @@ function EmojiGrid({ value, onChange }) {
 }
 
 // Side panel to add a category, or to edit `category` (its name and group).
-function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
+function CategoryDrawer({ open, onClose, groups, category, defaultGroupId, onSaved }) {
     const editing = category !== null;
     const [emoji, setEmoji] = useState("");
     const [name, setName] = useState("");
@@ -59,12 +78,13 @@ function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
             const parts = editing ? splitName(category.name) : { emoji: "", text: "" };
             setEmoji(parts.emoji);
             setName(parts.text);
+            // A new category starts in the group whose button was clicked ("Outros" if there is none)
             const fallback = groups.find((group) => group.name === FALLBACK_GROUP);
-            setGroupId(String(editing ? category.group_id : fallback?.id ?? ""));
+            setGroupId(String(editing ? category.group_id : defaultGroupId ?? fallback?.id ?? ""));
             setError("");
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, category]);
+    }, [open, category, defaultGroupId]);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -75,8 +95,14 @@ function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
             setError("O nome da categoria não pode ficar vazio.");
             return;
         }
+        const fullName = joinName(emoji || typed.emoji, words);
+        if (length(fullName) > MAX_NAME) {
+            // For example a long name, then a long emoji chosen afterwards
+            setError(`O nome da categoria, com o emoji, pode ter no máximo ${MAX_NAME} caracteres.`);
+            return;
+        }
         setSaving(true);
-        const payload = { name: joinName(emoji || typed.emoji, words), group_id: Number(groupId) };
+        const payload = { name: fullName, group_id: Number(groupId) };
         const result = editing
             ? await updateCategory(category.id, payload, getToken())
             : await createCategory(payload, getToken());
@@ -116,10 +142,11 @@ function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
                                 <Field.Root required invalid={!!error}>
                                     <RequiredLabel>Nome</RequiredLabel>
                                     <Input
-                                        maxLength={MAX_NAME}
                                         value={name}
                                         onChange={(e) => {
-                                            setName(e.target.value);
+                                            // Cut to what still fits once the emoji and its space are put in front
+                                            const room = MAX_NAME - (emoji ? length(emoji) + 1 : 0);
+                                            setName(Array.from(e.target.value).slice(0, room).join(""));
                                             setError("");
                                         }}
                                     />
@@ -167,7 +194,7 @@ export default function AccountCategories() {
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
-    const [drawer, setDrawer] = useState({ open: false, category: null });
+    const [drawer, setDrawer] = useState({ open: false, category: null, groupId: null }); // groupId: where a new one goes
     const [deleting, setDeleting] = useState(false);
     const [confirming, setConfirming] = useState(null); // the id of the category waiting for "Apagar" to be confirmed
 
@@ -217,28 +244,37 @@ export default function AccountCategories() {
 
     return (
         <Stack gap={8} maxW="3xl">
-            <Stack gap={4} align="start">
-                <Stack gap={1}>
-                    <Heading size="xl">Categorias</Heading>
-                    <Text color="fg.muted">
-                        As categorias padrão servem para todos e não podem ser mudadas. As suas você pode criar,
-                        renomear, mudar de grupo e apagar (se nenhuma transação usar).
-                    </Text>
-                </Stack>
-                <Button onClick={() => setDrawer({ open: true, category: null })}>
-                    <LuPlus /> Nova categoria
-                </Button>
+            <Stack gap={1}>
+                <Heading size="xl">Categorias</Heading>
+                <Text color="fg.muted">
+                    As categorias padrão servem para todos e não podem ser mudadas. As suas você pode criar em
+                    qualquer grupo, renomear, mudar de grupo e apagar (se nenhuma transação usar).
+                </Text>
             </Stack>
 
             {groups.map((group) => {
                 const inGroup = categories.filter((category) => category.group_id === group.id).sort(compareCategories);
-                if (inGroup.length === 0) return null;
                 return (
                     <Box key={group.id} as="section" aria-label={group.name} borderWidth="1px" borderRadius="lg" overflow="hidden">
-                        <HStack px={4} py={3} bg="bg.muted" justify="space-between">
-                            <Heading size="md">{group.name}</Heading>
-                            <Text fontSize="sm" color="fg.muted">{inGroup.length}</Text>
+                        <HStack px={4} py={2} bg="bg.muted" justify="space-between">
+                            <HStack gap={3}>
+                                <Heading size="md">{group.name}</Heading>
+                                <Text fontSize="sm" color="fg.muted">{inGroup.length}</Text>
+                            </HStack>
+                            <Button
+                                size="xs"
+                                variant="outline"
+                                aria-label={`Adicionar em ${group.name}`}
+                                onClick={() => setDrawer({ open: true, category: null, groupId: group.id })}
+                            >
+                                <LuPlus /> Adicionar
+                            </Button>
                         </HStack>
+                        {inGroup.length === 0 && (
+                            <Text px={4} py={3} borderTopWidth="1px" color="fg.muted" fontSize="sm">
+                                Nenhuma categoria neste grupo ainda.
+                            </Text>
+                        )}
                         <Stack as="ul" listStyleType="none" gap={0} m={0} p={0} aria-label={`Categorias de ${group.name}`}>
                             {inGroup.map((category) => (
                                 <HStack
@@ -273,7 +309,7 @@ export default function AccountCategories() {
                                                     size="xs"
                                                     variant="ghost"
                                                     aria-label={`Editar ${category.name}`}
-                                                    onClick={() => setDrawer({ open: true, category })}
+                                                    onClick={() => setDrawer({ open: true, category, groupId: null })}
                                                 >
                                                     <LuPencil />
                                                 </Button>
@@ -299,6 +335,7 @@ export default function AccountCategories() {
                 onClose={() => setDrawer((current) => ({ ...current, open: false }))}
                 groups={groups}
                 category={drawer.category}
+                defaultGroupId={drawer.groupId}
                 onSaved={load}
             />
         </Stack>

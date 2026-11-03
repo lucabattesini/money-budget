@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { toaster } from '../components/ui/toaster'
@@ -10,7 +10,7 @@ const GROUPS = {
   data: [
     { id: 1, name: 'Casa' },
     { id: 2, name: 'Lazer' },
-    { id: 3, name: 'Investimentos' }, // nothing in it: it must not be shown
+    { id: 3, name: 'Investimentos' }, // nothing in it yet
     { id: 4, name: 'Outros' },
   ],
 }
@@ -55,12 +55,28 @@ const bodyOf = (api, method) => {
 }
 
 describe('categories page: the list', () => {
-  it('shows the categories under their groups, A-Z inside each, and hides the empty groups', async () => {
+  it('shows the categories under their groups, A-Z inside each', async () => {
     await renderPage()
 
     expect(names('Casa')).toEqual(['Água da casa', 'AluguelPadrão'])
     expect(names('Lazer')).toEqual(['Cinema do bairro', 'ViagemPadrão'])
-    expect(screen.queryByRole('heading', { name: 'Investimentos' })).not.toBeInTheDocument()
+  })
+
+  it('shows every group, with an add button in each, and says when a group has no category yet', async () => {
+    await renderPage()
+
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).slice(1)).toEqual([
+      'Casa',
+      'Lazer',
+      'Investimentos',
+      'Outros',
+    ])
+    for (const group of ['Casa', 'Lazer', 'Investimentos', 'Outros']) {
+      expect(screen.getByRole('button', { name: `Adicionar em ${group}` })).toBeInTheDocument()
+    }
+    const empty = within(screen.getByRole('region', { name: 'Investimentos' }))
+    expect(empty.getByText('Nenhuma categoria neste grupo ainda.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^nova categoria/i })).not.toBeInTheDocument() // none at the top
   })
 
   it('marks the default categories and lets the family change only its own', async () => {
@@ -83,26 +99,64 @@ describe('categories page: the list', () => {
 })
 
 describe('categories page: adding', () => {
-  const open = async () => userEvent.click(await screen.findByRole('button', { name: /nova categoria/i }))
+  const open = async (group = 'Outros') =>
+    userEvent.click(await screen.findByRole('button', { name: `Adicionar em ${group}` }))
 
-  it('starts in the group Outros and sends the name and the chosen group', async () => {
+  it('starts in the group of the button that was clicked and sends it with the name', async () => {
     const lists = [LIST, { data: [...LIST.data, category(20, 'Jogos', 2, 7)] }]
     const api = await renderPage({
       'GET /categories': () => jsonResponse(lists.shift() ?? LIST),
       'POST /categories': [{ data: category(20, 'Jogos', 2, 7) }, 201],
     })
-    await open()
+    await open('Lazer')
     const dialog = within(await screen.findByRole('dialog'))
-    expect(dialog.getByLabelText(/grupo/i)).toHaveValue('4') // Outros
+    expect(dialog.getByLabelText(/grupo/i)).toHaveValue('2') // Lazer, where the button was
 
     await userEvent.type(dialog.getByLabelText(/nome/i), '  Jogos ')
-    await userEvent.selectOptions(dialog.getByLabelText(/grupo/i), 'Lazer')
     await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() => expect(requestsMade(api)).toContain('POST /categories'))
     expect(bodyOf(api, 'POST')).toEqual({ name: 'Jogos', group_id: 2 })
     expect(await screen.findByText('A categoria foi criada!')).toBeInTheDocument()
     await waitFor(() => expect(names('Lazer')).toContain('Jogos'))
+  })
+
+  it('can add to a group that has no category yet', async () => {
+    const api = await renderPage({ 'POST /categories': [{ data: category(21, 'Renda fixa', 3, 7) }, 201] })
+    await open('Investimentos')
+    const dialog = within(await screen.findByRole('dialog'))
+    expect(dialog.getByLabelText(/grupo/i)).toHaveValue('3')
+
+    await userEvent.type(dialog.getByLabelText(/nome/i), 'Renda fixa')
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(bodyOf(api, 'POST')).toEqual({ name: 'Renda fixa', group_id: 3 }))
+  })
+
+  it('still lets the person pick another group in the panel', async () => {
+    const api = await renderPage({ 'POST /categories': [{ data: category(20, 'Jogos', 2, 7) }, 201] })
+    await open('Casa')
+    const dialog = within(await screen.findByRole('dialog'))
+
+    await userEvent.type(dialog.getByLabelText(/nome/i), 'Jogos')
+    await userEvent.selectOptions(dialog.getByLabelText(/grupo/i), 'Lazer')
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(bodyOf(api, 'POST')).toEqual({ name: 'Jogos', group_id: 2 }))
+  })
+
+  it('starts empty and in the new group every time the panel is opened again', async () => {
+    await renderPage()
+    await open('Casa')
+    await userEvent.type(within(await screen.findByRole('dialog')).getByLabelText(/nome/i), 'rascunho')
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    await open('Lazer')
+
+    const dialog = within(await screen.findByRole('dialog'))
+    expect(dialog.getByLabelText(/nome/i)).toHaveValue('')
+    expect(dialog.getByLabelText(/grupo/i)).toHaveValue('2')
   })
 
   it('does not send an empty name and says why', async () => {
@@ -132,7 +186,8 @@ describe('categories page: adding', () => {
 
 describe('categories page: emoji', () => {
   const emoji = (dialog, label) => dialog.getByRole('radio', { name: label })
-  const open = async () => userEvent.click(await screen.findByRole('button', { name: /nova categoria/i }))
+  const open = async (group = 'Outros') =>
+    userEvent.click(await screen.findByRole('button', { name: `Adicionar em ${group}` }))
 
   it('puts the chosen emoji in front of the name', async () => {
     const api = await renderPage({ 'POST /categories': [{ data: category(20, '🌱 Plantas', 4, 7) }, 201] })
@@ -215,6 +270,84 @@ describe('categories page: emoji', () => {
     })
 
     expect(names('Casa')).toEqual(['🔧 Abacate', 'Mala', '🏠 Zebra'])
+  })
+})
+
+describe('categories page: the emoji grid with the keyboard', () => {
+  const open = async (group = 'Outros') =>
+    userEvent.click(await screen.findByRole('button', { name: `Adicionar em ${group}` }))
+  const radios = (dialog) => dialog.getAllByRole('radio')
+
+  it('has a single tab stop: the selected option', async () => {
+    await renderPage()
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+
+    const stops = radios(dialog).filter((radio) => radio.tabIndex === 0)
+
+    expect(stops.map((radio) => radio.textContent)).toEqual(['Sem emoji'])
+  })
+
+  it('moves and selects with the arrow keys, and wraps around', async () => {
+    await renderPage()
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+    const first = dialog.getByRole('radio', { name: 'Sem emoji' })
+    first.focus()
+
+    await userEvent.keyboard('{ArrowRight}')
+    const second = radios(dialog)[1]
+    expect(second).toBeChecked()
+    expect(second).toHaveFocus()
+    expect(second.tabIndex).toBe(0) // the tab stop follows the selection
+    expect(first.tabIndex).toBe(-1)
+
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}')
+    expect(radios(dialog).at(-1)).toBeChecked() // before the first comes the last
+
+    await userEvent.keyboard('{Home}')
+    expect(first).toBeChecked()
+    await userEvent.keyboard('{End}')
+    expect(radios(dialog).at(-1)).toBeChecked()
+  })
+})
+
+describe('categories page: the length of a name', () => {
+  const open = async (group = 'Outros') =>
+    userEvent.click(await screen.findByRole('button', { name: `Adicionar em ${group}` }))
+
+  it('cuts the words at 100 characters when there is no emoji', async () => {
+    await renderPage()
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+
+    fireEvent.change(dialog.getByLabelText(/nome/i), { target: { value: 'a'.repeat(120) } })
+
+    expect(dialog.getByLabelText(/nome/i)).toHaveValue('a'.repeat(100))
+  })
+
+  it('leaves room for the emoji and the space in front, counted by characters like the server', async () => {
+    await renderPage()
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+
+    await userEvent.click(dialog.getByRole('radio', { name: '🏋️' })) // two characters (a symbol and a selector)
+    fireEvent.change(dialog.getByLabelText(/nome/i), { target: { value: 'a'.repeat(120) } })
+
+    expect(dialog.getByLabelText(/nome/i)).toHaveValue('a'.repeat(97)) // 100 - 2 - the space
+  })
+
+  it('does not send a name that became too long when the emoji was chosen after typing', async () => {
+    const api = await renderPage()
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText(/nome/i), { target: { value: 'a'.repeat(100) } })
+
+    await userEvent.click(dialog.getByRole('radio', { name: '🌱' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    expect(await dialog.findByText(/com o emoji, pode ter no máximo 100 caracteres/)).toBeInTheDocument()
+    expect(requestsMade(api)).not.toContain('POST /categories')
   })
 })
 

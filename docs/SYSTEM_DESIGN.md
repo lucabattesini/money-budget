@@ -118,8 +118,9 @@ flowchart TB
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
   (a left menu with sections as nested routes: `/account` profile,
-  `/account/categories` the family's categories under their groups (add, rename, change group and delete its own
-  ones in a side panel; the default ones are marked "Padrão" and cannot be changed),
+  `/account/categories` the family's categories under their groups (every group is shown, even an empty one, with an
+  "Adicionar" button that opens the side panel already set to that group; rename, change group and delete for its own
+  ones; the default ones are marked "Padrão" and cannot be changed; the emoji grid is a keyboard-friendly radio group),
   `/account/family` the family (people, invite codes for the owner, joining with a code, going back to the family left behind for 30 days) and
   `/account/data` import/export: the export queues a job (`POST /exports`), shows a
   toast, follows the job and downloads the file when it is done, with a second
