@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.repositories.categories_repo import (
@@ -14,7 +15,7 @@ from api.repositories.categories_repo import (
 )
 from api.repositories.categories_repo import get_all_categories as get_all_categories_repo
 from api.repositories.categories_repo import get_all_groups as get_all_groups_repo
-from api.utils.category_names import plain_name
+from api.utils.category_names import name_key
 from schemas.tables import Categories
 
 MAX_NAME_LENGTH = 100  # the size of the column
@@ -41,7 +42,7 @@ def get_all_groups(db: Session):
 
 def _clean_name(name: str) -> str:
     name = (name or "").strip()
-    if not plain_name(name):  # nothing, or only an emoji: a category needs words to be told apart
+    if not name_key(name):  # nothing, or only an emoji or invisible characters: it needs words to be told apart
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O nome da categoria não pode ficar vazio."
         )
@@ -81,9 +82,6 @@ def create_family_category(db: Session, family_id: int, name: str, group_id: int
 def update_family_category(
     db: Session, family_id: int, category_id: int, name: str | None, group_id: int | None
 ) -> dict:
-    category = get_family_category(db, family_id, category_id)
-    if category is None:
-        raise _not_found()
     if name is None and group_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Informe o novo nome ou o novo grupo."
@@ -91,6 +89,11 @@ def update_family_category(
     cleaned = None if name is None else _clean_name(name)
     _check_group(db, group_id)
     lock_family(db, family_id)
+    # Read under the lock, so a request that deleted it a moment ago is seen as "not found", not as a stale row
+    category = get_family_category(db, family_id, category_id)
+    if category is None:
+        db.rollback()
+        raise _not_found()
     if cleaned is not None and name_is_taken(db, family_id, cleaned, except_id=category.id):
         db.rollback()
         raise _duplicate()
@@ -98,16 +101,29 @@ def update_family_category(
     return _out(category, group_name_of(db, category))
 
 
+def _in_use(used: int) -> HTTPException:
+    if used == 1:
+        detail = "Esta categoria é usada por 1 transação. Mude a categoria dela ou apague-a antes."
+    else:
+        detail = f"Esta categoria é usada por {used} transações. Mude a categoria delas ou apague-as antes."
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
 def delete_family_category(db: Session, family_id: int, category_id: int) -> dict:
+    lock_family(db, family_id)
     category = get_family_category(db, family_id, category_id)
     if category is None:
+        db.rollback()
         raise _not_found()
     used = count_transactions_using(db, category.id)
     if used:
-        if used == 1:
-            detail = "Esta categoria é usada por 1 transação. Mude a categoria dela ou apague-a antes."
-        else:
-            detail = f"Esta categoria é usada por {used} transações. Mude a categoria delas ou apague-as antes."
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
-    delete_category(db, category)
+        db.rollback()
+        raise _in_use(used)
+    try:
+        delete_category(db, category)
+    except IntegrityError:
+        # A transaction took the category between the count and the delete (it does not take the family lock):
+        # the database refused, and that is the same answer as "in use"
+        db.rollback()
+        raise _in_use(max(count_transactions_using(db, category_id), 1))
     return {"message": "Categoria apagada"}

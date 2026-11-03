@@ -91,7 +91,11 @@ def count_transactions_using(db: Session, category_id: int) -> int:
 
 def delete_category(db: Session, category: Categories) -> None:
     db.delete(category)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def group_name_of(db: Session, category: Categories) -> str:
