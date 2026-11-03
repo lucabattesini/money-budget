@@ -165,7 +165,7 @@ export default function AccountCategories() {
 
     return (
         <Stack gap={8} maxW="3xl">
-            <HStack justify="space-between" align="start" gap={4}>
+            <Stack gap={4} align="start">
                 <Stack gap={1}>
                     <Heading size="xl">Categorias</Heading>
                     <Text color="fg.muted">
@@ -173,10 +173,10 @@ export default function AccountCategories() {
                         renomear, mudar de grupo e apagar (se nenhuma transação usar).
                     </Text>
                 </Stack>
-                <Button onClick={() => setDrawer({ open: true, category: null })} flexShrink={0}>
+                <Button onClick={() => setDrawer({ open: true, category: null })}>
                     <LuPlus /> Nova categoria
                 </Button>
-            </HStack>
+            </Stack>
 
             {groups.map((group) => {
                 const inGroup = categories.filter((category) => category.group_id === group.id).sort(byName);
