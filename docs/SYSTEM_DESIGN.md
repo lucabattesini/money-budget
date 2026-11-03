@@ -425,6 +425,32 @@ two differ, so changing a default category later needs a new migration. The Cate
 category list (`schemas/agents_schemas.py`) is separate and does not use groups: it is the default categories
 except income and transfers (a test keeps it in step with the seed).
 
+**Order of the category groups.** The order is data, not an accident of how the rows were created: each group has an
+integer `category_groups.position` (not null, 1 is first, added by migration `0015`, which gave the groups already in a
+database the positions of their old id order). Everything that lists groups sorts by `position` (then `id`, to break a
+tie): `GET /categories/groups`, the groups of `GET /budgets`, and so the Categorias and Orçamentos pages. A new
+database gets the order below from `DEFAULT_GROUPS` in `db/seed.py`, which gives a group it creates the place it has
+in that list and never moves one that already exists; nothing in the API changes the order yet.
+
+| position | group |
+|---|---|
+| 1 | Receitas |
+| 2 | Presentes e Doações |
+| 3 | Auto e Transporte |
+| 4 | Moradia |
+| 5 | Contas e Serviços |
+| 6 | Alimentação |
+| 7 | Compras |
+| 8 | Viagem e Estilo de Vida |
+| 9 | Filhos |
+| 10 | Educação |
+| 11 | Saúde e Bem-estar |
+| 12 | Finanças |
+| 13 | Outros |
+| 14 | Transferências |
+
+(The Orçamentos page leaves out Receitas and Transferências, which have no budget, and keeps the rest in this order.)
+
 **Managing categories** (`/categories`, all require login). A family manages only its own categories; the default
 ones (no `family_id`, `is_default` true in the list) are shown but cannot be changed. `POST /categories {name,
 group_id}` adds one (`201`; without a group it goes to "Outros"), `PATCH /categories/{id} {name?, group_id?}` renames
