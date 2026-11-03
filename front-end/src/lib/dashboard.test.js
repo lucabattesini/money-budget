@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSpending, latestSpending, spendingByDay, spendingOfMonth } from './dashboard'
+import { countsAsSpending, isSpending, latestSpending, spendingByDay, spendingOfMonth } from './dashboard'
 
 const tx = (date, value, type = 'debit', id = Math.random()) => ({ id, transactioned_at: `${date}T10:00:00`, value, type })
 
@@ -8,6 +8,50 @@ describe('isSpending', () => {
     expect(isSpending({ type: 'debit' })).toBe(true)
     expect(isSpending({})).toBe(true)
     expect(isSpending({ type: 'credit' })).toBe(false)
+  })
+})
+
+describe('countsAsSpending', () => {
+  const categories = [
+    { id: 1, group_name: 'Alimentação' },
+    { id: 2, group_name: 'Transferências' },
+    { id: 3, group_name: 'Receitas' },
+    { id: 4, group_name: 'Outros' },
+  ]
+  const at = (category_id, type = 'debit') => ({ ...tx('2026-03-10', 100, type), category_id })
+
+  it('keeps the debits of ordinary categories', () => {
+    const food = at(1)
+    const other = at(4)
+
+    expect(countsAsSpending([food, other], categories)).toEqual([food, other])
+  })
+
+  it('leaves out transfers between accounts, such as paying the card bill, even though they are debits', () => {
+    expect(countsAsSpending([at(2)], categories)).toEqual([])
+  })
+
+  it('leaves out the income group even when a row there is a debit', () => {
+    expect(countsAsSpending([at(3)], categories)).toEqual([])
+  })
+
+  it('leaves out credits, in any category', () => {
+    expect(countsAsSpending([at(1, 'credit'), at(2, 'credit'), at(4, 'credit')], categories)).toEqual([])
+  })
+
+  it('still counts a debit whose category is unknown or has no group', () => {
+    const lost = at(99)
+
+    expect(countsAsSpending([lost], categories)).toEqual([lost])
+    expect(countsAsSpending([lost], [{ id: 99 }])).toEqual([lost])
+  })
+
+  it('does not change the list it is given', () => {
+    const list = [at(1), at(2)]
+
+    countsAsSpending(list, categories)
+
+    expect(list).toHaveLength(2)
   })
 })
 

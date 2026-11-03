@@ -4,6 +4,19 @@
 /** Money going out. Credits are money coming in and are not spending. */
 export const isSpending = (transaction) => transaction.type !== 'credit'
 
+// Money coming in and money moving between accounts (a transfer, paying the card bill) are not spending. These are the
+// groups the budget leaves out too (the server's UNBUDGETED_GROUPS), so the budget and the other cards agree.
+export const NOT_SPENDING_GROUPS = ['Receitas', 'Transferências']
+
+/**
+ * What counts as spending: the debits, except those in a category of an income or transfer group. A transaction whose
+ * category is unknown (deleted) still counts.
+ */
+export function countsAsSpending(transactions, categories) {
+  const groupOf = new Map(categories.map((category) => [category.id, category.group_name]))
+  return transactions.filter((t) => isSpending(t) && !NOT_SPENDING_GROUPS.includes(groupOf.get(t.category_id)))
+}
+
 const parts = (key) => {
   const [year, month] = key.split('-').map(Number)
   return { year, month: month - 1 }

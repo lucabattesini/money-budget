@@ -243,6 +243,70 @@ describe('dashboard', () => {
     expect(screen.getByText('25.5')).toBeInTheDocument()
   })
 
+  describe('transfers and income are not spending', () => {
+    const GROUPED = {
+      ...ROUTES,
+      'GET /categories': {
+        data: [
+          { id: 1, name: '🛒 Alimentação', group_name: 'Alimentação' },
+          { id: 2, name: '🚌 Transporte', group_name: 'Auto e Transporte' },
+          { id: 3, name: '💳 Pagamento de fatura do cartão', group_name: 'Transferências' },
+          { id: 4, name: '💰 Salário', group_name: 'Receitas' },
+        ],
+      },
+      'POST /transactions': {
+        data: [
+          t(1, 10000, '2026-03-02T10:00:00'),
+          t(2, 2550, '2026-03-14T10:00:00', 2),
+          t(3, 777700, '2026-03-12T10:00:00', 3, 'debit', 'Fatura'), // paying the card bill: a debit, but not spending
+          t(4, 555500, '2026-03-12T10:00:00', 3, 'credit'), // the other side of a transfer
+          t(5, 300000, '2026-03-05T10:00:00', 4, 'credit'), // salary
+          t(6, 40000, '2026-03-06T10:00:00', 4, 'debit', 'Ajuste'), // a debit in an income category
+          t(7, 888800, '2026-02-12T10:00:00', 3), // last month's card bill: must not make the comparison look huge
+        ],
+      },
+    }
+
+    it('counts only what was really spent in the total of the month', async () => {
+      mockApi(GROUPED)
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(monthTotal()).toBe('R$ 125,50')) // 100,00 + 25,50, none of the 7.777,00 of the bill
+    })
+
+    it('leaves them out of the recent list too', async () => {
+      mockApi(GROUPED)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByText('Compra 1')
+      expect(screen.queryByText('Fatura')).not.toBeInTheDocument()
+      expect(screen.queryByText('Ajuste')).not.toBeInTheDocument()
+    })
+
+    it('leaves them out of the ranking of categories', async () => {
+      mockApi(GROUPED)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByText('Principais categorias')
+      expect(screen.getByText('100')).toBeInTheDocument()
+      expect(screen.getByText('25.5')).toBeInTheDocument()
+      expect(screen.queryByText(/Pagamento de fatura/)).not.toBeInTheDocument()
+    })
+
+    it('agrees with the budget, which leaves the same groups out', async () => {
+      mockApi({ ...GROUPED, [MARCH]: { data: budgetOf('2026-03', 100000, 12550) } })
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(monthTotal()).toBe('R$ 125,50'))
+      const panel = within(await waitFor(() => card('Orçamento')))
+      expect(plain((await panel.findByText(/gastos de/)).textContent)).toBe('R$ 125,50 gastos de R$ 1.000,00') // the same amount
+    })
+  })
+
   describe('month switcher', () => {
     it('starts on the current month and cannot go past it', async () => {
       mockApi(ROUTES)

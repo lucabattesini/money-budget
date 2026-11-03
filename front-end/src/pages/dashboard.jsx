@@ -4,7 +4,7 @@ import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { getAllCategories, getTransactions, getMe, getBudgets } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { monthKey, monthLabel, shiftMonth } from "../lib/budget";
-import { spendingOfMonth } from "../lib/dashboard";
+import { countsAsSpending, spendingOfMonth } from "../lib/dashboard";
 import { useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
@@ -71,7 +71,9 @@ export default function Dashboard() {
         };
     }, [month]);
 
-    const spending = useMemo(() => spendingOfMonth(transactions, month), [transactions, month]);
+    // Only money that was really spent: no credits, no transfers between accounts, like the budget
+    const outgoing = useMemo(() => countsAsSpending(transactions, categories), [transactions, categories]);
+    const spending = useMemo(() => spendingOfMonth(outgoing, month), [outgoing, month]);
 
     return (
         <Center>
@@ -102,7 +104,7 @@ export default function Dashboard() {
                         {/* On a phone the two columns become one list and the chart goes last (order); on a wide screen they are columns */}
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
                             <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} /></Box>
-                            <Box order={{ base: 4, lg: 0 }}><SpendingCard transactions={transactions} month={month} now={now} /></Box>
+                            <Box order={{ base: 4, lg: 0 }}><SpendingCard transactions={outgoing} month={month} now={now} /></Box>
                         </Stack>
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
                             <Box order={{ base: 2, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} /></Box>
