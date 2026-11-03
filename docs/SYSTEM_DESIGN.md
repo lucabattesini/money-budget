@@ -329,9 +329,9 @@ be closed) with its categories A-Z in Portuguese order like the Categorias page,
 when it is left or Enter is pressed; "Repetido de <month>" says where an amount comes from, and a bar turns orange
 from 80% of the plan and red when it is exceeded. Budgets follow their categories: deleting a category deletes its
 budgets, and so does moving it to an income or transfer group (nothing hidden is kept); joining another family with the
-data brings the budgets along, except for a category the family being joined already planned: its own plan wins
-entirely, because mixing the months of two plans would change what its later months say; a family that is deleted
-after 30 days takes its budgets with it. Not built yet: budgets for a group or for income, rollover of unused
+data brings the transactions and categories but not the budgets (a plan belongs to the family that made it: the
+budgets of the family being left are deleted, the family joined keeps its own); a family that is deleted after 30
+days takes its budgets with it. Not built yet: budgets for a group or for income, rollover of unused
 money, a yearly view and alerts.
 
 **Currency and language** (family settings, TKT-25). `families.currency` (`BRL` default, also `USD`, `CAD`, `EUR`,

@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import func
 
 from api.repositories import families_repo
-from schemas.tables import Budgets, Categories, CategoryGroups, Families, Users
+from schemas.tables import Budgets, Categories, CategoryGroups, Families, TransactionDB, Users
 
 NOV = "2026-11"
 
@@ -311,16 +311,20 @@ def _family_of(row):
     return _Family
 
 
-def test_joining_with_the_data_brings_the_budgets_along(db, user, other_user, category_ids):
+def test_joining_with_the_data_brings_the_transactions_and_categories_but_not_the_budgets(
+    db, user, other_user, category_ids, make_transaction
+):
     group = db.query(CategoryGroups).filter_by(name="Outros").one()
     own = Categories(name="Plantas", group_id=group.id, family_id=other_user.family_id)
     db.add(own)
     db.commit()
     food = category_ids["Restaurantes e Bares"]
+    make_transaction(other_user, own.id, value=700)
     db.add_all(
         [
             Budgets(family_id=other_user.family_id, category_id=own.id, month=date(2026, 11, 1), amount=500),
             Budgets(family_id=other_user.family_id, category_id=food, month=date(2026, 11, 1), amount=700),
+            Budgets(family_id=user.family_id, category_id=food, month=date(2026, 10, 1), amount=100),
         ]
     )
     db.commit()
@@ -328,32 +332,13 @@ def test_joining_with_the_data_brings_the_budgets_along(db, user, other_user, ca
     families_repo._bring_data(db, other_user.family_id, user.family_id)
     db.commit()
 
-    rows = {(b.family_id, b.category_id): b.amount for b in db.query(Budgets)}
-    assert rows == {(user.family_id, own.id): 500, (user.family_id, food): 700}
+    assert [(b.family_id, b.category_id, b.amount) for b in db.query(Budgets)] == [(user.family_id, food, 100)]
+    assert db.get(Categories, own.id).family_id == user.family_id  # the category and its transaction came along
+    assert db.query(TransactionDB).filter_by(category_id=own.id).count() == 1
 
 
-def test_when_both_families_planned_the_same_category_the_new_familys_plan_wins_entirely(
-    db, user, other_user, category_ids
-):
-    """A plan stays in force until changed, so mixing months of two plans would change what the new family's own
-    later months say: every plan brought along for a category the new family already planned is dropped."""
-    food = category_ids["Restaurantes e Bares"]
-    db.add_all(
-        [
-            Budgets(family_id=user.family_id, category_id=food, month=date(2026, 11, 1), amount=100),
-            Budgets(family_id=other_user.family_id, category_id=food, month=date(2026, 11, 1), amount=900),
-            Budgets(family_id=other_user.family_id, category_id=food, month=date(2026, 12, 1), amount=800),
-        ]
-    )
-    db.commit()
-
-    families_repo._bring_data(db, other_user.family_id, user.family_id)
-    db.commit()
-
-    assert [(b.family_id, b.month, b.amount) for b in db.query(Budgets)] == [(user.family_id, date(2026, 11, 1), 100)]
-
-
-def test_a_category_merged_into_one_with_the_same_name_follows_the_plan_of_the_one_that_stays(db, user, other_user):
+def test_a_category_merged_into_one_with_the_same_name_does_not_stop_the_join_when_it_had_budgets(db, user, other_user):
+    """The merged category is deleted, so the budgets that pointed at it must go first (or the join fails)."""
     group = db.query(CategoryGroups).filter_by(name="Outros").one()
     mine = Categories(name="Plantas", group_id=group.id, family_id=user.family_id)
     theirs = Categories(name="🌱 plantas", group_id=group.id, family_id=other_user.family_id)
@@ -362,7 +347,6 @@ def test_a_category_merged_into_one_with_the_same_name_follows_the_plan_of_the_o
     db.add_all(
         [
             Budgets(family_id=other_user.family_id, category_id=theirs.id, month=date(2026, 11, 1), amount=300),
-            Budgets(family_id=other_user.family_id, category_id=theirs.id, month=date(2026, 12, 1), amount=400),
             Budgets(family_id=user.family_id, category_id=mine.id, month=date(2026, 12, 1), amount=999),
         ]
     )
@@ -372,8 +356,7 @@ def test_a_category_merged_into_one_with_the_same_name_follows_the_plan_of_the_o
     families_repo._bring_data(db, other_user.family_id, user.family_id)
     db.commit()
 
-    rows = {(b.category_id, b.month, b.amount) for b in db.query(Budgets)}
-    assert rows == {(mine.id, date(2026, 12, 1), 999)}  # the family being joined had planned it: its plan wins
+    assert [(b.category_id, b.month, b.amount) for b in db.query(Budgets)] == [(mine.id, date(2026, 12, 1), 999)]
     assert db.get(Categories, gone) is None
 
 
