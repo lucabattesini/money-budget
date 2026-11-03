@@ -60,7 +60,7 @@ def test_intent_routing(intent, destination):
 def test_registering_an_expense_saves_it_and_confirms(db, user, agents):
     agents(
         "registry",
-        recorder=RecorderResponse(items=[ExpenseItem(amount=25.5, category="Transporte", description="Uber")]),
+        recorder=RecorderResponse(items=[ExpenseItem(amount=25.5, category="Transporte público", description="Uber")]),
     )
 
     result = ask(user, "gastei 25,50 de uber")
@@ -74,8 +74,8 @@ def test_registering_an_expense_saves_it_and_confirms(db, user, agents):
 def test_asking_a_question_reads_the_users_data_and_answers_through_the_secretary(
     user, other_user, make_transaction, category_ids, agents
 ):
-    make_transaction(user, category_ids["Alimentação"], "Mercado", 12000, datetime(2026, 3, 1))
-    make_transaction(other_user, category_ids["Alimentação"], "Not mine", 99999, datetime(2026, 3, 1))
+    make_transaction(user, category_ids["Restaurantes e Bares"], "Mercado", 12000, datetime(2026, 3, 1))
+    make_transaction(other_user, category_ids["Restaurantes e Bares"], "Not mine", 99999, datetime(2026, 3, 1))
     agents(
         "check",
         query_calls=[ToolCall(name="summarize_transactions", args={"group_by": "category"})],
@@ -88,7 +88,7 @@ def test_asking_a_question_reads_the_users_data_and_answers_through_the_secretar
     assert agents.seen["secretary_message"] == "quanto gastei com comida?"
     [summary] = agents.seen["secretary_results"]
     assert summary["tool"] == "summarize_transactions"
-    assert [(r["category"], r["total"]) for r in summary["result"]] == [("Alimentação", 120.0)]
+    assert [(r["category"], r["total"]) for r in summary["result"]] == [("Restaurantes e Bares", 120.0)]
 
 
 def test_off_topic_messages_get_the_fixed_refusal_and_touch_nothing(db, user, agents):

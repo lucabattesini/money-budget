@@ -6,7 +6,7 @@ def test_lists_exactly_the_default_categories(client, auth_headers):
 
     assert response.status_code == 200
     names = sorted(c["name"] for c in response.json()["data"])
-    assert names == ["Alimentação", "Aluguel", "Outros", "Supermercado", "Transporte"]
+    assert names == ["Aluguel", "Educação", "Restaurantes e Bares", "Sem categoria", "Supermercado", "Transporte público"]
 
 
 def test_each_category_has_an_id_and_name(client, auth_headers):
@@ -36,7 +36,7 @@ def test_a_family_sees_its_own_categories_but_never_another_familys(
 
     assert "Pets da família" in mine and "Plantas do outro" not in mine
     assert "Plantas do outro" in theirs and "Pets da família" not in theirs
-    assert "Outros" in mine and "Outros" in theirs  # the defaults are shared
+    assert "Sem categoria" in mine and "Sem categoria" in theirs  # the defaults are shared
 
 
 # --- groups (TKT-44) -----------------------------------------------------------------------------------
@@ -53,11 +53,12 @@ def test_each_category_comes_with_its_group(client, auth_headers):
     group_ids = {g["name"]: g["id"] for g in _groups(client, auth_headers)}
 
     assert {name: c["group_name"] for name, c in categories.items()} == {
-        "Alimentação": "Alimentação",
+        "Restaurantes e Bares": "Alimentação",
         "Supermercado": "Alimentação",
-        "Aluguel": "Casa",
-        "Transporte": "Transporte",
-        "Outros": "Outros",
+        "Aluguel": "Moradia",
+        "Transporte público": "Auto e Transporte",
+        "Sem categoria": "Outros",
+        "Educação": "Educação",
     }
     assert all(c["group_id"] == group_ids[c["group_name"]] for c in categories.values())
 
@@ -69,18 +70,20 @@ def test_the_groups_are_the_same_fixed_set_for_every_family_in_a_stable_order(
 
     assert mine == _groups(client, headers_for(other_user))
     assert [g["name"] for g in mine] == [
-        "Casa",
-        "Alimentação",
-        "Transporte",
-        "Saúde e bem-estar",
-        "Lazer",
-        "Educação",
-        "Compras e presentes",
-        "Finanças",
         "Receitas",
-        "Transferências",
-        "Investimentos",
+        "Presentes e Doações",
+        "Auto e Transporte",
+        "Moradia",
+        "Contas e Serviços",
+        "Alimentação",
+        "Compras",
+        "Viagem e Estilo de Vida",
+        "Filhos",
+        "Educação",
+        "Saúde e Bem-estar",
+        "Finanças",
         "Outros",
+        "Transferências",
     ]
 
 
@@ -98,13 +101,13 @@ def test_a_category_made_without_a_group_goes_to_outros(client, db, user, auth_h
 
 
 def test_a_category_made_with_a_group_keeps_it(client, db, user, auth_headers):
-    lazer = db.query(CategoryGroups).filter_by(name="Lazer").one()
-    db.add(Categories(name="Jogos", family_id=user.family_id, group_id=lazer.id))
+    viagem = db.query(CategoryGroups).filter_by(name="Viagem e Estilo de Vida").one()
+    db.add(Categories(name="Jogos", family_id=user.family_id, group_id=viagem.id))
     db.commit()
 
     created = {c["name"]: c for c in client.get("/categories/", headers=auth_headers).json()["data"]}["Jogos"]
 
-    assert (created["group_id"], created["group_name"]) == (lazer.id, "Lazer")
+    assert (created["group_id"], created["group_name"]) == (viagem.id, "Viagem e Estilo de Vida")
 
 
 def test_a_category_cannot_be_saved_with_a_group_that_does_not_exist(db, user):
@@ -122,7 +125,7 @@ def test_groups_cannot_share_a_name(db):
     import pytest
     from sqlalchemy.exc import IntegrityError
 
-    db.add(CategoryGroups(name="Casa"))
+    db.add(CategoryGroups(name="Moradia"))
 
     with pytest.raises(IntegrityError):
         db.commit()

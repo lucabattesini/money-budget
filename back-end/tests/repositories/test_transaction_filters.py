@@ -19,12 +19,12 @@ from schemas.tables_schemas import GetTransactionsParams, TransactionFilters
 def seeded(db, user, make_transaction, category_ids):
     c = category_ids
     rows = {
-        "cafe": make_transaction(user, c["Alimentação"], "Café com Leite", 500, datetime(2026, 3, 1, 9, 0, 0)),
-        "jantar": make_transaction(user, c["Alimentação"], "Jantar 100%", 4000, datetime(2026, 3, 1, 23, 59, 59)),
-        "uber": make_transaction(user, c["Transporte"], "Uber centro", 1500, datetime(2026, 3, 2, 0, 0, 0)),
+        "cafe": make_transaction(user, c["Restaurantes e Bares"], "Café com Leite", 500, datetime(2026, 3, 1, 9, 0, 0)),
+        "jantar": make_transaction(user, c["Restaurantes e Bares"], "Jantar 100%", 4000, datetime(2026, 3, 1, 23, 59, 59)),
+        "uber": make_transaction(user, c["Transporte público"], "Uber centro", 1500, datetime(2026, 3, 2, 0, 0, 0)),
         "mercado": make_transaction(user, c["Supermercado"], "Mercado", 20000, datetime(2026, 3, 15, 12, 0, 0)),
         "aluguel": make_transaction(user, c["Aluguel"], "Aluguel abril", 150000, datetime(2026, 4, 10, 12, 0, 0)),
-        "presente": make_transaction(user, c["Outros"], "Presente", 3000, datetime(2025, 12, 25, 12, 0, 0)),
+        "presente": make_transaction(user, c["Sem categoria"], "Presente", 3000, datetime(2025, 12, 25, 12, 0, 0)),
     }
     return rows
 
@@ -87,13 +87,13 @@ def test_value_bounds_are_inclusive(db, user, seeded):
 
 
 def test_filter_by_categories(db, user, seeded, category_ids):
-    rows = run(db, user, category_ids=[category_ids["Alimentação"], category_ids["Transporte"]])
+    rows = run(db, user, category_ids=[category_ids["Restaurantes e Bares"], category_ids["Transporte público"]])
 
     assert labels(rows) == {"Café com Leite", "Jantar 100%", "Uber centro"}
 
 
 def test_exclude_categories(db, user, seeded, category_ids):
-    rows = run(db, user, exclude_category_ids=[category_ids["Aluguel"], category_ids["Outros"]])
+    rows = run(db, user, exclude_category_ids=[category_ids["Aluguel"], category_ids["Sem categoria"]])
 
     assert labels(rows) == {"Café com Leite", "Jantar 100%", "Uber centro", "Mercado"}
 
@@ -106,7 +106,7 @@ def test_rows_carry_their_category_name(db, user, seeded):
     by_label = {r.label: r.category_name for r in run(db, user)}
 
     assert by_label["Mercado"] == "Supermercado"
-    assert by_label["Uber centro"] == "Transporte"
+    assert by_label["Uber centro"] == "Transporte público"
 
 
 def test_transaction_without_a_category_is_still_listed(db, user, make_transaction):
@@ -166,7 +166,7 @@ def test_order_by_value(db, user, seeded):
 
 
 def test_ties_are_broken_by_newest_id_first(db, user, make_transaction, category_ids):
-    cat = category_ids["Outros"]
+    cat = category_ids["Sem categoria"]
     same_time = datetime(2026, 1, 1, 12)
     first = make_transaction(user, cat, "first", 100, same_time)
     second = make_transaction(user, cat, "second", 100, same_time)
@@ -199,7 +199,7 @@ def test_limit_is_capped_at_200(db, user, category_ids):
             label=f"t{i}",
             value=1,
             transactioned_at=datetime(2026, 1, 1),
-            category_id=category_ids["Outros"],
+            category_id=category_ids["Sem categoria"],
         )
         for i in range(205)
     )
@@ -216,7 +216,7 @@ def test_negative_offset_is_treated_as_zero(db, user, seeded):
 
 
 def test_other_users_rows_are_never_returned(db, user, other_user, seeded, make_transaction, category_ids):
-    make_transaction(other_user, category_ids["Outros"], "Not yours", 1, datetime(2026, 3, 1, 10))
+    make_transaction(other_user, category_ids["Sem categoria"], "Not yours", 1, datetime(2026, 3, 1, 10))
 
     assert "Not yours" not in labels(run(db, user))
     assert "Not yours" not in labels(run(db, user, search="Not yours"))
@@ -226,7 +226,7 @@ def test_other_users_rows_are_never_returned(db, user, other_user, seeded, make_
 
 
 def test_day_filter_matches_only_the_given_date(db, user, make_transaction, category_ids):
-    cat = category_ids["Outros"]
+    cat = category_ids["Sem categoria"]
     make_transaction(user, cat, "march 5th", when=datetime(2026, 3, 5, 12))
     make_transaction(user, cat, "april 5th", when=datetime(2026, 4, 5, 12))
 
@@ -236,7 +236,7 @@ def test_day_filter_matches_only_the_given_date(db, user, make_transaction, cate
 
 
 def test_month_filter_matches_only_the_given_year_and_month(db, user, make_transaction, category_ids):
-    cat = category_ids["Outros"]
+    cat = category_ids["Sem categoria"]
     make_transaction(user, cat, "march 2026", when=datetime(2026, 3, 5, 12))
     make_transaction(user, cat, "march 2025", when=datetime(2025, 3, 5, 12))
 
@@ -246,7 +246,7 @@ def test_month_filter_matches_only_the_given_year_and_month(db, user, make_trans
 
 
 def test_year_filter_still_matches_the_whole_year(db, user, make_transaction, category_ids):
-    cat = category_ids["Outros"]
+    cat = category_ids["Sem categoria"]
     make_transaction(user, cat, "dec 2025", when=datetime(2025, 12, 31, 23, 59, 59))
     make_transaction(user, cat, "jan 2026", when=datetime(2026, 1, 1, 0, 0, 0))
     make_transaction(user, cat, "dec 2026", when=datetime(2026, 12, 31, 23, 59, 59))
@@ -258,7 +258,7 @@ def test_year_filter_still_matches_the_whole_year(db, user, make_transaction, ca
 
 
 def test_december_month_filter_does_not_leak_into_january(db, user, make_transaction, category_ids):
-    cat = category_ids["Outros"]
+    cat = category_ids["Sem categoria"]
     make_transaction(user, cat, "dec", when=datetime(2026, 12, 31, 23, 59, 59))
     make_transaction(user, cat, "jan", when=datetime(2027, 1, 1, 0, 0, 0))
 
@@ -270,7 +270,7 @@ def test_december_month_filter_does_not_leak_into_january(db, user, make_transac
 
 
 def test_day_filter_includes_the_whole_day_and_nothing_of_the_next(db, user, make_transaction, category_ids):
-    cat = category_ids["Outros"]
+    cat = category_ids["Sem categoria"]
     make_transaction(user, cat, "midnight", when=datetime(2026, 3, 5, 0, 0, 0))
     make_transaction(user, cat, "last second", when=datetime(2026, 3, 5, 23, 59, 59))
     make_transaction(user, cat, "next day", when=datetime(2026, 3, 6, 0, 0, 0))
@@ -283,7 +283,7 @@ def test_day_filter_includes_the_whole_day_and_nothing_of_the_next(db, user, mak
 
 
 def test_no_grouping_returns_everything(db, user, make_transaction, category_ids):
-    cat = category_ids["Outros"]
+    cat = category_ids["Sem categoria"]
     make_transaction(user, cat, "a", when=datetime(2025, 1, 1))
     make_transaction(user, cat, "b", when=datetime(2026, 3, 5))
 
@@ -294,7 +294,7 @@ def test_no_grouping_returns_everything(db, user, make_transaction, category_ids
 def test_the_last_year_the_calendar_has_does_not_crash_the_filter(
     db, user, make_transaction, category_ids, organized_by
 ):
-    make_transaction(user, category_ids["Outros"], "recent", when=datetime(2026, 3, 5, 12))
+    make_transaction(user, category_ids["Sem categoria"], "recent", when=datetime(2026, 3, 5, 12))
 
     rows = get_transactions(
         db, GetTransactionsParams(organized_by=organized_by, date=datetime(9999, 12, 31)), user.family_id

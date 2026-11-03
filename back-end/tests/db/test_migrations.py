@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0011"
+LATEST = "0012"
 
 
 def _version(engine):
@@ -653,7 +653,7 @@ def _groups_of_categories(engine):
 
 
 def test_the_twelve_groups_exist_after_the_migration_with_outros_last(url, engine):
-    upgrade_database(url)
+    command.upgrade(alembic_config(url), "0010")
 
     with engine.connect() as conn:
         names = conn.execute(text("SELECT name FROM category_groups ORDER BY id")).scalars().all()
@@ -676,7 +676,7 @@ def test_the_twelve_groups_exist_after_the_migration_with_outros_last(url, engin
 def test_existing_default_categories_are_grouped_by_name_and_the_rest_goes_to_outros(url, engine):
     _database_before_groups(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "0010")
 
     assert _groups_of_categories(engine) == {
         1: "Casa",
@@ -692,7 +692,7 @@ def test_existing_default_categories_are_grouped_by_name_and_the_rest_goes_to_ou
 def test_the_migration_keeps_every_category_and_what_points_to_it(url, engine):
     _database_before_groups(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "0010")
 
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 7
@@ -709,7 +709,7 @@ def test_every_category_must_have_a_group(url, engine):
 
 def test_undoing_the_groups_revision_drops_the_groups_and_keeps_the_categories(url, engine):
     _database_before_groups(url, engine)
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "0010")
 
     command.downgrade(alembic_config(url), "0009")
 
@@ -753,7 +753,7 @@ def _names(engine):
 def test_default_categories_get_their_emoji_in_front_of_the_name(url, engine):
     _database_before_emojis(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "0011")
 
     names = _names(engine)
     assert names[1] == "🛒 Supermercado"
@@ -763,7 +763,7 @@ def test_default_categories_get_their_emoji_in_front_of_the_name(url, engine):
 def test_a_family_category_an_emoji_already_there_and_unknown_names_are_left_alone(url, engine):
     _database_before_emojis(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "0011")
 
     names = _names(engine)
     assert names[3] == "🛒 Compras"  # not given a second emoji
@@ -774,7 +774,7 @@ def test_a_family_category_an_emoji_already_there_and_unknown_names_are_left_alo
 def test_the_emojis_change_no_id_and_no_transaction(url, engine):
     _database_before_emojis(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "0011")
 
     with engine.connect() as conn:
         assert conn.execute(text("SELECT category_id FROM transactions")).scalar() == 1
@@ -783,7 +783,7 @@ def test_the_emojis_change_no_id_and_no_transaction(url, engine):
 
 def test_undoing_the_emojis_gives_the_default_categories_their_old_names_back(url, engine):
     _database_before_emojis(url, engine)
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "0011")
 
     command.downgrade(alembic_config(url), "0010")
 
@@ -791,3 +791,139 @@ def test_undoing_the_emojis_gives_the_default_categories_their_old_names_back(ur
     assert names[1] == "Supermercado"
     assert names[3] == "Compras"  # any emoji of the list in front of a default name is removed, even another one
     assert (names[5], names[6]) == ("Supermercado", "Plantas")
+
+
+# --- 0012: the default categories of Monarch Money -------------------------------------------------------------
+
+
+def _database_before_monarch(url, engine):
+    command.upgrade(alembic_config(url), "0011")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(
+            text("INSERT INTO users (id, family_id, google_id, name, email) VALUES (1, 1, 'g', 'Ana', 'a@e.com')")
+        )
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, family_id, name, group_id) "
+                "SELECT v.id, v.family_id, v.name, g.id FROM (VALUES "
+                "(1, NULL, '🎨 Hobbies', 'Lazer'), (2, NULL, '📺 Assinaturas', 'Lazer'), (3, NULL, '🎬 Entretenimento', 'Lazer'),"
+                "(4, NULL, '🍽️ Alimentação', 'Alimentação'), (5, NULL, '🏠 Aluguel', 'Casa'),"
+                "(6, NULL, 'Uma que a lista não conhece', 'Outros'), (7, NULL, '🪙 Criptomoedas', 'Investimentos'),"
+                "(8, 1, 'Plantas', 'Casa'), (9, 1, 'Bolsa de valores', 'Investimentos'), (10, 1, 'Hobbies', 'Lazer')"
+                ") AS v(id, family_id, name, grp), category_groups g WHERE g.name = v.grp"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, family_id, user_id, label, value, category_id) VALUES "
+                "(1, 1, 1, 'a', 100, 1), (2, 1, 1, 'b', 200, 2), (3, 1, 1, 'c', 300, 3), (4, 1, 1, 'd', 400, 4)"
+            )
+        )
+
+
+def _category_rows(engine):
+    with engine.connect() as conn:
+        return {
+            row.id: (row.name, row.family_id, row.group)
+            for row in conn.execute(
+                text(
+                    "SELECT c.id, c.name, c.family_id, g.name AS \"group\" "
+                    "FROM categories c JOIN category_groups g ON g.id = c.group_id"
+                )
+            )
+        }
+
+
+def test_the_monarch_groups_replace_the_old_ones_in_order(url, engine):
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        names = conn.execute(text("SELECT name FROM category_groups ORDER BY id")).scalars().all()
+    assert names == [
+        "Receitas",
+        "Presentes e Doações",
+        "Auto e Transporte",
+        "Moradia",
+        "Contas e Serviços",
+        "Alimentação",
+        "Compras",
+        "Viagem e Estilo de Vida",
+        "Filhos",
+        "Educação",
+        "Saúde e Bem-estar",
+        "Finanças",
+        "Outros",
+        "Transferências",
+    ]
+
+
+def test_old_default_categories_become_the_closest_monarch_one_and_several_are_merged_into_one(url, engine):
+    _database_before_monarch(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    rows = _category_rows(engine)
+    # Hobbies, Assinaturas and Entretenimento are one category now: the first row is kept, the others are gone
+    assert rows[1] == ("🎬 Entretenimento e Lazer", None, "Viagem e Estilo de Vida")
+    assert 2 not in rows and 3 not in rows
+    assert rows[4] == ("🍽️ Restaurantes e Bares", None, "Alimentação")
+    assert rows[5] == ("🏠 Aluguel", None, "Moradia")
+    assert rows[7] == ("🔄 Transferência", None, "Transferências")  # investments are transfers
+
+
+def test_a_default_category_the_old_list_did_not_know_keeps_its_name_in_outros(url, engine):
+    _database_before_monarch(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    assert _category_rows(engine)[6] == ("Uma que a lista não conhece", None, "Outros")
+
+
+def test_the_transactions_of_merged_categories_follow_to_the_one_that_is_kept(url, engine):
+    _database_before_monarch(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        categories = dict(conn.execute(text("SELECT id, category_id FROM transactions ORDER BY id")).all())
+        assert conn.execute(text("SELECT count(*) FROM transactions")).scalar() == 4
+    assert categories == {1: 1, 2: 1, 3: 1, 4: 4}
+
+
+def test_a_familys_own_categories_are_not_renamed_and_move_to_the_group_that_replaces_theirs(url, engine):
+    _database_before_monarch(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    rows = _category_rows(engine)
+    assert rows[8] == ("Plantas", 1, "Moradia")  # Casa
+    assert rows[9] == ("Bolsa de valores", 1, "Transferências")  # Investimentos
+    assert rows[10] == ("Hobbies", 1, "Viagem e Estilo de Vida")  # not merged with the default Hobbies
+
+
+def test_no_old_group_is_left_behind(url, engine):
+    _database_before_monarch(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM category_groups")).scalar() == 14
+        assert conn.execute(text("SELECT count(*) FROM category_groups WHERE name LIKE '\\_\\_%'")).scalar() == 0
+
+
+def test_undoing_the_monarch_revision_brings_back_the_old_groups_and_names_and_keeps_every_row(url, engine):
+    _database_before_monarch(url, engine)
+    command.upgrade(alembic_config(url), "head")
+
+    command.downgrade(alembic_config(url), "0011")
+
+    rows = _category_rows(engine)
+    assert rows[1] == ("🎬 Entretenimento", None, "Lazer")  # the merged ones cannot be told apart again
+    assert rows[4] == ("🍽️ Alimentação", None, "Alimentação")
+    assert rows[8] == ("Plantas", 1, "Casa")
+    assert rows[9] == ("Bolsa de valores", 1, "Transferências")
+    with engine.connect() as conn:
+        names = conn.execute(text("SELECT name FROM category_groups ORDER BY id")).scalars().all()
+        assert conn.execute(text("SELECT category_id FROM transactions WHERE id = 4")).scalar() == 4
+    assert names[0] == "Casa" and len(names) == 12

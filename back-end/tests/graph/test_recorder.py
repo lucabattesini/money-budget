@@ -8,7 +8,7 @@ from schemas.agents_schemas import ExpenseItem, RecorderResponse
 from schemas.tables import TransactionDB
 
 
-def item(amount=10.0, category="Alimentação", description="Almoço", when=None):
+def item(amount=10.0, category="Restaurantes e Bares", description="Almoço", when=None):
     return ExpenseItem(amount=amount, category=category, description=description, date=when)
 
 
@@ -40,7 +40,7 @@ def test_amounts_are_stored_as_exact_cents(db, user, recorder, amount, cents):
 
 
 def test_the_expense_is_saved_for_the_right_user_and_category(db, user, other_user, recorder, category_ids):
-    recorder([item(30.0, "Transporte", "Uber")])
+    recorder([item(30.0, "Transporte público", "Uber")])
 
     run(user)
 
@@ -49,7 +49,7 @@ def test_the_expense_is_saved_for_the_right_user_and_category(db, user, other_us
         user.id,
         user.family_id,
         "Uber",
-        category_ids["Transporte"],
+        category_ids["Transporte público"],
     )
 
 
@@ -57,7 +57,7 @@ def test_the_reply_confirms_each_expense_in_brazilian_format(db, user, recorder)
     recorder(
         [
             item(1234.56, "Aluguel", "Aluguel de março", date(2026, 3, 5)),
-            item(7.0, "Transporte", "Ônibus", date(2026, 3, 6)),
+            item(7.0, "Transporte público", "Ônibus", date(2026, 3, 6)),
         ]
     )
 
@@ -65,7 +65,7 @@ def test_the_reply_confirms_each_expense_in_brazilian_format(db, user, recorder)
 
     assert reply.startswith("Registrado!")
     assert "R$ 1.234,56 em Aluguel (Aluguel de março, 05/03)" in reply
-    assert "R$ 7,00 em Transporte (Ônibus, 06/03)" in reply
+    assert "R$ 7,00 em Transporte público (Ônibus, 06/03)" in reply
     assert len(rows(db)) == 2
 
 
@@ -93,13 +93,13 @@ def test_a_future_date_is_clamped_to_today(db, user, recorder):
     assert rows(db)[0].transactioned_at.date() == date.today()
 
 
-def test_a_valid_category_missing_from_the_database_falls_back_to_outros(db, user, recorder, category_ids):
+def test_a_valid_category_missing_from_the_database_falls_back_to_sem_categoria(db, user, recorder, category_ids):
     recorder([item(category="Pets", description="Ração")])  # "Pets" is not seeded in the test database
 
     reply = run(user)["final_response"]
 
-    assert rows(db)[0].category_id == category_ids["Outros"]
-    assert "em Outros" in reply
+    assert rows(db)[0].category_id == category_ids["Sem categoria"]
+    assert "em Sem categoria" in reply
 
 
 def test_the_agents_text_is_added_after_the_confirmation(db, user, recorder):

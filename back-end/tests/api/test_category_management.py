@@ -36,7 +36,7 @@ def own(client, auth_headers):
 def test_the_list_marks_the_default_categories(client, auth_headers, own):
     categories = _list(client, auth_headers)
 
-    assert categories["Alimentação"]["is_default"] is True
+    assert categories["Educação"]["is_default"] is True
     assert categories["Plantas"]["is_default"] is False
 
 
@@ -46,7 +46,7 @@ def test_the_list_is_served_at_the_address_the_web_app_uses_without_a_redirect(c
 
     assert response.status_code == 200
     assert response.history == []  # not redirected: the Authorization header must survive
-    assert any(c["name"] == "Alimentação" for c in response.json()["data"])
+    assert any(c["name"] == "Educação" for c in response.json()["data"])
 
 
 def test_every_address_the_web_app_calls_works_exactly_as_written(client, auth_headers, own):
@@ -70,16 +70,16 @@ def test_every_address_the_web_app_calls_works_exactly_as_written(client, auth_h
 
 
 def test_adding_a_category_makes_it_the_familys_own_and_lists_it_with_its_group(client, db, user, auth_headers):
-    lazer = _group(db, "Lazer")
+    viagem = _group(db, "Viagem e Estilo de Vida")
 
-    response = _post(client, auth_headers, name="Jogos", group_id=lazer.id)
+    response = _post(client, auth_headers, name="Jogos", group_id=viagem.id)
 
     assert response.status_code == 201
     created = response.json()["data"]
     assert (created["name"], created["group_id"], created["group_name"], created["family_id"]) == (
         "Jogos",
-        lazer.id,
-        "Lazer",
+        viagem.id,
+        "Viagem e Estilo de Vida",
         user.family_id,
     )
     assert _list(client, auth_headers)["Jogos"]["id"] == created["id"]
@@ -129,7 +129,7 @@ def test_a_name_already_used_in_the_family_is_refused_ignoring_case_and_spaces(c
     assert [c for c in _list(client, auth_headers) if c.strip().lower() == "plantas"] == ["Plantas"]
 
 
-@pytest.mark.parametrize("name", ["alimentação", " ALIMENTAÇÃO ", "Outros"])
+@pytest.mark.parametrize("name", ["educação", " EDUCAÇÃO ", "Sem categoria"])
 def test_a_name_that_clashes_with_a_default_category_is_refused(client, auth_headers, name):
     response = _post(client, auth_headers, name=name)
 
@@ -169,19 +169,19 @@ def test_a_category_can_be_renamed_and_keeps_its_group_and_its_transactions(
 
 
 def test_a_category_can_change_group_without_changing_name(client, db, auth_headers, own):
-    lazer = _group(db, "Lazer")
+    viagem = _group(db, "Viagem e Estilo de Vida")
 
-    data = _patch(client, auth_headers, own["id"], group_id=lazer.id).json()["data"]
+    data = _patch(client, auth_headers, own["id"], group_id=viagem.id).json()["data"]
 
-    assert (data["name"], data["group_id"], data["group_name"]) == ("Plantas", lazer.id, "Lazer")
+    assert (data["name"], data["group_id"], data["group_name"]) == ("Plantas", viagem.id, "Viagem e Estilo de Vida")
 
 
 def test_name_and_group_can_change_together(client, db, auth_headers, own):
-    casa = _group(db, "Casa")
+    casa = _group(db, "Moradia")
 
     data = _patch(client, auth_headers, own["id"], name="Jardim", group_id=casa.id).json()["data"]
 
-    assert (data["name"], data["group_name"]) == ("Jardim", "Casa")
+    assert (data["name"], data["group_name"]) == ("Jardim", "Moradia")
 
 
 def test_changing_only_the_case_of_its_own_name_is_allowed(client, auth_headers, own):
@@ -195,7 +195,7 @@ def test_renaming_onto_another_category_of_the_family_or_a_default_is_refused(cl
     _post(client, auth_headers, name="Jardim")
 
     assert _patch(client, auth_headers, own["id"], name=" jardim ").status_code == 409
-    assert _patch(client, auth_headers, own["id"], name="Alimentação").status_code == 409
+    assert _patch(client, auth_headers, own["id"], name="Educação").status_code == 409
     assert _list(client, auth_headers)["Plantas"]["id"] == own["id"]  # unchanged
 
 
@@ -209,16 +209,16 @@ def test_a_bad_change_is_refused_and_leaves_the_category_as_it_was(client, auth_
 
 
 def test_a_default_category_cannot_be_renamed_or_regrouped(client, db, auth_headers):
-    default = _list(client, auth_headers)["Alimentação"]
+    default = _list(client, auth_headers)["Educação"]
 
     renamed = _patch(client, auth_headers, default["id"], name="Comida")
-    regrouped = _patch(client, auth_headers, default["id"], group_id=_group(db, "Lazer").id)
+    regrouped = _patch(client, auth_headers, default["id"], group_id=_group(db, "Viagem e Estilo de Vida").id)
     missing = _patch(client, auth_headers, 999_999, name="x")
 
     assert (renamed.status_code, regrouped.status_code) == (404, 404)
     assert renamed.json() == missing.json()  # indistinguishable from a category that does not exist
-    unchanged = _list(client, auth_headers)["Alimentação"]
-    assert (unchanged["name"], unchanged["group_name"]) == ("Alimentação", "Alimentação")
+    unchanged = _list(client, auth_headers)["Educação"]
+    assert (unchanged["name"], unchanged["group_name"]) == ("Educação", "Educação")
 
 
 def test_another_familys_category_cannot_be_changed_and_answers_like_a_missing_one(
@@ -249,7 +249,7 @@ def test_a_category_in_use_is_not_deleted_and_the_message_says_how_many_transact
     client, db, user, auth_headers, own, make_transaction, count, message
 ):
     rows = [make_transaction(user, own["id"], label=f"t{i}") for i in range(count)]
-    make_transaction(user, _list(client, auth_headers)["Outros"]["id"], label="other category")
+    make_transaction(user, _list(client, auth_headers)["Sem categoria"]["id"], label="other category")
 
     response = client.delete(f"/categories/{own['id']}", headers=auth_headers)
 
@@ -320,7 +320,7 @@ def test_the_emoji_does_not_make_a_name_different_for_the_duplicate_check(client
 
 
 def test_a_name_cannot_clash_with_a_default_category_that_has_an_emoji(client, db, auth_headers):
-    group = db.query(CategoryGroups).filter_by(name="Alimentação").one()
+    group = db.query(CategoryGroups).filter_by(name="Educação").one()
     db.add(Categories(name="🛒 Mercado do bairro", group_id=group.id))
     db.commit()
 
@@ -338,10 +338,10 @@ def test_renaming_can_add_change_or_drop_the_emoji_without_clashing_with_itself(
 
 @pytest.mark.parametrize(
     "name",
-    ["Alimentação\u200b", "Alimenta\u200bção", "Alimentac\u0327a\u0303o", "  alimentação  ", "🍴 ALIMENTAÇÃO"],
+    ["Educação\u200b", "Educa\u200bção", "Educac\u0327a\u0303o", "  educação  ", "🎓 EDUCAÇÃO"],
 )
 def test_a_look_alike_of_a_default_name_is_refused(client, auth_headers, name):
-    """ "Alimentação" is a default in the test database. Invisible characters, accents written in two parts and
+    """ "Educação" is a default in the test database. Invisible characters, accents written in two parts and
     emoji must not get a second category that looks identical."""
     assert _post(client, auth_headers, name=name).status_code == 409
 

@@ -29,7 +29,7 @@ def _summed(client, headers, body=None):
 
 
 def test_create_stores_the_transaction_for_the_caller(client, db, user, auth_headers, category_ids):
-    response = _create(client, auth_headers, category_ids["Alimentação"], label="Almoço", value=2500)
+    response = _create(client, auth_headers, category_ids["Restaurantes e Bares"], label="Almoço", value=2500)
 
     assert response.status_code == 201
     row = db.query(TransactionDB).one()
@@ -38,14 +38,14 @@ def test_create_stores_the_transaction_for_the_caller(client, db, user, auth_hea
         user.id,
         "Almoço",
         2500,
-        category_ids["Alimentação"],
+        category_ids["Restaurantes e Bares"],
     )
     assert row.transactioned_at is not None
 
 
 def test_create_requires_authentication(client, db, category_ids):
     response = client.post(
-        "/transactions/create", json={"label": "x", "value": 1, "category_id": category_ids["Outros"]}
+        "/transactions/create", json={"label": "x", "value": 1, "category_id": category_ids["Sem categoria"]}
     )
 
     assert response.status_code == 401
@@ -54,7 +54,7 @@ def test_create_requires_authentication(client, db, category_ids):
 
 def test_create_rejects_a_missing_label(client, db, auth_headers, category_ids):
     response = client.post(
-        "/transactions/create", json={"value": 100, "category_id": category_ids["Outros"]}, headers=auth_headers
+        "/transactions/create", json={"value": 100, "category_id": category_ids["Sem categoria"]}, headers=auth_headers
     )
 
     assert response.status_code == 422
@@ -67,8 +67,8 @@ def test_create_rejects_a_missing_label(client, db, auth_headers, category_ids):
 def test_list_returns_only_the_callers_transactions(
     client, user, other_user, auth_headers, headers_for, make_transaction, category_ids
 ):
-    make_transaction(user, category_ids["Alimentação"], label="Mine", value=1000)
-    make_transaction(other_user, category_ids["Alimentação"], label="Theirs", value=9999)
+    make_transaction(user, category_ids["Restaurantes e Bares"], label="Mine", value=1000)
+    make_transaction(other_user, category_ids["Restaurantes e Bares"], label="Theirs", value=9999)
 
     mine = _list(client, auth_headers)
     theirs = _list(client, headers_for(other_user))
@@ -78,7 +78,7 @@ def test_list_returns_only_the_callers_transactions(
 
 
 def test_list_is_newest_first(client, user, auth_headers, make_transaction, category_ids):
-    cat = category_ids["Alimentação"]
+    cat = category_ids["Restaurantes e Bares"]
     make_transaction(user, cat, label="old", when=datetime(2026, 1, 10))
     make_transaction(user, cat, label="new", when=datetime(2026, 3, 10))
     make_transaction(user, cat, label="mid", when=datetime(2026, 2, 10))
@@ -87,7 +87,7 @@ def test_list_is_newest_first(client, user, auth_headers, make_transaction, cate
 
 
 def test_list_can_be_filtered_by_year(client, user, auth_headers, make_transaction, category_ids):
-    cat = category_ids["Alimentação"]
+    cat = category_ids["Restaurantes e Bares"]
     make_transaction(user, cat, label="2025", when=datetime(2025, 6, 1))
     make_transaction(user, cat, label="2026", when=datetime(2026, 6, 1))
 
@@ -97,7 +97,7 @@ def test_list_can_be_filtered_by_year(client, user, auth_headers, make_transacti
 
 
 def test_list_can_be_filtered_by_month_within_one_year(client, user, auth_headers, make_transaction, category_ids):
-    cat = category_ids["Alimentação"]
+    cat = category_ids["Restaurantes e Bares"]
     make_transaction(user, cat, label="march", when=datetime(2026, 3, 5))
     make_transaction(user, cat, label="april", when=datetime(2026, 4, 5))
 
@@ -110,7 +110,7 @@ def test_list_can_be_filtered_by_month_within_one_year(client, user, auth_header
 
 
 def test_summed_groups_totals_per_category(client, user, auth_headers, make_transaction, category_ids):
-    food, transport = category_ids["Alimentação"], category_ids["Transporte"]
+    food, transport = category_ids["Restaurantes e Bares"], category_ids["Transporte público"]
     make_transaction(user, food, value=1000)
     make_transaction(user, food, value=2500)
     make_transaction(user, transport, value=700)
@@ -121,7 +121,7 @@ def test_summed_groups_totals_per_category(client, user, auth_headers, make_tran
 
 
 def test_summed_ignores_other_users(client, user, other_user, auth_headers, make_transaction, category_ids):
-    cat = category_ids["Alimentação"]
+    cat = category_ids["Restaurantes e Bares"]
     make_transaction(user, cat, value=1000)
     make_transaction(other_user, cat, value=50_000)
 
@@ -136,7 +136,7 @@ def test_summed_is_empty_without_transactions(client, auth_headers):
 
 
 def test_delete_removes_the_callers_transaction(client, db, user, auth_headers, make_transaction, category_ids):
-    row = make_transaction(user, category_ids["Alimentação"])
+    row = make_transaction(user, category_ids["Restaurantes e Bares"])
 
     response = client.delete(f"/transactions/{row.id}", headers=auth_headers)
 
@@ -147,7 +147,7 @@ def test_delete_removes_the_callers_transaction(client, db, user, auth_headers, 
 def test_delete_cannot_remove_another_users_transaction(
     client, db, user, other_user, headers_for, make_transaction, category_ids
 ):
-    theirs = make_transaction(other_user, category_ids["Alimentação"], label="Theirs")
+    theirs = make_transaction(other_user, category_ids["Restaurantes e Bares"], label="Theirs")
 
     response = client.delete(f"/transactions/{theirs.id}", headers=headers_for(user))
 
@@ -163,7 +163,7 @@ def test_delete_of_an_unknown_id_reports_not_found(client, auth_headers):
 
 
 def test_delete_requires_authentication(client, user, make_transaction, category_ids):
-    row = make_transaction(user, category_ids["Alimentação"])
+    row = make_transaction(user, category_ids["Restaurantes e Bares"])
 
     assert client.delete(f"/transactions/{row.id}").status_code == 401
 
@@ -172,7 +172,7 @@ def test_delete_requires_authentication(client, user, make_transaction, category
 
 
 def test_a_transaction_is_a_debit_unless_said_otherwise(client, db, auth_headers, category_ids):
-    _create(client, auth_headers, category_ids["Alimentação"])
+    _create(client, auth_headers, category_ids["Restaurantes e Bares"])
 
     assert db.query(TransactionDB).one().type == "debit"
     assert _list(client, auth_headers)[0]["type"] == "debit"
@@ -181,7 +181,7 @@ def test_a_transaction_is_a_debit_unless_said_otherwise(client, db, auth_headers
 def test_a_credit_is_stored_as_a_positive_amount_in_cents(client, db, auth_headers, category_ids):
     response = client.post(
         "/transactions/create",
-        json={"label": "Salário", "value": 150000, "category_id": category_ids["Alimentação"], "type": "credit"},
+        json={"label": "Salário", "value": 150000, "category_id": category_ids["Restaurantes e Bares"], "type": "credit"},
         headers=auth_headers,
     )
 
@@ -194,7 +194,7 @@ def test_a_credit_is_stored_as_a_positive_amount_in_cents(client, db, auth_heade
 def test_create_rejects_an_unknown_type(client, db, auth_headers, category_ids):
     response = client.post(
         "/transactions/create",
-        json={"label": "x", "value": 100, "category_id": category_ids["Alimentação"], "type": "refund"},
+        json={"label": "x", "value": 100, "category_id": category_ids["Restaurantes e Bares"], "type": "refund"},
         headers=auth_headers,
     )
 
@@ -203,7 +203,7 @@ def test_create_rejects_an_unknown_type(client, db, auth_headers, category_ids):
 
 
 def test_spending_totals_by_category_ignore_credits(client, user, auth_headers, make_transaction, category_ids):
-    food = category_ids["Alimentação"]
+    food = category_ids["Restaurantes e Bares"]
     make_transaction(user, food, value=1000, type="debit")
     make_transaction(user, food, value=300, type="debit")
     make_transaction(user, food, value=99999, type="credit")
@@ -216,7 +216,7 @@ def test_spending_totals_by_category_ignore_credits(client, user, auth_headers, 
 
 def test_a_new_transaction_happens_now_and_records_when_it_was_saved(client, db, auth_headers, category_ids):
     before = datetime.now()
-    _create(client, auth_headers, category_ids["Alimentação"])
+    _create(client, auth_headers, category_ids["Restaurantes e Bares"])
 
     row = db.query(TransactionDB).one()
     assert row.transactioned_at >= before
@@ -230,7 +230,7 @@ def test_create_accepts_the_date_the_transaction_happened(client, db, auth_heade
         json={
             "label": "Aluguel",
             "value": 100000,
-            "category_id": category_ids["Alimentação"],
+            "category_id": category_ids["Restaurantes e Bares"],
             "transactioned_at": "2026-01-05T10:30:00",
         },
         headers=auth_headers,
@@ -243,7 +243,7 @@ def test_create_accepts_the_date_the_transaction_happened(client, db, auth_heade
 
 
 def test_the_list_shows_all_three_dates(client, user, auth_headers, make_transaction, category_ids):
-    make_transaction(user, category_ids["Alimentação"], when=datetime(2026, 1, 5, 10, 30))
+    make_transaction(user, category_ids["Restaurantes e Bares"], when=datetime(2026, 1, 5, 10, 30))
 
     row = _list(client, auth_headers)[0]
 
@@ -255,7 +255,7 @@ def test_the_list_shows_all_three_dates(client, user, auth_headers, make_transac
 def test_update_can_change_the_date_and_marks_the_row_as_edited(
     client, db, user, auth_headers, make_transaction, category_ids
 ):
-    food = category_ids["Alimentação"]
+    food = category_ids["Restaurantes e Bares"]
     row = make_transaction(user, food, when=datetime(2026, 3, 15, 9, 0))
     created = row.created_at
 
@@ -270,7 +270,7 @@ def test_update_can_change_the_date_and_marks_the_row_as_edited(
 
 
 def test_update_keeps_the_date_when_none_is_sent(client, db, user, auth_headers, make_transaction, category_ids):
-    food = category_ids["Alimentação"]
+    food = category_ids["Restaurantes e Bares"]
     row = make_transaction(user, food, when=datetime(2026, 3, 15, 9, 0))
 
     _update(client, auth_headers, row.id, category_id=food)
@@ -290,16 +290,16 @@ def _update(client, headers, id, **fields):
 def test_update_changes_label_amount_and_category_and_keeps_the_date(
     client, db, user, auth_headers, make_transaction, category_ids
 ):
-    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+    row = make_transaction(user, category_ids["Restaurantes e Bares"], label="Velho", value=1000)
     original_date = row.transactioned_at
 
-    response = _update(client, auth_headers, row.id, label="Novo", value=3050, category_id=category_ids["Transporte"])
+    response = _update(client, auth_headers, row.id, label="Novo", value=3050, category_id=category_ids["Transporte público"])
 
     assert response.status_code == 200
     assert response.json()["data"]["label"] == "Novo"
     db.expire_all()
     saved = db.query(TransactionDB).filter_by(id=row.id).one()
-    assert (saved.label, saved.value, saved.category_id) == ("Novo", 3050, category_ids["Transporte"])
+    assert (saved.label, saved.value, saved.category_id) == ("Novo", 3050, category_ids["Transporte público"])
     assert saved.transactioned_at == original_date
     assert (saved.family_id, saved.user_id) == (user.family_id, user.id)
 
@@ -307,7 +307,7 @@ def test_update_changes_label_amount_and_category_and_keeps_the_date(
 def test_update_can_switch_between_credit_and_debit_and_keeps_the_type_when_omitted(
     client, db, user, auth_headers, make_transaction, category_ids
 ):
-    food = category_ids["Alimentação"]
+    food = category_ids["Restaurantes e Bares"]
     row = make_transaction(user, food, type="debit")
 
     _update(client, auth_headers, row.id, category_id=food, type="credit")
@@ -320,9 +320,9 @@ def test_update_can_switch_between_credit_and_debit_and_keeps_the_type_when_omit
 
 
 def test_update_rejects_an_unknown_type(client, user, auth_headers, make_transaction, category_ids):
-    row = make_transaction(user, category_ids["Alimentação"])
+    row = make_transaction(user, category_ids["Restaurantes e Bares"])
 
-    response = _update(client, auth_headers, row.id, category_id=category_ids["Alimentação"], type="refund")
+    response = _update(client, auth_headers, row.id, category_id=category_ids["Restaurantes e Bares"], type="refund")
 
     assert response.status_code == 422
 
@@ -330,9 +330,9 @@ def test_update_rejects_an_unknown_type(client, user, auth_headers, make_transac
 def test_update_cannot_change_another_users_transaction(
     client, db, user, other_user, headers_for, make_transaction, category_ids
 ):
-    theirs = make_transaction(other_user, category_ids["Alimentação"], label="Theirs", value=1000)
+    theirs = make_transaction(other_user, category_ids["Restaurantes e Bares"], label="Theirs", value=1000)
 
-    response = _update(client, headers_for(user), theirs.id, category_id=category_ids["Alimentação"])
+    response = _update(client, headers_for(user), theirs.id, category_id=category_ids["Restaurantes e Bares"])
 
     assert response.status_code == 404
     db.expire_all()
@@ -341,7 +341,7 @@ def test_update_cannot_change_another_users_transaction(
 
 
 def test_update_of_an_unknown_id_is_not_found(client, auth_headers, category_ids):
-    response = _update(client, auth_headers, 999999, category_id=category_ids["Alimentação"])
+    response = _update(client, auth_headers, 999999, category_id=category_ids["Restaurantes e Bares"])
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Transaction not found"
@@ -350,7 +350,7 @@ def test_update_of_an_unknown_id_is_not_found(client, auth_headers, category_ids
 def test_update_with_an_unknown_category_is_not_found_and_changes_nothing(
     client, db, user, auth_headers, make_transaction, category_ids
 ):
-    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+    row = make_transaction(user, category_ids["Restaurantes e Bares"], label="Velho", value=1000)
 
     response = _update(client, auth_headers, row.id, category_id=999999)
 
@@ -365,9 +365,9 @@ def test_update_with_an_unknown_category_is_not_found_and_changes_nothing(
     [{"value": 0}, {"value": -5}, {"value": 2147483648}, {"label": ""}, {"label": "x" * 101}],
 )
 def test_update_rejects_invalid_values(client, db, user, auth_headers, make_transaction, category_ids, fields):
-    row = make_transaction(user, category_ids["Alimentação"], label="Velho", value=1000)
+    row = make_transaction(user, category_ids["Restaurantes e Bares"], label="Velho", value=1000)
 
-    response = _update(client, auth_headers, row.id, category_id=category_ids["Alimentação"], **fields)
+    response = _update(client, auth_headers, row.id, category_id=category_ids["Restaurantes e Bares"], **fields)
 
     assert response.status_code == 422
     db.expire_all()
@@ -376,7 +376,7 @@ def test_update_rejects_invalid_values(client, db, user, auth_headers, make_tran
 
 
 def test_update_requires_authentication(client, user, make_transaction, category_ids):
-    row = make_transaction(user, category_ids["Alimentação"])
+    row = make_transaction(user, category_ids["Restaurantes e Bares"])
 
     response = client.put(f"/transactions/{row.id}", json={"label": "x", "value": 1, "category_id": 1})
 
@@ -393,7 +393,7 @@ def test_deleting_an_unknown_transaction_is_not_found(client, auth_headers):
 def test_deleting_another_users_transaction_is_not_found(
     client, user, other_user, headers_for, make_transaction, category_ids
 ):
-    theirs = make_transaction(other_user, category_ids["Alimentação"])
+    theirs = make_transaction(other_user, category_ids["Restaurantes e Bares"])
 
     assert client.delete(f"/transactions/{theirs.id}", headers=headers_for(user)).status_code == 404
 
