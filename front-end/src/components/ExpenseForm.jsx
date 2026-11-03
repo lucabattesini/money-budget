@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Portal, Combobox } from "@chakra-ui/react";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
+import { compareCategories } from "../lib/categoryName";
 import { getToken } from "../lib/auth";
 import { MAX_CENTS } from "../lib/money";
 import customToaster from "../utils/customToaster";
@@ -28,7 +29,7 @@ export default function ExpenseForm() {
                         name: category.name,
                         value: String(category.id)
                     }))
-                    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+                    .sort(compareCategories);
 
                 setCategories(organizedCategories);
                 setFilteredCategories(organizedCategories)

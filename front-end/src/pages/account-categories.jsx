@@ -1,23 +1,52 @@
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Box, Button, CloseButton, Drawer, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, CloseButton, Drawer, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Text, Wrap } from "@chakra-ui/react";
 import { LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 import { createCategory, deleteCategory, getAllCategories, getCategoryGroups, updateCategory } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { EMOJI_CHOICES, compareCategories, joinName, splitName } from "../lib/categoryName";
 import customToaster from "../utils/customToaster";
 
 const MAX_NAME = 100;
 const FALLBACK_GROUP = "Outros";
-
-const byName = (a, b) => a.name.localeCompare(b.name, "pt-BR");
 
 // A label with a red asterisk, like the transaction form.
 function RequiredLabel({ children }) {
     return <Field.Label _after={{ content: '" *"', color: "red.500", fontWeight: "bold" }}>{children}</Field.Label>;
 }
 
+// The emojis to choose from (one, or none). An emoji the category already has stays selectable even if it is not
+// in the list.
+function EmojiGrid({ value, onChange }) {
+    const choices = value && !EMOJI_CHOICES.includes(value) ? [value, ...EMOJI_CHOICES] : EMOJI_CHOICES;
+    return (
+        <Wrap role="radiogroup" aria-label="Emoji" gap={1}>
+            <Button size="xs" variant={value === "" ? "solid" : "outline"} role="radio" aria-checked={value === ""} onClick={() => onChange("")}>
+                Sem emoji
+            </Button>
+            {choices.map((emoji) => (
+                <Button
+                    key={emoji}
+                    size="sm"
+                    variant={value === emoji ? "solid" : "ghost"}
+                    role="radio"
+                    aria-checked={value === emoji}
+                    aria-label={emoji}
+                    onClick={() => onChange(emoji)}
+                    fontSize="lg"
+                    px={1}
+                    minW="9"
+                >
+                    {emoji}
+                </Button>
+            ))}
+        </Wrap>
+    );
+}
+
 // Side panel to add a category, or to edit `category` (its name and group).
 function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
     const editing = category !== null;
+    const [emoji, setEmoji] = useState("");
     const [name, setName] = useState("");
     const [groupId, setGroupId] = useState("");
     const [error, setError] = useState("");
@@ -26,7 +55,10 @@ function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
     // Start from the category being edited (or empty, in "Outros") every time the panel opens
     useEffect(() => {
         if (open) {
-            setName(editing ? category.name : "");
+            // The emoji is the start of the stored name: show it in the grid, and the words in the text box
+            const parts = editing ? splitName(category.name) : { emoji: "", text: "" };
+            setEmoji(parts.emoji);
+            setName(parts.text);
             const fallback = groups.find((group) => group.name === FALLBACK_GROUP);
             setGroupId(String(editing ? category.group_id : fallback?.id ?? ""));
             setError("");
@@ -36,12 +68,15 @@ function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        if (!name.trim()) {
+        // An emoji typed into the text box (from the keyboard's emoji panel) counts too
+        const typed = splitName(name);
+        const words = typed.text;
+        if (!words) {
             setError("O nome da categoria não pode ficar vazio.");
             return;
         }
         setSaving(true);
-        const payload = { name: name.trim(), group_id: Number(groupId) };
+        const payload = { name: joinName(emoji || typed.emoji, words), group_id: Number(groupId) };
         const result = editing
             ? await updateCategory(category.id, payload, getToken())
             : await createCategory(payload, getToken());
@@ -84,6 +119,14 @@ function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
                                         }}
                                     />
                                     <Field.ErrorText>{error}</Field.ErrorText>
+                                </Field.Root>
+
+                                <Field.Root>
+                                    <Field.Label>Emoji</Field.Label>
+                                    <EmojiGrid value={emoji} onChange={setEmoji} />
+                                    <Text fontSize="xs" color="fg.muted">
+                                        Aparece na frente do nome. É opcional.
+                                    </Text>
                                 </Field.Root>
 
                                 <Field.Root required>
@@ -179,7 +222,7 @@ export default function AccountCategories() {
             </Stack>
 
             {groups.map((group) => {
-                const inGroup = categories.filter((category) => category.group_id === group.id).sort(byName);
+                const inGroup = categories.filter((category) => category.group_id === group.id).sort(compareCategories);
                 if (inGroup.length === 0) return null;
                 return (
                     <Box key={group.id} as="section" aria-label={group.name} borderWidth="1px" borderRadius="lg" overflow="hidden">

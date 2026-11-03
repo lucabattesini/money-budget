@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
 import { getTransactions, getAllCategories, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
 import { EMPTY_FILTERS, applyFilters, countActiveFilters, hasActiveFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
@@ -41,7 +42,7 @@ export default function TransactionsDisplay() {
     }, [trigger]);
 
     // Alphabetical, so categories are easy to find in every list
-    const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    const sortedCategories = [...categories].sort(compareCategories);
 
     const changeFilters = (next) => {
         setFilters(next);

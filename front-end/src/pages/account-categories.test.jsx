@@ -130,6 +130,94 @@ describe('categories page: adding', () => {
   })
 })
 
+describe('categories page: emoji', () => {
+  const emoji = (dialog, label) => dialog.getByRole('radio', { name: label })
+  const open = async () => userEvent.click(await screen.findByRole('button', { name: /nova categoria/i }))
+
+  it('puts the chosen emoji in front of the name', async () => {
+    const api = await renderPage({ 'POST /categories': [{ data: category(20, '🌱 Plantas', 4, 7) }, 201] })
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+
+    await userEvent.type(dialog.getByLabelText(/nome/i), 'Plantas')
+    await userEvent.click(emoji(dialog, '🌱'))
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(requestsMade(api)).toContain('POST /categories'))
+    expect(bodyOf(api, 'POST')).toEqual({ name: '🌱 Plantas', group_id: 4 })
+  })
+
+  it('has an emoji only when one is chosen, and none selected at first', async () => {
+    await renderPage()
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+
+    expect(dialog.getByRole('radio', { name: 'Sem emoji' })).toBeChecked()
+    expect(emoji(dialog, '🌱')).not.toBeChecked()
+  })
+
+  it('takes an emoji typed into the name box as well, without doubling it', async () => {
+    const api = await renderPage({ 'POST /categories': [{ data: category(20, '🪴 Vasos', 4, 7) }, 201] })
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+
+    await userEvent.type(dialog.getByLabelText(/nome/i), '🪴 Vasos')
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(requestsMade(api)).toContain('POST /categories'))
+    expect(bodyOf(api, 'POST').name).toBe('🪴 Vasos')
+  })
+
+  it('refuses a name that is only an emoji', async () => {
+    const api = await renderPage()
+    await open()
+    const dialog = within(await screen.findByRole('dialog'))
+
+    await userEvent.click(emoji(dialog, '🌱'))
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    expect(await dialog.findByText('O nome da categoria não pode ficar vazio.')).toBeInTheDocument()
+    expect(requestsMade(api)).not.toContain('POST /categories')
+  })
+
+  it('splits the name of a category being edited into its emoji and its words', async () => {
+    const api = await renderPage({
+      'GET /categories': { data: [category(12, '🌱 Plantas', 1, 7)] },
+      'PATCH /categories/12': { data: category(12, 'Plantas da casa', 1, 7) },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Editar 🌱 Plantas' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    expect(dialog.getByLabelText(/nome/i)).toHaveValue('Plantas')
+    expect(emoji(dialog, '🌱')).toBeChecked()
+
+    await userEvent.type(dialog.getByLabelText(/nome/i), ' da casa')
+    await userEvent.click(dialog.getByRole('radio', { name: 'Sem emoji' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    await waitFor(() => expect(requestsMade(api)).toContain('PATCH /categories/12'))
+    expect(bodyOf(api, 'PATCH').name).toBe('Plantas da casa') // the emoji was taken off
+  })
+
+  it('keeps an emoji of the category that is not in the list selectable', async () => {
+    await renderPage({ 'GET /categories': { data: [category(12, '🦄 Mágicas', 1, 7)] } })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Editar 🦄 Mágicas' }))
+    const dialog = within(await screen.findByRole('dialog'))
+
+    expect(emoji(dialog, '🦄')).toBeChecked()
+  })
+
+  it('lists the categories by their words, not by the emoji in front', async () => {
+    await renderPage({
+      'GET /categories': {
+        data: [category(10, '🏠 Zebra', 1, 7), category(11, '🔧 Abacate', 1, 7), category(12, 'Mala', 1, 7)],
+      },
+    })
+
+    expect(names('Casa')).toEqual(['🔧 Abacate', 'Mala', '🏠 Zebra'])
+  })
+})
+
 describe('categories page: editing', () => {
   it('opens with the current name and group and sends the changes', async () => {
     const api = await renderPage({
