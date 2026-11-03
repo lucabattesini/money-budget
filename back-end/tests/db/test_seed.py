@@ -141,3 +141,61 @@ def test_a_database_made_by_the_migration_alone_gets_the_new_categories_from_the
         assert conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Investimentos'")).scalar() == 1
         assert conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Salário'")).scalar() == 1
         assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 39
+
+
+def test_a_default_category_that_differs_only_in_case_is_not_added_twice(url, engine):
+    upgrade_database(url)
+    with engine.begin() as conn:  # what the migration leaves when it groups an old "aluguel" by name
+        conn.execute(
+            text(
+                "INSERT INTO categories (name, group_id) SELECT 'aluguel', id FROM category_groups WHERE name = 'Casa'"
+            )
+        )
+
+    _run(url, "-m", "db.seed")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM categories WHERE lower(name) = 'aluguel'")).scalar() == 1
+        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 39
+
+
+def test_two_seeds_running_at_the_same_time_both_succeed_and_add_nothing_twice(url, engine):
+    """Two API containers starting together: neither may fail on the unique group name or duplicate a category."""
+    upgrade_database(url)
+    env = {**os.environ, "DB_URL": url}
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-m", "db.seed"],
+            cwd=BACK_END,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for _ in range(4)
+    ]
+    results = [(p.wait(timeout=120), p.stderr.read()) for p in processes]
+
+    assert [code for code, _ in results] == [0, 0, 0, 0], results
+    with engine.connect() as conn:
+        counts = [conn.execute(text(f"SELECT count(*) FROM {t}")).scalar() for t in ("category_groups", "categories")]
+    assert counts == [12, 39]
+
+
+def test_the_migrations_frozen_grouping_still_agrees_with_the_seed_for_what_it_covers():
+    """The migration keeps its own copy of the grouping. Adding default categories to the seed is fine, but moving
+    one to another group, or renaming or reordering a group, would leave existing databases different from new ones:
+    that needs a new migration, and this test says so."""
+    import importlib.util
+
+    from db.seed import DEFAULT_GROUPS
+
+    path = BACK_END / "migrations" / "versions" / "0010_category_groups.py"
+    spec = importlib.util.spec_from_file_location("migration_0010", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    assert list(migration.GROUPS) == list(DEFAULT_GROUPS)  # the same groups, in the same order
+    for group, names in migration.GROUPS.items():
+        missing = set(names) - set(DEFAULT_GROUPS[group])
+        assert not missing, f"{group}: the seed no longer groups {missing}"

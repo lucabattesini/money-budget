@@ -1,8 +1,10 @@
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from schemas.tables import Categories, CategoryGroups
 
 from .connection import LocalSession
+from .upgrade import MIGRATION_LOCK_ID
 
 # The fixed set of groups, in the order they are shown, and the default categories of each.
 DEFAULT_GROUPS: dict[str, list[str]] = {
@@ -43,6 +45,9 @@ def seed_categories():
     db: Session = LocalSession()
 
     try:
+        # Two API containers starting together must not seed at the same time (the same lock the upgrade uses,
+        # released when this transaction ends)
+        db.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": MIGRATION_LOCK_ID})
         for group_name, category_names in DEFAULT_GROUPS.items():
             group = db.query(CategoryGroups).filter_by(name=group_name).first()
             if not group:
@@ -51,7 +56,12 @@ def seed_categories():
                 db.flush()
             for name in category_names:
                 # Only default categories count: a family may have its own category with the same name
-                exist = db.query(Categories).filter(Categories.name == name, Categories.family_id.is_(None)).first()
+                # (ignoring case, like the migration does when it groups the categories that already exist)
+                exist = (
+                    db.query(Categories)
+                    .filter(func.lower(Categories.name) == name.lower(), Categories.family_id.is_(None))
+                    .first()
+                )
                 if not exist:
                     db.add(Categories(name=name, group_id=group.id))
 
