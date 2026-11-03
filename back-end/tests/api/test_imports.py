@@ -48,10 +48,32 @@ def _upload(client, headers, content, name="transacoes.csv"):
     return client.post("/imports", files={"file": (name, content, "application/octet-stream")}, headers=headers)
 
 
-def _stage(client, headers, *lines, **kwargs):
-    response = _upload(client, headers, _csv(*lines, **kwargs))
-    assert response.status_code == 201, response.text
+def _match(client, headers, job_id, mapping, date_order=None, **formats):
+    """`formats` may hold amount_style and sign, as the dialog sends them."""
+    body = {"mapping": mapping, **formats}
+    if date_order is not None:
+        body["date_order"] = date_order
+    return client.put(f"/imports/{job_id}/columns", json=body, headers=headers)
+
+
+def _check(client, headers, content, name="transacoes.csv"):
+    """Upload, then match the columns the way the page suggests. Returns the answer of the matching, where every row
+    of the file is checked."""
+    uploaded = _upload(client, headers, content, name)
+    assert uploaded.status_code == 201, uploaded.text
+    data = uploaded.json()["data"]
+    return _match(client, headers, data["id"], data["suggested_map"])
+
+
+def _stage_file(client, headers, content, name="transacoes.csv"):
+    response = _check(client, headers, content, name)
+    assert response.status_code == 200, response.text
     return response.json()["data"]
+
+
+def _stage(client, headers, *lines, **kwargs):
+    """Upload and match the columns by name; the file is checked and waits for the categories."""
+    return _stage_file(client, headers, _csv(*lines, **kwargs))
 
 
 def _choose(client, headers, job_id, mapping):
@@ -93,14 +115,14 @@ def test_a_good_file_is_staged_and_nothing_is_saved_yet(client, db, user, auth_h
 
 
 def test_one_wrong_row_rejects_the_whole_file_and_every_problem_is_listed(client, db, user, auth_headers):
-    response = _upload(
+    response = _check(
         client,
         auth_headers,
         _csv(
             GOOD_ROW,
             "31/02/2026;Almoço;Aluguel;10,00;Débito",  # row 3: not a day
             "15/03/2026;;Aluguel;10,00;Débito",  # row 4: no description
-            "15/03/2026;Padaria;Aluguel;0;Débito",  # row 5: amount not above zero
+            "15/03/2026;Padaria;Aluguel;-1,00;Débito",  # row 5: negative amount
             "15/03/2026;Padaria;Aluguel;dez;Débito",  # row 6: not a number
             "15/03/2026;Padaria;Aluguel;10,00;Pix",  # row 7: unknown type
             "15/03/2026;Padaria;;10,00;Débito",  # row 8: no category
@@ -112,12 +134,14 @@ def test_one_wrong_row_rejects_the_whole_file_and_every_problem_is_listed(client
     assert "Nada foi importado" in body["detail"]
     assert [row for row, _ in _problems(response)] == [3, 4, 5, 6, 7, 8]
     assert body["problems_total"] == 6
-    assert db.query(ImportJobDB).count() == 0
+    assert (
+        db.query(ImportJobDB).one().rows is None
+    )  # the file waits, unchecked, for another matching; no rows were kept
     assert _saved(db, user) == []
 
 
 def test_a_row_with_several_mistakes_lists_each_one(client, auth_headers):
-    response = _upload(client, auth_headers, _csv("amanhã;;Aluguel;-3;Pix"))
+    response = _check(client, auth_headers, _csv("amanhã;;Aluguel;-3;Pix"))
 
     assert [row for row, _ in _problems(response)] == [2, 2, 2, 2]
 
@@ -125,7 +149,7 @@ def test_a_row_with_several_mistakes_lists_each_one(client, auth_headers):
 def test_a_date_in_the_future_is_a_problem(client, auth_headers):
     tomorrow = (date.today() + timedelta(days=1)).strftime("%d/%m/%Y")
 
-    response = _upload(client, auth_headers, _csv(f"{tomorrow};Almoço;Aluguel;10,00;Débito"))
+    response = _check(client, auth_headers, _csv(f"{tomorrow};Almoço;Aluguel;10,00;Débito"))
 
     assert _problems(response) == [(2, "A data não pode ser no futuro.")]
 
@@ -133,52 +157,587 @@ def test_a_date_in_the_future_is_a_problem(client, auth_headers):
 def test_today_is_fine(client, auth_headers):
     today = date.today().strftime("%d/%m/%Y")
 
-    assert _upload(client, auth_headers, _csv(f"{today};Almoço;Aluguel;10,00;Débito")).status_code == 201
+    assert _check(client, auth_headers, _csv(f"{today};Almoço;Aluguel;10,00;Débito")).status_code == 200
 
 
-@pytest.mark.parametrize("amount", ["0", "0,00", "-5,00", "abc", "1,234", "1.5.5", ""])
-def test_amounts_that_are_not_above_zero_or_not_numbers_are_problems(client, auth_headers, amount):
-    response = _upload(client, auth_headers, _csv(f"15/03/2026;Almoço;Aluguel;{amount};Débito"))
+@pytest.mark.parametrize("amount", ["-5,00", "abc", "1.5.5", ""])
+def test_amounts_that_are_negative_or_not_numbers_are_problems(client, auth_headers, amount):
+    response = _check(client, auth_headers, _csv(f"15/03/2026;Almoço;Aluguel;{amount};Débito"))
 
     assert response.status_code == 422
     assert [row for row, _ in _problems(response)] == [2]
 
 
 def test_a_description_over_the_limit_is_a_problem(client, auth_headers):
-    response = _upload(client, auth_headers, _csv(f"15/03/2026;{'a' * 101};Aluguel;1,00;Débito"))
+    response = _check(client, auth_headers, _csv(f"15/03/2026;{'a' * 101};Aluguel;1,00;Débito"))
 
     assert "101 caracteres" in _problems(response)[0][1]
-    assert _upload(client, auth_headers, _csv(f"15/03/2026;{'a' * 100};Aluguel;1,00;Débito")).status_code == 201
+    assert _check(client, auth_headers, _csv(f"15/03/2026;{'a' * 100};Aluguel;1,00;Débito")).status_code == 200
 
 
 def test_the_type_column_is_optional_and_defaults_to_debit(client, db, user, auth_headers, queue):
-    staged = _upload(client, auth_headers, _csv("15/03/2026;Almoço;Aluguel;10,00", header="Data;Descrição;Categoria;Valor"))
-    assert staged.status_code == 201
-    assert _start(client, auth_headers, staged.json()["data"]["id"]).status_code == 202
+    job = _stage(client, auth_headers, "15/03/2026;Almoço;Aluguel;10,00", header="Data;Descrição;Categoria;Valor")
+    assert _start(client, auth_headers, job["id"]).status_code == 202
     queue.run()
 
     assert [t.type for t in _saved(db, user)] == ["debit"]
 
 
 def test_columns_may_come_in_any_order_and_extra_columns_are_ignored(client, db, user, auth_headers, queue):
-    staged = _upload(
-        client,
-        auth_headers,
-        _csv("10,00;Aluguel;ignorar;Almoço;15/03/2026", header="valor;CATEGORIA;Banco;descrição;data"),
+    job = _stage(
+        client, auth_headers, "10,00;Aluguel;ignorar;Almoço;15/03/2026", header="valor;CATEGORIA;Banco;descrição;data"
     )
-    assert staged.status_code == 201
-    _start(client, auth_headers, staged.json()["data"]["id"])
+    _start(client, auth_headers, job["id"])
     queue.run()
 
     saved = _saved(db, user)
     assert [(t.label, t.value) for t in saved] == [("Almoço", 1000)]
 
 
-def test_missing_columns_are_named(client, auth_headers):
-    response = _upload(client, auth_headers, _csv("15/03/2026;Almoço", header="Data;Descrição"))
+# --- step 2: matching the columns ------------------------------------------------------------------------------------
+
+OTHER_HEADER = "Quando;O que;Tipo de gasto;Quanto"
+OTHER_MAPPING = {"Data": 0, "Descrição": 1, "Categoria": 2, "Valor": 3, "Tipo": None}
+
+
+def test_uploading_only_reads_the_file_so_even_a_file_full_of_mistakes_gets_to_the_matching(client, db, auth_headers):
+    response = _upload(client, auth_headers, _csv("ontem;;;abc;Pix", "amanhã;;;-1;Pix"))
+
+    assert response.status_code == 201
+    job = response.json()["data"]
+    assert (job["status"], job["columns"]) == ("staged", ["Data", "Descrição", "Categoria", "Valor", "Tipo"])
+    assert "unknown_categories" not in job and "to_import" not in job  # nothing is checked yet
+    assert db.query(TransactionDB).count() == 0
+
+
+def test_the_columns_named_like_the_fields_are_suggested_even_with_other_case_or_no_accents(client, auth_headers):
+    job = _upload(client, auth_headers, _csv("1;2;3;4;5", header="valor;DESCRICAO;Banco;data;categoria")).json()["data"]
+
+    assert job["suggested_map"] == {"Data": 3, "Descrição": 1, "Categoria": 4, "Valor": 0, "Tipo": None}
+
+
+def test_a_file_from_the_export_has_every_column_suggested(client, auth_headers):
+    job = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
+
+    assert job["suggested_map"] == {"Data": 0, "Descrição": 1, "Categoria": 2, "Valor": 3, "Tipo": 4}
+
+
+def test_a_column_is_suggested_for_one_field_only(client, auth_headers):
+    job = _upload(client, auth_headers, _csv("1;2", header="Data;Data")).json()["data"]
+
+    assert job["suggested_map"]["Data"] == 0
+
+
+def test_a_few_rows_are_shown_to_recognise_the_columns_by(client, auth_headers):
+    lines = [f"0{n}/03/2026;Item {n};Aluguel;{n},00;Débito" for n in range(1, 8)]
+    lines.insert(1, ";;;;")  # an empty row is not shown
+
+    job = _upload(client, auth_headers, _csv(*lines)).json()["data"]
+
+    assert len(job["sample"]) == 5
+    assert job["sample"][0] == ["01/03/2026", "Item 1", "Aluguel", "1,00", "Débito"]
+    assert job["sample"][1][1] == "Item 2"
+
+
+def test_the_sample_of_an_excel_file_shows_dates_and_numbers_as_people_write_them(client, auth_headers):
+    content = _xlsx([["Data", "Valor"], [datetime(2026, 3, 15), 12.5]])
+
+    job = _upload(client, auth_headers, content, "planilha.xlsx").json()["data"]
+
+    assert job["sample"] == [["15/03/2026", "12.5"]]
+
+
+def test_the_person_can_say_which_column_is_which_when_the_names_do_not_match(client, db, user, auth_headers, queue):
+    uploaded = _upload(client, auth_headers, _csv("15/03/2026;Almoço;Aluguel;1.234,56", header=OTHER_HEADER)).json()[
+        "data"
+    ]
+    assert uploaded["suggested_map"] == {
+        "Data": None,
+        "Descrição": None,
+        "Categoria": None,
+        "Valor": None,
+        "Tipo": None,
+    }
+
+    response = _match(client, auth_headers, uploaded["id"], OTHER_MAPPING)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["column_map"] == OTHER_MAPPING
+    _start(client, auth_headers, uploaded["id"])
+    queue.run()
+    assert [(t.label, t.value, t.type) for t in _saved(db, user)] == [("Almoço", 123456, "debit")]
+
+
+def test_the_type_can_be_taken_from_a_column_the_person_picks(client, db, user, auth_headers, queue):
+    uploaded = _upload(
+        client, auth_headers, _csv("15/03/2026;Salário;Aluguel;5,00;Crédito", header="a;b;c;d;e")
+    ).json()["data"]
+
+    _match(client, auth_headers, uploaded["id"], {**OTHER_MAPPING, "Tipo": 4})
+    _start(client, auth_headers, uploaded["id"])
+    queue.run()
+
+    assert [t.type for t in _saved(db, user)] == ["credit"]
+
+
+@pytest.mark.parametrize("missing", ["Data", "Descrição", "Categoria", "Valor"])
+def test_every_required_field_needs_a_column(client, auth_headers, missing):
+    uploaded = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
+    mapping = {"Data": 0, "Descrição": 1, "Categoria": 2, "Valor": 3, "Tipo": 4, missing: None}
+
+    response = _match(client, auth_headers, uploaded["id"], mapping)
 
     assert response.status_code == 422
-    assert "Categoria" in response.json()["detail"] and "Valor" in response.json()["detail"]
+    assert missing in response.json()["detail"]
+
+
+def test_a_field_left_out_altogether_counts_as_missing(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
+
+    response = _match(client, auth_headers, uploaded["id"], {"Data": 0, "Descrição": 1, "Categoria": 2})
+
+    assert response.status_code == 422 and "Valor" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        ({"Valor": 0}, "mesma coluna"),  # the date column again
+        ({"Valor": 9}, "não existe"),
+        ({"Valor": -1}, "não existe"),
+        ({"Preço": 3}, "desconhecido"),
+    ],
+)
+def test_a_matching_that_makes_no_sense_is_refused(client, db, auth_headers, changes, message):
+    uploaded = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
+
+    response = _match(client, auth_headers, uploaded["id"], {**OTHER_MAPPING, **changes})
+
+    assert response.status_code == 422
+    assert message in response.json()["detail"]
+    assert db.get(ImportJobDB, uploaded["id"]).rows is None
+
+
+def test_rows_that_do_not_fit_the_chosen_columns_are_listed_and_the_person_can_choose_again(client, db, auth_headers):
+    uploaded = _upload(
+        client,
+        auth_headers,
+        _csv("15/03/2026;Almoço;Aluguel;12,00", "16/03/2026;Jantar;Aluguel;8,00", header=OTHER_HEADER),
+    ).json()["data"]
+    wrong = {**OTHER_MAPPING, "Descrição": 3, "Valor": 1}  # description and amount swapped
+
+    refused = _match(client, auth_headers, uploaded["id"], wrong)
+
+    assert refused.status_code == 422
+    assert [row for row, _ in _problems(refused)] == [2, 3]
+    assert db.get(ImportJobDB, uploaded["id"]).rows is None  # nothing was kept
+    assert _match(client, auth_headers, uploaded["id"], OTHER_MAPPING).status_code == 200
+
+
+def test_matching_again_starts_the_categories_over(client, db, auth_headers, category_ids):
+    job = _stage(client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito")
+    _choose(client, auth_headers, job["id"], {"Pets": category_ids["Aluguel"]})
+    assert client.get(f"/imports/{job['id']}", headers=auth_headers).json()["data"]["unknown_categories"] == []
+
+    again = _match(client, auth_headers, job["id"], job["column_map"]).json()["data"]
+
+    assert [c["name"] for c in again["unknown_categories"]] == ["Pets"]
+
+
+def test_categories_and_starting_wait_for_the_columns(client, db, auth_headers, category_ids):
+    uploaded = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
+
+    assert _choose(client, auth_headers, uploaded["id"], {}).status_code == 409
+    assert _start(client, auth_headers, uploaded["id"]).status_code == 409
+    assert db.get(ImportJobDB, uploaded["id"]).status == "staged"
+
+
+def test_the_file_is_not_kept_once_the_import_is_over(client, db, user, auth_headers, queue):
+    _import(client, queue, auth_headers, GOOD_ROW)
+
+    job = db.query(ImportJobDB).one()
+    assert (job.rows, job.raw_rows) == (None, None)
+
+
+# --- amounts and dates in the Brazilian and the American way ----------------------------------------------------------
+
+
+def _read_back(client, queue, db, user, headers, *lines, date_order=None, header=HEADER, **formats):
+    """Upload, match the columns by name, import; the transactions saved as (day, label, cents)."""
+    uploaded = _upload(client, headers, _csv(*lines, header=header)).json()["data"]
+    response = _match(client, headers, uploaded["id"], uploaded["suggested_map"], date_order, **formats)
+    assert response.status_code == 200, response.text
+    _start(client, headers, uploaded["id"])
+    queue.run()
+    return response.json()["data"], [(t.transactioned_at.date(), t.label, t.value) for t in _saved(db, user)]
+
+
+@pytest.mark.parametrize(
+    "amount, cents",
+    [
+        ("1.234,56", 123456),  # Brazilian
+        ("1,234.56", 123456),  # American
+        ("1234,56", 123456),
+        ("1234.56", 123456),
+        ("1,234", 123400),  # three digits after the mark are a group, never decimals
+        ("1.234", 123400),
+        ("12,5", 1250),
+        ("12.5", 1250),
+        ("R$ 1.234,56", 123456),
+        ("$1,234.56", 123456),
+        ("1,234,567.89", 123456789),
+        ("1.234.567,89", 123456789),
+    ],
+)
+def test_amounts_are_read_in_the_brazilian_and_the_american_way(client, db, user, auth_headers, queue, amount, cents):
+    _, saved = _read_back(client, queue, db, user, auth_headers, f'15/03/2026;Almoço;Aluguel;"{amount}";Débito')
+
+    assert saved == [(date(2026, 3, 15), "Almoço", cents)]
+
+
+@pytest.mark.parametrize("amount", ["1,234.567", "1.234,567", "1,5.5", "1.2.3", "12,3456", "-1,234.56"])
+def test_amounts_that_are_wrong_in_either_format_are_problems(client, auth_headers, amount):
+    response = _check(client, auth_headers, _csv(f'15/03/2026;Almoço;Aluguel;"{amount}";Débito'))
+
+    assert response.status_code == 422
+    assert [row for row, _ in _problems(response)] == [2]
+
+
+def test_one_file_may_mix_the_two_ways_of_writing_amounts(client, db, user, auth_headers, queue):
+    _, saved = _read_back(
+        client, queue, db, user, auth_headers, '15/03/2026;a;Aluguel;"1.234,56"', '16/03/2026;b;Aluguel;"1,234.56"'
+    )
+
+    assert [cents for _, _, cents in saved] == [123456, 123456]
+
+
+def test_excel_cells_with_american_text_amounts_and_dates_are_read(client, db, user, auth_headers, queue):
+    content = _xlsx([["Data", "Descrição", "Categoria", "Valor"], ["03/15/2026", "Almoço", "Aluguel", "1,234.56"]])
+    job = _stage_file(client, auth_headers, content, "planilha.xlsx")
+    _start(client, auth_headers, job["id"])
+    queue.run()
+
+    assert [(t.transactioned_at.date(), t.value) for t in _saved(db, user)] == [(date(2026, 3, 15), 123456)]
+
+
+def test_a_day_above_twelve_in_the_first_place_shows_the_dates_are_day_first(client, db, user, auth_headers, queue):
+    answer, saved = _read_back(
+        client, queue, db, user, auth_headers, "05/03/2026;a;Aluguel;1,00", "15/03/2026;b;Aluguel;1,00"
+    )
+
+    assert answer["date_order"] == "day_first"
+    assert [day for day, _, _ in saved] == [date(2026, 3, 5), date(2026, 3, 15)]  # the 5th of March, not of May
+
+
+def test_a_day_above_twelve_in_the_second_place_shows_the_dates_are_month_first(client, db, user, auth_headers, queue):
+    answer, saved = _read_back(
+        client, queue, db, user, auth_headers, "03/05/2026;a;Aluguel;1,00", "03/15/2026;b;Aluguel;1,00"
+    )
+
+    assert answer["date_order"] == "month_first"
+    assert [day for day, _, _ in saved] == [date(2026, 3, 5), date(2026, 3, 15)]  # the 5th of March, not of May
+
+
+def test_dates_that_could_be_either_follow_the_language_of_the_family(client, db, user, auth_headers, queue):
+    answer, saved = _read_back(client, queue, db, user, auth_headers, "05/03/2026;a;Aluguel;1,00")
+    assert answer["date_order"] == "day_first"
+    assert saved[0][0] == date(2026, 3, 5)
+
+    db.query(TransactionDB).delete()
+    db.get(Families, user.family_id).language = "en"
+    db.commit()
+    answer, saved = _read_back(client, queue, db, user, auth_headers, "05/03/2026;a;Aluguel;1,00")
+    assert answer["date_order"] == "month_first"
+    assert saved[0][0] == date(2026, 5, 3)  # the same text, read the American way
+
+
+@pytest.mark.parametrize("order, day", [("day_first", date(2026, 3, 5)), ("month_first", date(2026, 5, 3))])
+def test_the_person_can_choose_the_order_of_the_dates(client, db, user, auth_headers, queue, order, day):
+    answer, saved = _read_back(client, queue, db, user, auth_headers, "05/03/2026;a;Aluguel;1,00", date_order=order)
+
+    assert answer["date_order"] == order
+    assert saved[0][0] == day
+
+
+def test_a_chosen_order_that_does_not_fit_the_dates_makes_them_problems(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv("15/03/2026;a;Aluguel;1,00")).json()["data"]
+
+    response = _match(
+        client, auth_headers, uploaded["id"], uploaded["suggested_map"], "month_first"
+    )  # there is no month 15
+
+    assert response.status_code == 422
+    assert [row for row, _ in _problems(response)] == [2]
+
+
+def test_dates_that_contradict_each_other_are_problems_for_the_rows_that_do_not_fit(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv("15/03/2026;a;Aluguel;1,00", "03/15/2026;b;Aluguel;1,00")).json()[
+        "data"
+    ]
+
+    response = _match(
+        client, auth_headers, uploaded["id"], uploaded["suggested_map"]
+    )  # the language decides: day first
+
+    assert [row for row, _ in _problems(response)] == [3]
+
+
+@pytest.mark.parametrize("order", [None, "iso"])
+def test_the_year_first_date_is_a_format_of_its_own(client, db, user, auth_headers, queue, order):
+    _, saved = _read_back(
+        client,
+        queue,
+        db,
+        user,
+        auth_headers,
+        "2026-10-13;a;Aluguel;1,00",
+        "2026-03-05;b;Aluguel;1,00",
+        date_order=order,
+    )
+
+    assert [day for day, _, _ in saved] == [date(2026, 10, 13), date(2026, 3, 5)]
+
+
+@pytest.mark.parametrize("order", ["day_first", "month_first"])
+def test_a_slashed_format_that_was_chosen_does_not_take_year_first_dates(client, auth_headers, order):
+    uploaded = _upload(client, auth_headers, _csv("2026-10-13;a;Aluguel;1,00")).json()["data"]
+
+    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], order)
+
+    assert response.status_code == 422
+    assert [row for row, _ in _problems(response)] == [2]
+
+
+def test_the_year_first_format_that_was_chosen_does_not_take_slashed_dates(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv("2026-10-13;a;Aluguel;1,00", "13/10/2026;b;Aluguel;1,00")).json()[
+        "data"
+    ]
+
+    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], "iso")
+
+    assert [row for row, _ in _problems(response)] == [3]
+
+
+def test_on_automatic_the_two_kinds_of_dates_can_share_a_file(client, db, user, auth_headers, queue):
+    _, saved = _read_back(
+        client, queue, db, user, auth_headers, "2026-10-13;a;Aluguel;1,00", "15/03/2026;b;Aluguel;1,00"
+    )
+
+    assert [day for day, _, _ in saved] == [date(2026, 10, 13), date(2026, 3, 15)]
+
+
+def test_the_answer_says_the_year_first_format_was_used(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv("2026-10-13;a;Aluguel;1,00")).json()["data"]
+
+    answer = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], "iso").json()["data"]
+
+    assert answer["date_order"] == "iso"
+
+
+def test_an_unknown_order_of_dates_is_refused(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
+
+    assert _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], "sideways").status_code == 422
+
+
+def test_a_date_in_the_future_is_a_problem_in_the_american_order_too(client, auth_headers):
+    future = f"03/15/{date.today().year + 1}"  # a 15 in the second place: month first
+
+    response = _check(client, auth_headers, _csv(f"{future};Almoço;Aluguel;1,00;Débito"))
+
+    assert response.status_code == 422
+    assert _problems(response) == [(2, "A data não pode ser no futuro.")]
+
+
+# --- the patterns the person chooses: how amounts are written and what their sign means ---------------------------------
+
+NO_TYPE_HEADER = "Data;Descrição;Categoria;Valor"
+
+
+@pytest.mark.parametrize(
+    "style, amount, cents",
+    [("br", "1.234,56", 123456), ("br", "1.234", 123400), ("us", "1,234.56", 123456), ("us", "1,234", 123400)],
+)
+def test_the_chosen_amount_style_is_the_one_used(client, db, user, auth_headers, queue, style, amount, cents):
+    _, saved = _read_back(
+        client, queue, db, user, auth_headers, f'15/03/2026;a;Aluguel;"{amount}";Débito', amount_style=style
+    )
+
+    assert saved == [(date(2026, 3, 15), "a", cents)]
+
+
+@pytest.mark.parametrize(
+    "style, amount",
+    [("br", "1,234.56"), ("br", "1,234"), ("us", "1.234,56"), ("us", "1.234"), ("us", "12,5")],
+)
+def test_an_amount_in_the_other_style_is_a_problem_when_a_style_was_chosen(client, auth_headers, style, amount):
+    uploaded = _upload(client, auth_headers, _csv(f'15/03/2026;a;Aluguel;"{amount}";Débito')).json()["data"]
+
+    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], amount_style=style)
+
+    assert response.status_code == 422
+    assert [row for row, _ in _problems(response)] == [2]
+    assert "como escolhido" in _problems(response)[0][1]
+
+
+def test_the_automatic_style_accepts_both(client, db, user, auth_headers, queue):
+    _, saved = _read_back(
+        client,
+        queue,
+        db,
+        user,
+        auth_headers,
+        '15/03/2026;a;Aluguel;"1.234,56"',
+        '16/03/2026;b;Aluguel;"1,234.56"',
+        header=NO_TYPE_HEADER,
+        amount_style="auto",
+    )
+
+    assert [cents for _, _, cents in saved] == [123456, 123456]
+
+
+def _types(db, user):
+    return [(t.label, t.value, t.type) for t in _saved(db, user)]
+
+
+def test_a_negative_amount_can_mean_a_debit_and_a_positive_one_a_credit(client, db, user, auth_headers, queue):
+    _read_back(
+        client,
+        queue,
+        db,
+        user,
+        auth_headers,
+        '15/03/2026;Mercado;Aluguel;"-1.234,56"',
+        "16/03/2026;Salário;Aluguel;3000,00",
+        header=NO_TYPE_HEADER,
+        sign="negative_debit",
+    )
+
+    assert _types(db, user) == [("Mercado", 123456, "debit"), ("Salário", 300000, "credit")]  # saved positive
+
+
+def test_or_the_other_way_round_as_card_statements_do(client, db, user, auth_headers, queue):
+    _read_back(
+        client,
+        queue,
+        db,
+        user,
+        auth_headers,
+        "15/03/2026;Mercado;Aluguel;12,50",
+        "16/03/2026;Estorno;Aluguel;-3,00",
+        header=NO_TYPE_HEADER,
+        sign="negative_credit",
+    )
+
+    assert _types(db, user) == [("Mercado", 1250, "debit"), ("Estorno", 300, "credit")]
+
+
+def test_the_sign_works_with_american_amounts(client, db, user, auth_headers, queue):
+    _read_back(
+        client,
+        queue,
+        db,
+        user,
+        auth_headers,
+        '15/03/2026;a;Aluguel;"-1,234.56"',
+        header=NO_TYPE_HEADER,
+        sign="negative_debit",
+        amount_style="us",
+    )
+
+    assert _types(db, user) == [("a", 123456, "debit")]
+
+
+def test_the_sign_works_with_real_excel_numbers(client, db, user, auth_headers, queue):
+    content = _xlsx(
+        [
+            ["Data", "Descrição", "Categoria", "Valor"],
+            [datetime(2026, 3, 15), "a", "Aluguel", -12.5],
+            [datetime(2026, 3, 16), "b", "Aluguel", 7],
+        ]
+    )
+    uploaded = _upload(client, auth_headers, content, "extrato.xlsx").json()["data"]
+    assert uploaded["suggested_sign"] == "negative_debit"
+    _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], sign="negative_debit")
+    _start(client, auth_headers, uploaded["id"])
+    queue.run()
+
+    assert _types(db, user) == [("a", 1250, "debit"), ("b", 700, "credit")]
+
+
+@pytest.mark.parametrize("sign", ["type_column", "negative_debit", "negative_credit"])
+@pytest.mark.parametrize("zero", ["0", "0,00", "0.00"])
+def test_a_zero_amount_is_registered_not_refused(client, db, user, auth_headers, queue, sign, zero):
+    header = HEADER if sign == "type_column" else NO_TYPE_HEADER
+    line = f"15/03/2026;Brinde;Aluguel;{zero};Débito" if sign == "type_column" else f"15/03/2026;Brinde;Aluguel;{zero}"
+
+    _read_back(client, queue, db, user, auth_headers, line, header=header, sign=sign)
+
+    assert _types(db, user) == [("Brinde", 0, "debit")]  # a zero has no direction: it stays a debit
+
+
+def test_a_zero_in_an_excel_number_cell_is_registered_too(client, db, user, auth_headers, queue):
+    content = _xlsx([["Data", "Descrição", "Categoria", "Valor"], [datetime(2026, 3, 15), "Brinde", "Aluguel", 0]])
+    job = _stage_file(client, auth_headers, content, "planilha.xlsx")
+    _start(client, auth_headers, job["id"])
+    queue.run()
+
+    assert _types(db, user) == [("Brinde", 0, "debit")]
+
+
+def test_without_the_sign_convention_a_negative_amount_is_still_a_problem(client, auth_headers):
+    response = _check(client, auth_headers, _csv("15/03/2026;a;Aluguel;-5,00;Débito"))
+
+    assert response.status_code == 422
+    assert _problems(response) == [
+        (2, "O valor não pode ser negativo (escolha o sinal do valor se o arquivo usa negativo para débito).")
+    ]
+
+
+def test_the_type_column_is_not_used_when_the_sign_says_the_direction(client, db, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv("15/03/2026;a;Aluguel;-5,00;Débito")).json()["data"]
+    assert uploaded["suggested_map"]["Tipo"] == 4
+
+    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], sign="negative_debit")
+
+    assert response.status_code == 422
+    assert "Tipo" in response.json()["detail"]
+    assert db.get(ImportJobDB, uploaded["id"]).rows is None
+
+
+def test_an_unknown_amount_style_or_sign_is_refused(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
+
+    assert (
+        _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], amount_style="swiss").status_code == 422
+    )
+    assert _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"], sign="sideways").status_code == 422
+
+
+@pytest.mark.parametrize(
+    "header, lines, expected",
+    [
+        (NO_TYPE_HEADER, ["15/03/2026;a;Aluguel;-5,00"], "negative_debit"),  # nothing else says the direction
+        (NO_TYPE_HEADER, ["15/03/2026;a;Aluguel;5,00"], "type_column"),  # nothing negative
+        (HEADER, ["15/03/2026;a;Aluguel;-5,00;Débito"], "type_column"),  # there is a Tipo column
+    ],
+)
+def test_the_sign_is_suggested_when_the_file_has_negative_amounts_and_no_type_column(
+    client, auth_headers, header, lines, expected
+):
+    job = _upload(client, auth_headers, _csv(*lines, header=header)).json()["data"]
+
+    assert job["suggested_sign"] == expected
+
+
+def test_the_answer_says_how_the_file_was_read(client, auth_headers):
+    uploaded = _upload(client, auth_headers, _csv("03/15/2026;a;Aluguel;-5.00", header=NO_TYPE_HEADER)).json()["data"]
+
+    answer = _match(
+        client, auth_headers, uploaded["id"], uploaded["suggested_map"], amount_style="us", sign="negative_debit"
+    ).json()["data"]
+
+    assert (answer["date_order"], answer["amount_style"], answer["sign"]) == ("month_first", "us", "negative_debit")
 
 
 @pytest.mark.parametrize(
@@ -228,9 +787,8 @@ def test_uploading_needs_a_login(client):
 @pytest.mark.parametrize("delimiter", [";", ","])
 def test_csv_with_either_separator_is_imported(client, db, user, auth_headers, queue, delimiter):
     text = f'Data{delimiter}Descrição{delimiter}Categoria{delimiter}Valor\n15/03/2026{delimiter}Almoço{delimiter}Aluguel{delimiter}"1.234,56"\n'
-    staged = _upload(client, auth_headers, text.encode("utf-8"))
-    assert staged.status_code == 201
-    _start(client, auth_headers, staged.json()["data"]["id"])
+    job = _stage_file(client, auth_headers, text.encode("utf-8"))
+    _start(client, auth_headers, job["id"])
     queue.run()
 
     assert [(t.label, t.value) for t in _saved(db, user)] == [("Almoço", 123456)]
@@ -245,9 +803,8 @@ def test_excel_with_real_date_and_number_cells_is_imported(client, db, user, aut
             [datetime(2026, 3, 17), 123, "Aluguel", 7, None],
         ]
     )
-    staged = _upload(client, auth_headers, content, "planilha.xlsx")
-    assert staged.status_code == 201, staged.text
-    _start(client, auth_headers, staged.json()["data"]["id"])
+    job = _stage_file(client, auth_headers, content, "planilha.xlsx")
+    _start(client, auth_headers, job["id"])
     queue.run()
 
     assert [(t.transactioned_at.date(), t.label, t.value, t.type) for t in _saved(db, user)] == [
@@ -267,7 +824,7 @@ def test_excel_dates_in_the_future_and_bad_numbers_are_problems(client, auth_hea
         ]
     )
 
-    response = _upload(client, auth_headers, content, "planilha.xlsx")
+    response = _check(client, auth_headers, content, "planilha.xlsx")
 
     assert [row for row, _ in _problems(response)] == [2, 3, 4]
 
@@ -276,7 +833,9 @@ def test_excel_dates_in_the_future_and_bad_numbers_are_problems(client, auth_hea
 
 
 def test_a_category_the_family_does_not_have_is_not_an_error_but_is_listed(client, db, user, auth_headers):
-    job = _stage(client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito", "16/03/2026;Petisco;pets;5,00;Débito", GOOD_ROW)
+    job = _stage(
+        client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito", "16/03/2026;Petisco;pets;5,00;Débito", GOOD_ROW
+    )
 
     assert job["unknown_categories"] == [{"name": "Pets", "rows": 2}]  # spelled differently, still one category
     assert db.query(ImportJobDB).one().status == "staged"
@@ -294,7 +853,11 @@ def test_the_import_cannot_start_while_a_category_is_unsettled(client, db, user,
 
 def test_an_unknown_category_can_be_mapped_to_an_existing_one(client, db, user, auth_headers, category_ids, queue):
     job = _import(
-        client, queue, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito", mapping={"Pets": category_ids["Supermercado"]}
+        client,
+        queue,
+        auth_headers,
+        "15/03/2026;Ração;Pets;30,00;Débito",
+        mapping={"Pets": category_ids["Supermercado"]},
     )
 
     assert job["status"] == "done"
@@ -499,9 +1062,9 @@ def test_if_saving_fails_nothing_is_saved_and_the_person_gets_a_generic_message(
 
 
 def test_a_file_made_by_the_export_can_be_imported_back(client, db, user, auth_headers, category_ids, queue):
+    from api.repositories.transactions_repo import list_all_transactions
     from api.services.export_service import export_transactions
     from schemas.tables_schemas import TransactionOut
-    from api.repositories.transactions_repo import list_all_transactions
 
     for label, value, kind in [("=1+1", 123456, "debit"), ("@fulano", 5, "credit"), ("Almoço", 2500, "debit")]:
         db.add(
@@ -523,9 +1086,8 @@ def test_a_file_made_by_the_export_can_be_imported_back(client, db, user, auth_h
 
     for file_format, name in [("csv", "export.csv"), ("xlsx", "export.xlsx")]:
         document = export_transactions(transactions, file_format)
-        staged = _upload(client, auth_headers, document.content, name)
-        assert staged.status_code == 201, staged.text
-        _start(client, auth_headers, staged.json()["data"]["id"])
+        job = _stage_file(client, auth_headers, document.content, name)
+        _start(client, auth_headers, job["id"])
         queue.run()
         saved = _saved(db, user)
         assert sorted((t.label, t.value, t.type) for t in saved) == sorted(
@@ -543,16 +1105,17 @@ def test_a_second_import_is_refused_while_one_is_waiting_and_allowed_when_it_fin
 ):
     first = _stage(client, auth_headers, GOOD_ROW)
     assert _start(client, auth_headers, first["id"]).status_code == 202
-    second = _upload(client, auth_headers, _csv("01/03/2026;Salário;Aluguel;5,00;Crédito"))
-    assert second.status_code == 201  # uploading is fine, it is only starting that waits
+    second = _stage(
+        client, auth_headers, "01/03/2026;Salário;Aluguel;5,00;Crédito"
+    )  # preparing is fine, it is only starting that waits
 
-    refused = _start(client, auth_headers, second.json()["data"]["id"])
+    refused = _start(client, auth_headers, second["id"])
 
     assert refused.status_code == 409
     assert "andamento" in refused.json()["detail"]
 
     queue.run()
-    assert _start(client, auth_headers, second.json()["data"]["id"]).status_code == 202
+    assert _start(client, auth_headers, second["id"]).status_code == 202
 
 
 def test_the_limit_is_per_family(client, db, user, other_user, auth_headers, headers_for, queue):
@@ -634,6 +1197,7 @@ def test_nobody_else_can_see_or_use_a_job_not_even_in_the_same_family(
 
     for headers in strangers:
         assert client.get(f"/imports/{job['id']}", headers=headers).status_code == 404
+        assert _match(client, headers, job["id"], job["column_map"]).status_code == 404
         assert _choose(client, headers, job["id"], {"Pets": category_ids["Aluguel"]}).status_code == 404
         assert _start(client, headers, job["id"]).status_code == 404
         assert client.delete(f"/imports/{job['id']}", headers=headers).status_code == 404

@@ -12,15 +12,18 @@ STUCK_AFTER = timedelta(minutes=5)
 # All times come from the database clock, so the app and the database can never disagree about "now".
 
 
-def create_import_job(db: Session, family_id: int, user_id: int, filename: str, rows: list[dict]) -> ImportJobDB:
+def create_import_job(
+    db: Session, family_id: int, user_id: int, filename: str, columns: list[str], raw_rows: list
+) -> ImportJobDB:
+    """The file as it was read, before the person says which column is which."""
     job = ImportJobDB(
         family_id=family_id,
         requested_by=user_id,
         status="staged",
         filename=filename[:255],
-        rows=rows,
+        columns=columns,
+        raw_rows=raw_rows,
         category_map={},
-        total_rows=len(rows),
     )
     db.add(job)
     db.commit()
@@ -63,6 +66,15 @@ def delete_job(db: Session, job: ImportJobDB) -> None:
     db.commit()
 
 
+def set_checked_rows(db: Session, job: ImportJobDB, column_map: dict, rows: list[dict]) -> None:
+    """The columns were matched and every row is fine. Choices about categories start over: they were about other rows."""
+    job.column_map = column_map
+    job.rows = rows
+    job.total_rows = len(rows)
+    job.category_map = {}
+    db.commit()
+
+
 def set_category_map(db: Session, job: ImportJobDB, category_map: dict) -> None:
     job.category_map = category_map  # a new dict, so the change is noticed
     db.commit()
@@ -85,6 +97,7 @@ def mark_done(db: Session, job: ImportJobDB, imported: int, skipped: list[dict])
     job.imported_count = imported
     job.skipped = skipped
     job.rows = None  # not needed any more
+    job.raw_rows = None
     job.finished_at = func.now()
     db.commit()
 
@@ -93,6 +106,7 @@ def mark_failed(db: Session, job: ImportJobDB, error: str) -> None:
     job.status = "failed"
     job.error = error[:255]
     job.rows = None
+    job.raw_rows = None
     job.finished_at = func.now()
     db.commit()
 
@@ -103,7 +117,10 @@ def fail_stuck_import_jobs(db: Session, family_id: int, error: str) -> None:
         ImportJobDB.family_id == family_id,
         ImportJobDB.status.in_(("queued", "running")),
         ImportJobDB.queued_at < func.now() - STUCK_AFTER,
-    ).update({"status": "failed", "error": error, "rows": None, "finished_at": func.now()}, synchronize_session=False)
+    ).update(
+        {"status": "failed", "error": error, "rows": None, "raw_rows": None, "finished_at": func.now()},
+        synchronize_session=False,
+    )
     db.commit()
 
 

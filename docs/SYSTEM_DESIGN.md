@@ -28,6 +28,7 @@ flowchart TB
         CatR["categories_router"]
         TxR["transactions_router"]
         ExR["exports_router"]
+        ImR["imports_router"]
         FamR["families_router"]
         BudR["budgets_router"]
         WAR["whatsapp_router\n(/webhook)"]
@@ -37,13 +38,15 @@ flowchart TB
         CatC["categories_controller"]
         TxC["transactions_controller"]
         ExC["exports_controller\n(queue + background job)"]
+        ImC["imports_controller\n(steps + background job)"]
         BudC["budgets_controller"]
         FamC["families_controller\n(invite codes, joining)"]
         WAC["whatsapp_controller"]
         WAS["whatsapp_service\n(send message via Meta API)"]
 
-        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, budgets_repo,\nexports_repo, families_repo)"]
+        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, budgets_repo,\nexports_repo, imports_repo,\nfamilies_repo)"]
         ExS["export_service"]
+        ImS["import_service\n(checks every row)"]
         DocGW["document gateway\n(CSV / Excel)"]
 
         subgraph Agents["LangGraph agent pipeline"]
@@ -57,7 +60,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / budgets / export_jobs")]
+    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / budgets / export_jobs / import_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -66,6 +69,7 @@ flowchart TB
     Web --> CatR
     Web --> TxR
     Web -- "queue, poll, download" --> ExR
+    Web -- "upload, categories, start, poll" --> ImR
     Web -- "members, invites, join" --> FamR
 
     WA <--> WAAPI
@@ -81,9 +85,12 @@ flowchart TB
     CatR --> CatC
     TxR --> TxC
     ExR --> ExC
+    ImR --> ImC
     FamR --> FamC
     ExC --> ExS
     ExS --> DocGW
+    ImC --> ImS
+    ImS --> DocGW
 
     WAC -- "app.invoke(state)" --> Graph
     Graph --> Orchestrator
@@ -104,6 +111,7 @@ flowchart TB
     CatC --> Repos
     TxC --> Repos
     ExC --> Repos
+    ImC --> Repos
     FamC --> Repos
 
     Repos --> DB
@@ -127,8 +135,19 @@ flowchart TB
   `/account/data` import/export: the export queues a job (`POST /exports`), shows a
   toast, follows the job and downloads the file when it is done, with a second
   toast; the follow-up lives in `lib/exportJobs.js` (outside React) so it
-  survives leaving the page; the import is not built yet and its page documents
-  the expected file columns). Toasts are mounted once, in the layout. The logo in the header links home.
+  survives leaving the page. The same page documents the file columns and opens the **import dialog**
+  (`components/ImportDialog.jsx`), a dialog in six steps: 1) choose the file, which is uploaded and read (nothing is
+  checked yet); 2) **formats**: how the file writes dates (DD/MM/AAAA, MM/DD/AAAA, AAAA-MM-DD, or automatic) and amounts
+  (`1.234,56`, `1,234.56` or automatic), and what the sign of the amount means (always positive with the type in a
+  column, negative is debit, or negative is credit), with the first rows of the file to judge by; 3) **columns**: which
+  column of the file is Data, Descrição, Categoria, Valor and Tipo (those named like the fields come already chosen;
+  Tipo is left out when the sign says the direction); 4) **check**: leaving step 3 sends the choices and checks every
+  row the way steps 2 and 3 said, by itself; it shows "tudo certo" or lists all the problems with their row (nothing
+  is imported, and the person can go back to change columns or formats); 5) for each category in the file the family does not
+  have, pick an existing one or create it (name and group) without leaving the dialog, skipped when nothing is
+  unknown; 6) confirm, with the number of transactions to import, how the dates were read and the list of those the
+  family already has, which will be skipped. "Importar" queues the job and closes the dialog; `lib/importJobs.js`
+  (outside React, like the export) polls it and announces how many rows were imported and skipped. Cancelling throws the checked file away). Toasts are mounted once, in the layout. The logo in the header links home.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
   from inside the web app.
 
@@ -139,21 +158,28 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
 - `repositories/` — SQLAlchemy queries against the Postgres tables. Every
   function takes the database session as its first argument.
 - `services/` — logic that is not a request or a query: `whatsapp_service.py`
-  (outbound calls to the Meta Cloud API) and `export_service.py` (turns a user's
+  (outbound calls to the Meta Cloud API), `export_service.py` (turns a user's
   transactions into a table of Data / Descrição / Categoria / Valor / Tipo and
-  asks a document gateway for the file).
+  asks a document gateway for the file) and `import_service.py` (the reverse: checks every row of a table read
+  from a file and collects all the problems, with the row number as the spreadsheet shows it).
 - `gateways/documents/` — the **document gateway**: the only place that knows
   file formats. The app hands it a plain `Table` and gets a `Document` (bytes,
   media type, extension) back. `CsvGateway` writes UTF-8 with a BOM and `;`
   between columns (opens correctly in Brazilian Excel); `XlsxGateway` (openpyxl)
   keeps real dates and numbers. `get_document_gateway("csv" | "xlsx")` picks one,
-  so a new format is a new gateway and nothing else changes.
+  so a new format is a new gateway and nothing else changes. Each gateway also has a **reading side**,
+  `read(bytes) -> Table`: CSV is UTF-8 with or without a BOM, separated by `;` or `,` (whichever the header uses
+  more); Excel is read in read-only mode from the first sheet, keeping real dates and numbers. Reading enforces the
+  limits (5 MB, 20,000 rows with something in them) while it reads, so a huge file is never loaded unchecked, and
+  raises `UnreadableDocument` with a message for the person.
 - `utils/formatting.py` — pure helpers for how values are shown: `1.234,56`,
   `DD/MM/YYYY`, Débito / Crédito, and `neutralize_formula`, which stops text a
   user typed (a description) from running as a formula when the file is opened
   in a spreadsheet (leading `'`). The apostrophe is a visible side effect: a
   description that really starts with `=`, `+`, `-` or `@` is exported with it, so
-  the import has to remove one leading `'` from such cells.
+  the import removes one leading `'` from such cells (`remove_formula_guard`). The reverse helpers sit next
+  to it: `parse_amount` (both `1.234,56` and `1,234.56`, or one style strictly; at most two decimals), `parse_date` (day first,
+  month first or year first) and `parse_type`.
 - `db/connection.py` — SQLAlchemy engine/session (`DB_URL` is required and must
   be a PostgreSQL URL; the app refuses to start without it). Each request gets its own session from the
   `get_db` dependency, closed when the request ends. Code outside a request
@@ -277,14 +303,36 @@ erDiagram
         datetime finished_at
     }
 
+    IMPORT_JOBS {
+        int id PK
+        int family_id FK
+        int requested_by FK "only this person can follow it"
+        string status "staged, queued, running, done or failed"
+        string filename
+        json columns "the names in the first row of the file"
+        json raw_rows "what the file holds, dropped when the job ends"
+        json column_map "field to position of its column, once matched"
+        json rows "the checked rows, emptied when done"
+        json category_map "name in the file to category id"
+        int total_rows
+        int imported_count
+        json skipped "rows the family already had"
+        string error
+        datetime created_at "uploaded"
+        datetime queued_at "confirmed"
+        datetime finished_at
+    }
+
     FAMILIES ||--|{ USERS : "has"
     FAMILIES ||--o{ TRANSACTIONS : "owns"
     FAMILIES ||--o{ CATEGORIES : "owns"
     FAMILIES ||--o{ EXPORT_JOBS : "owns"
+    FAMILIES ||--o{ IMPORT_JOBS : "owns"
     FAMILIES ||--o{ BUDGETS : "plans"
     FAMILIES ||--o{ FAMILY_INVITES : "hands out"
     USERS ||--o{ TRANSACTIONS : "created"
     USERS ||--o{ EXPORT_JOBS : "asked for"
+    USERS ||--o{ IMPORT_JOBS : "uploaded"
     CATEGORY_GROUPS ||--|{ CATEGORIES : "groups"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
     CATEGORIES ||--o{ BUDGETS : "has"
@@ -293,7 +341,7 @@ erDiagram
 person. A user is in exactly one family (`users.family_id`, not null; no membership
 table). Every new user gets a family of their own on their first login and is its
 owner (`users.role`, `owner` or `member`); people who join with an invite are members. `transactions`,
-`categories` and `export_jobs` carry `family_id`, and every list, create, edit,
+`categories`, `export_jobs` and `import_jobs` carry `family_id`, and every list, create, edit,
 delete, export and chatbot action filters by the caller's family. A foreign id
 answers `404`, the same as a missing one. `transactions.user_id` records who
 entered a row (shown later in the UI, never used for permission). A category with no
@@ -428,7 +476,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`.
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table.
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de
@@ -521,6 +569,50 @@ the server restarts would stay `running`: a job queued or running for over five
 minutes is marked failed the next time it is read or the user queues an export,
 and the page gives up after two minutes. Times come from the database clock. A
 separate worker would be the next step if exports ever get large.
+
+**Import jobs** (`import_jobs` table, `/imports`): importing is a conversation in steps, so the file waits on the
+server between them. The job goes `staged -> queued -> running -> done | failed`.
+1. `POST /imports` (multipart upload, needs `python-multipart`) reads the file through the document gateway (`.xlsx`
+   or `.csv`; unreadable files are a `422` with a message: wrong type, over 5 MB or 20,000 rows, empty, not UTF-8) and
+   stores it as it is (`columns`, `raw_rows`, status `staged`). The answer has the column names, a suggested matching
+   (the column named like each field, ignoring case and accents), a suggested sign convention and the first rows.
+   Uploading again throws away the person's previous staged job.
+2. `PUT /imports/{id}/columns {mapping, date_order, amount_style, sign}` says which column holds each field and how the
+   file writes things, then checks **every** row before anything is kept. `mapping` is the position of each of Data,
+   Descrição, Categoria, Valor and Tipo (only Tipo may be null; a column serves one field only). `date_order` is
+   `auto`, `day_first` (15/03/2026), `month_first` (03/15/2026) or `iso` (2026-10-13); separators `/ - .` are accepted,
+   and a real Excel date is accepted in any case. `auto` reads the file: a number above 12 in the first place proves
+   day first, in the second place month first, and if no date proves it the family's language decides (English:
+   month first); `auto` also accepts year-first dates, while a chosen format is strict. `amount_style` is `auto`,
+   `br` (`1.234,56`) or `us` (`1,234.56`); `auto` takes the last mark as the decimal mark, decimals are at most two, so
+   three digits after a mark are a group (`1,234` and `1.234` are 1234), and `R$`/`$` are accepted. `sign` is
+   `type_column` (the amount must not be negative and Tipo, empty meaning Débito, says the direction), `negative_debit`
+   or `negative_credit` (the sign says the direction, the amount is stored positive, and a Tipo column may not be
+   chosen). A zero amount is registered, not refused (as a debit, since it has no direction). Description up to 100 characters (the column's size), the date not in the future. If any row is
+   wrong the answer is `422` with the problems (row and message, at most 200 shown plus the total) and **nothing is
+   kept**; the job stays as it was so the person can choose differently. On success the checked rows are stored with
+   the matching and the answer says how the dates, amounts and sign were read. A category that does not exist is **not**
+   an error here.
+3. `GET /imports/{id}` shows the job. Once checked it also says which categories of the file the family does not have
+   yet (worked out on every read, so a category created meanwhile, from the dialog or from the Categorias page, settles
+   by itself), how many rows would be imported and which would be skipped.
+   `PUT /imports/{id}/categories {mapping: {name in file: category id}}` records that an unknown name stands for one
+   of the family's categories (defaults or its own; a foreign or missing id is `422`). Names are compared by their
+   words, as everywhere else, and the family's own category wins over a default one with the same name. Matching the
+   columns again starts these choices over. Both calls answer `409` before the columns are matched.
+4. `POST /imports/{id}/start` answers `202` and queues the job (`409` while a category is still unsettled, while
+   the family has another import queued or running, or if the job already started). The FastAPI background task
+   saves the transactions in **one database transaction together with marking the job done**, so it is all or
+   nothing. Rows the family already has (same day, description, amount, category and type) are **skipped, not
+   errors**, and kept in the job (`skipped`) so they can be listed; two identical rows inside the same file are both
+   imported. Imported rows belong to the family and `user_id` is the person who uploaded. If a chosen category was
+   deleted in between, the job fails and nothing is saved. `DELETE /imports/{id}` gives up a staged job.
+
+Like exports: one import at a time per family (the family row is locked while checking, so two clicks cannot both
+pass), a job older than a day is deleted whenever anyone uploads and answers `404` before that, a job queued for
+over five minutes is marked failed the next time it is read or started, a failed job shows a generic message (details
+in the log), and a foreign family's or another person's job answers `404`. The file and the rows are dropped from the job when it
+finishes.
 
 ## 4. Key request flows
 
@@ -619,7 +711,8 @@ sequenceDiagram
   is no SQLite fallback.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
   calls), Meta WhatsApp Cloud API (chat channel). Libraries: `openpyxl` (writes
-  Excel files in the document gateway) and `alembic` (database migrations).
+  and reads Excel files in the document gateway), `python-multipart` (file uploads for the import) and `alembic`
+  (database migrations).
 
 ## 6. Testing
 - **Scope:** back-end (`back-end/tests/`, `pytest`) and front-end

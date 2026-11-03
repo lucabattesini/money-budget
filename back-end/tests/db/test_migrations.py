@@ -1058,6 +1058,6 @@ def test_undoing_the_import_revision_drops_only_its_table(url, engine):
 
     command.downgrade(alembic_config(url), "0015")
 
-    tables = set(inspect(engine).get_table_names())
-    assert "import_jobs" not in tables
-    assert {"export_jobs", "transactions", "budgets"} <= tables
+    names = set(inspect(engine).get_table_names())
+    assert "import_jobs" not in names
+    assert {"export_jobs", "transactions", "budgets"} <= names

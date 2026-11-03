@@ -43,13 +43,13 @@ describe('import and export page', () => {
     await screen.findByText('Água')
   })
 
-  it('lists the real categories, alphabetically, as the accepted ones', async () => {
+  it('lists the real categories, alphabetically, as the ones the family already has', async () => {
     saveToken('tok')
     const api = mockApi({ 'GET /categories': CATEGORIES })
 
     renderApp(<AccountData />)
 
-    const list = within(await screen.findByLabelText('Categorias aceitas'))
+    const list = within(await screen.findByLabelText('Categorias que você já tem'))
     expect(list.getAllByText(/./).map((tag) => tag.textContent)).toEqual(['Água', 'Alimentação', 'Transporte'])
     expect(api.mock.calls[0][1].headers.Authorization).toBe('Bearer tok')
   })
@@ -63,7 +63,7 @@ describe('import and export page', () => {
     expect(screen.getByRole('table', { name: 'Colunas da planilha de importação' })).toBeInTheDocument()
     await Promise.resolve()
     expect(requestsMade(api)).toEqual(['GET /categories'])
-    expect(screen.queryByLabelText('Categorias aceitas')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Categorias que você já tem')).not.toBeInTheDocument()
   })
 
   it('does not ask for categories without a login', () => {
@@ -73,6 +73,33 @@ describe('import and export page', () => {
 
     expect(requestsMade(api)).toEqual([])
     expect(screen.getByRole('table', { name: 'Colunas da planilha de importação' })).toBeInTheDocument()
+  })
+})
+
+describe('importing', () => {
+  beforeEach(() => saveToken('tok'))
+
+  it('opens the import dialog from a button and closes it again', async () => {
+    mockApi({ 'GET /categories': CATEGORIES })
+    renderApp(<AccountData />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /importar planilha/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Importar transações' })
+    expect(within(dialog).getByRole('listitem', { current: 'step' })).toHaveTextContent('Arquivo')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('no longer says the import is coming soon, and explains that rows are checked together and duplicates skipped', async () => {
+    mockApi({ 'GET /categories': CATEGORIES })
+    renderApp(<AccountData />)
+
+    expect(screen.queryByText(/em breve/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/nada é importado/i)).toBeInTheDocument()
+    expect(screen.getByText(/não duplica nada/i)).toBeInTheDocument()
+    await screen.findByText('Água')
   })
 })
 

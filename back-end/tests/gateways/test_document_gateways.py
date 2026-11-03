@@ -146,7 +146,7 @@ def _xlsx(rows):
 
 @pytest.mark.parametrize("delimiter", [";", ","])
 def test_csv_is_read_with_either_separator(delimiter):
-    text = f"Data{delimiter}Descrição{delimiter}Valor\n15/03/2026{delimiter}Almoço{delimiter}\"1.234,50\"\n"
+    text = f'Data{delimiter}Descrição{delimiter}Valor\n15/03/2026{delimiter}Almoço{delimiter}"1.234,50"\n'
 
     table = CsvGateway().read(text.encode("utf-8"))
 
@@ -209,7 +209,10 @@ def test_xlsx_written_by_the_gateway_is_read_back():
     table = XlsxGateway().read(XlsxGateway().build(TABLE).content)
 
     assert table.columns == TABLE.columns
-    assert table.rows == [[date(2026, 3, 15), "Almoço", Decimal("1234.5")], [date(2026, 3, 1), 'Aluguel; "março"', Decimal("0.05")]]
+    assert table.rows == [
+        [date(2026, 3, 15), "Almoço", Decimal("1234.5")],
+        [date(2026, 3, 1), 'Aluguel; "março"', Decimal("0.05")],
+    ]
 
 
 def test_xlsx_blank_rows_keep_their_place():
@@ -234,3 +237,19 @@ def test_xlsx_with_too_many_rows_is_refused(monkeypatch):
     monkeypatch.setattr(xlsx_gateway, "MAX_ROWS", 2)
     with pytest.raises(UnreadableDocument, match="linhas demais"):
         XlsxGateway().read(_xlsx([["A"], [1], [2], [3]]))
+
+
+def test_the_row_limit_is_twenty_thousand_for_both_formats():
+    from api.gateways.documents import MAX_FILE_BYTES, MAX_ROWS
+
+    assert MAX_ROWS == 20000
+    csv_rows = "".join("15/03/2026;a;b;1,00\n" for _ in range(MAX_ROWS))
+    assert len(CsvGateway().read(("Data;D;C;V\n" + csv_rows).encode()).rows) == MAX_ROWS  # exactly the limit is fine
+    assert len(("Data;D;C;V\n" + csv_rows).encode()) < MAX_FILE_BYTES  # and it fits the size limit too
+    with pytest.raises(UnreadableDocument, match="linhas demais"):
+        CsvGateway().read(("Data;D;C;V\n" + csv_rows + "15/03/2026;a;b;1,00\n").encode())
+
+    xlsx = _xlsx([["Data", "D", "C", "V"]] + [[date(2026, 3, 15), "a", "b", 1]] * MAX_ROWS)
+    assert len(XlsxGateway().read(xlsx).rows) == MAX_ROWS
+    with pytest.raises(UnreadableDocument, match="linhas demais"):
+        XlsxGateway().read(_xlsx([["Data", "D", "C", "V"]] + [[date(2026, 3, 15), "a", "b", 1]] * (MAX_ROWS + 1)))

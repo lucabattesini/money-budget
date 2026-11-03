@@ -7,6 +7,7 @@ export const endpoints = {
     categories: `${URL_BASE}/categories`,
     transactions: `${URL_BASE}/transactions`,
     exports: `${URL_BASE}/exports`,
+    imports: `${URL_BASE}/imports`,
     families: `${URL_BASE}/families`,
     budgets: `${URL_BASE}/budgets`,
     user: `${URL_BASE}/user`,
@@ -176,6 +177,62 @@ export function downloadExport(id, token) {
         return { ok: false };
     });
 }
+
+// ─── Imports (a spreadsheet of transactions, in steps) ────────────────────────
+
+// Calls that can answer with the list of rows with something wrong. Resolves { ok: true, data: job } or
+// { ok: false, status, detail, problems ([{ row, message }]), problemsTotal } and { ok: false } when it cannot be reached.
+function importProblemsCall(url, options, what) {
+    return fetch(url, options)
+    .then(async res => {
+        checkSession(res);
+        const json = await res.json().catch(() => ({}));
+        return res.ok
+            ? { ok: true, data: json.data }
+            : { ok: false, status: res.status, detail: json.detail, problems: json.problems ?? [], problemsTotal: json.problems_total ?? 0 };
+    })
+    .catch(error => {
+        console.error(`Failed to ${what}`, error);
+        return { ok: false };
+    });
+}
+
+// Step 1: send the file. The server reads it and answers with its columns, a suggestion of which is which and a few rows.
+export function uploadImport(file, token) {
+    const body = new FormData();
+    body.append("file", file);
+    return importProblemsCall(
+        endpoints.imports,
+        {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` }, // no Content-Type: the browser adds it, with the form boundary
+            body,
+        },
+        "upload import",
+    );
+}
+
+// Step 2: which column of the file holds each field ({ "Data": 0, "Valor": 3, "Tipo": null }) and how it is written:
+// formats = { dateOrder: "auto" | "day_first" | "month_first", amountStyle: "auto" | "br" | "us",
+// sign: "type_column" | "negative_debit" | "negative_credit" }. The server then checks every row the way the person said,
+// and answers 422 with the problems if any is wrong.
+export const matchImportColumns = (id, mapping, formats, token) =>
+    importProblemsCall(
+        endpoints.imports + `/${id}/columns`,
+        {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ mapping, date_order: formats.dateOrder, amount_style: formats.amountStyle, sign: formats.sign }),
+        },
+        "match import columns",
+    );
+
+export const getImport = (id, token) => jsonCall(endpoints.imports + `/${id}`, "get", token);
+// Step 3: which category of the family each category name of the file stands for ({ "Pets": 12 }).
+export const chooseImportCategories = (id, mapping, token) => jsonCall(endpoints.imports + `/${id}/categories`, "put", token, { mapping });
+// Step 4: queue the import. It is saved in the background.
+export const startImport = (id, token) => jsonCall(endpoints.imports + `/${id}/start`, "post", token);
+export const cancelImport = (id, token) => jsonCall(endpoints.imports + `/${id}`, "delete", token);
 
 // ─── Families ─────────────────────────────────────────────────────────────────
 

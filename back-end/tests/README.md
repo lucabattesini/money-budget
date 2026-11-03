@@ -119,6 +119,10 @@ Export jobs run in a background task. `tests/api/test_exports.py` has its own `q
 fixture that holds the task back and runs it on demand (`queue.run()`), so a test can look
 at a job while it is still queued. (The test database shares one connection, which would
 undo a task's work if it ran inside the request.)
+`tests/api/test_imports.py` uses the same kind of `queue` fixture for the import. The steps are driven with
+`_upload` (read the file), `_match` (columns and formats; `_check` does both and returns the answer where the rows are
+checked, `_stage` does both from CSV lines and expects success), `_choose` (categories) and `_start`; `_import` does
+all of them and returns the finished job.
 
 The test database itself is built with `create_all`, which is quick. The migrations are tested
 separately in `tests/db/test_migrations.py`, on a throwaway database named

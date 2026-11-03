@@ -1,4 +1,16 @@
-from sqlalchemy import JSON, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
+from sqlalchemy import (
+    JSON,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+    func,
+    select,
+)
 
 from db.connection import Base
 
@@ -123,9 +135,9 @@ class Budgets(Base):
 class ImportJobDB(Base):
     """A spreadsheet of transactions on its way into the family's data, in steps.
 
-    The file is checked when it is uploaded and its rows are kept here ("staged") while the person settles the
-    categories the file mentions that the family does not have yet. Only then is it queued and imported, in one go,
-    in the background.
+    The file is read when it is uploaded and kept here ("staged") while the person says which column is which and
+    settles the categories the file mentions that the family does not have yet. Only then is it queued and imported,
+    in one go, in the background.
     """
 
     __tablename__ = "import_jobs"
@@ -135,7 +147,12 @@ class ImportJobDB(Base):
     requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # who uploaded it; only they can follow it
     status = Column(String(10), nullable=False, default="staged")  # staged -> queued -> running -> done | failed
     filename = Column(String(255))  # the name of the uploaded file, to talk about it
-    rows = Column(JSON)  # the checked rows, [{"row", "date", "label", "value", "type", "category"}]; emptied when done
+    columns = Column(JSON)  # the names in the first row of the file, in order
+    raw_rows = Column(JSON)  # what the file holds (see import_service.encode_cell); dropped when the job ends
+    column_map = Column(JSON)  # {field: position of its column in the file, or null}; set once the person matched them
+    rows = Column(
+        JSON
+    )  # the checked rows, [{"row", "date", "label", "value", "type", "category"}]; set with column_map
     category_map = Column(JSON)  # {name in the file: id of the category the person chose for it}
     total_rows = Column(Integer)
     imported_count = Column(Integer)

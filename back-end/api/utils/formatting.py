@@ -3,7 +3,7 @@ no I/O."""
 
 import re
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from schemas.family_settings import CURRENCY_SYMBOLS
 
@@ -53,40 +53,103 @@ def neutralize_formula(text: str) -> str:
 
 # --- The reverse: reading what people (and our own export) wrote -----------------------------------------------------
 
-_THOUSANDS_ONLY = re.compile(r"\d{1,3}(\.\d{3})+")
+_CURRENCY_SYMBOLS = re.compile(r"(?i)us\$|r\$|[$€£]")
 
 
-def parse_amount(text: str) -> Decimal | None:
-    """ "1.234,56" -> Decimal("1234.56"). Also "12,5", "12.50", "1234" and "R$ 1.234,56". None if it is not an amount.
+def _grouped(text: str, mark: str) -> bool:
+    """True if `text` is digits grouped in threes by `mark`: "1.234.567" (the first group has one to three digits)."""
+    return re.fullmatch(rf"\d{{1,3}}(?:{re.escape(mark)}\d{{3}})+", text) is not None
 
-    A comma is the decimal mark and dots in front of it are thousands. Without a comma, dots grouped in threes
-    ("1.234.567") are thousands and any other dot ("12.50") is a decimal point. At most two decimal places: an amount
-    in cents cannot hold more. A minus sign is kept, so the caller can say "must be greater than zero".
+
+AMOUNT_STYLES = ("auto", "br", "us")  # br: 1.234,56  us: 1,234.56
+
+
+def parse_amount(text: str, style: str = "auto") -> Decimal | None:
+    """The amount in a cell, written the Brazilian way ("1.234,56") or the American way ("1,234.56").
+
+    With `style` "br" or "us" only that way is accepted, strictly: "br" reads "1.234" as 1234 and refuses "1,234"
+    (three decimals); "us" is the other way round. With "auto" either is, as described below.
+
+    "R$ 1.234,56", "$1,234.56", "12,5", "12.50", "1234" and "-5,00" work too. None if it is not an amount.
+    With both marks, the last one is the decimal mark and the other groups thousands. With one kind of mark: when it
+    appears more than once, or when exactly three digits follow it, it groups thousands ("1.234", "1,234", "1.234.567");
+    otherwise it is the decimal mark ("12,5", "12.50"). Decimals are at most two, because an amount in cents cannot
+    hold more, so three digits after a mark can only be a group. A minus sign is kept, so the caller can say "negative is
+    not allowed here".
     """
-    cleaned = text.replace("R$", "").replace("\xa0", " ").strip().replace(" ", "")
-    if not cleaned:
-        return None
+    cleaned = _CURRENCY_SYMBOLS.sub("", text).replace("\xa0", " ").strip().replace(" ", "")
     sign = ""
-    if cleaned[0] in "+-":
+    if cleaned[:1] in ("+", "-"):
         sign, cleaned = cleaned[0], cleaned[1:]
-    if "," in cleaned:
-        cleaned = cleaned.replace(".", "").replace(",", ".")
-    elif _THOUSANDS_ONLY.fullmatch(cleaned):
-        cleaned = cleaned.replace(".", "")
+    if not cleaned or not re.fullmatch(r"[\d.,]+", cleaned):
+        return None
+
+    if style in ("br", "us"):
+        decimal_mark, thousands_mark = (",", ".") if style == "br" else (".", ",")
+        whole, has_fraction, fraction = cleaned.partition(decimal_mark)
+        if not (whole.isdigit() or _grouped(whole, thousands_mark)):
+            return None
+        if has_fraction and not re.fullmatch(r"\d{1,2}", fraction):
+            return None
+        return Decimal(sign + whole.replace(thousands_mark, "") + ("." + fraction if has_fraction else ""))
+
+    if "," in cleaned and "." in cleaned:
+        decimal_mark = "," if cleaned.rfind(",") > cleaned.rfind(".") else "."
+        thousands_mark = "." if decimal_mark == "," else ","
+        whole, _, fraction = cleaned.rpartition(decimal_mark)
+        if thousands_mark in fraction or not (_grouped(whole, thousands_mark) or whole.isdigit()):
+            return None
+        cleaned = whole.replace(thousands_mark, "") + "." + fraction
+    else:
+        mark = "," if "," in cleaned else "." if "." in cleaned else ""
+        if mark:
+            if cleaned.count(mark) > 1 or _grouped(cleaned, mark):
+                if not _grouped(cleaned, mark):
+                    return None
+                cleaned = cleaned.replace(mark, "")
+            else:
+                cleaned = cleaned.replace(mark, ".")
+
     if not re.fullmatch(r"\d+(\.\d{1,2})?", cleaned):
         return None
-    try:
-        return Decimal(sign + cleaned)
-    except InvalidOperation:  # pragma: no cover - the pattern above already rules this out
-        return None
+    return Decimal(sign + cleaned)
 
 
-def parse_date_br(text: str) -> date | None:
-    """ "15/03/2026" -> date(2026, 3, 15). None if it is not a real day in exactly that format."""
-    if not re.fullmatch(r"\d{2}/\d{2}/\d{4}", text.strip()):
-        return None
+_SLASHED_DATE = re.compile(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})")
+_ISO_DATE = re.compile(r"(\d{4})-(\d{1,2})-(\d{1,2})")
+
+
+def date_parts(text: str) -> tuple[int, int, int] | None:
+    """(first number, second number, year) of a date written "15/03/2026", "03-15-2026" or "15.03.2026"; None for any
+    other text. Which of the two is the day and which the month is not known from the text alone."""
+    match = _SLASHED_DATE.fullmatch(text.strip())
+    return (int(match[1]), int(match[2]), int(match[3])) if match else None
+
+
+DATE_FORMATS = ("day_first", "month_first", "iso")  # 15/03/2026, 03/15/2026, 2026-03-15
+
+
+def parse_date(text: str, order: str = "day_first", strict: bool = False) -> date | None:
+    """A day written in one of the three ways in DATE_FORMATS: "15/03/2026" (day first, the Brazilian way),
+    "03/15/2026" (month first, the American way) or "2026-03-15" (year first, the same everywhere). The numbers may be
+    separated by "/", "-" or "." and may have one digit.
+
+    `order` is how a slashed date is read. Unless `strict`, "2026-03-15" is accepted whatever the order is; when
+    strict, only the chosen way is. "iso" means only year first. None if it is not a real day.
+    """
+    text = text.strip()
     try:
-        return datetime.strptime(text.strip(), "%d/%m/%Y").date()
+        if order == "iso" or not strict:
+            iso = _ISO_DATE.fullmatch(text)
+            if iso:
+                return date(int(iso[1]), int(iso[2]), int(iso[3]))
+        if order == "iso":
+            return None
+        parts = date_parts(text)
+        if parts is None:
+            return None
+        first, second, year = parts
+        return date(year, first, second) if order == "month_first" else date(year, second, first)
     except ValueError:
         return None
 

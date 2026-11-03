@@ -29,7 +29,7 @@ class Document:
 
 # What a file may be before it is refused. Checked while reading, so a huge file is never loaded unchecked.
 MAX_FILE_BYTES = 5 * 1024 * 1024
-MAX_ROWS = 5000
+MAX_ROWS = 20000
 
 
 class UnreadableDocument(ValueError):
