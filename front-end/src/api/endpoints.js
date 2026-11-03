@@ -183,7 +183,9 @@ export function downloadExport(id, token) {
 // and { ok: false } when it cannot be reached.
 function jsonCall(url, method, token, body) {
     return fetch(url, {
-        method,
+        // Upper case on purpose: a browser only fixes the case of GET, POST, PUT and DELETE. A lower case "patch" is sent
+        // as it is and the server refuses it in the CORS check, so the call never reaches the API.
+        method: method.toUpperCase(),
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: body === undefined ? undefined : JSON.stringify(body),
     })

@@ -86,7 +86,7 @@ describe('family page: inviting', () => {
     expect(await screen.findByTestId('new-code')).toHaveTextContent('AAAA-BBBB-CCCC-ABCD')
     expect(screen.getByText(/não aparece de novo/i)).toBeInTheDocument()
     expect(await screen.findByRole('list', { name: 'Códigos ativos' })).toHaveTextContent('ABCD') // the list is refreshed
-    expect(api.mock.calls.find(([, o]) => o?.method === 'post')[1].headers.Authorization).toBe('Bearer tok')
+    expect(api.mock.calls.find(([, o]) => o?.method === 'POST')[1].headers.Authorization).toBe('Bearer tok')
   })
 
   it('cancels a code and refreshes the list', async () => {
@@ -126,7 +126,7 @@ describe('family page: joining', () => {
     return api
   }
   const joinButton = () => screen.getByRole('button', { name: 'Entrar na família' })
-  const joinRequest = (api) => JSON.parse(api.mock.calls.find(([, o]) => o?.method === 'post')[1].body)
+  const joinRequest = (api) => JSON.parse(api.mock.calls.find(([, o]) => o?.method === 'POST')[1].body)
 
   it('needs both a code and an explicit choice before it can be sent', async () => {
     renderOwner()
