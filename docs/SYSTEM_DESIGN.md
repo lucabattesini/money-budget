@@ -365,7 +365,8 @@ it and/or moves it to another group (a field left out keeps its value), and `DEL
 Names are trimmed, cannot be empty or longer than 100 characters (`422`), and cannot repeat inside the family or
 clash with a default category, ignoring case and surrounding spaces (`409`; the comparison is done in Python, so it
 covers accented letters whatever the database locale). A group that does not exist answers `422`. Deleting a category
-that transactions still use is refused (`409`, the message says how many); there is no merge flow. Editing or deleting a
+that transactions still use is refused (`409`, the message says how many; a transaction that takes the category at
+the very moment it is deleted gets the same answer, never a `500`); there is no merge flow. Editing or deleting a
 default category, another family's category or an id that does not exist all answer the same `404`. The checks run
 while the family row is locked, so two requests cannot both take the same name. Every message is in Portuguese,
 ready to show in the page. The lists that offer categories (the new-transaction form, the filters, the import
@@ -376,9 +377,12 @@ column. The default categories ship with one (`DEFAULT_EMOJIS` in `db/seed.py`, 
 one; migration `0011` renames the existing ones, with its own frozen copy of the list). The add/edit panel offers a
 grid of about 80 emojis, or none, and also accepts one typed into the name box; the page splits a stored name back
 into its emoji and its words when editing. Because the emoji is part of the name, everything that compares or sorts
-names looks at the words only (`api/utils/category_names.py` on the server, `lib/categoryName.js` in the page): the
-duplicate check treats "Plantas" and "🌱 Plantas" as the same name, a name with nothing but an emoji is refused as
-empty, the WhatsApp assistant still finds "Supermercado" when the stored name is "🛒 Supermercado", and lists stay
+names looks at the words only (`api/utils/category_names.py` on the server, `lib/categoryName.js` in the page, which
+split a name by the same rule: the start of a name that is made of symbols, skin tones, joiners and variation
+selectors is the emoji). The duplicate check treats "Plantas" and "🌱 Plantas" as the same name, and also ignores
+invisible characters (zero-width spaces and joiners), runs of spaces, full-width letters and an accent written as
+a letter plus a combining mark; accents themselves still tell names apart. Merging categories when someone joins a
+family compares by the words too. A name with nothing but an emoji or invisible characters is refused as empty, the WhatsApp assistant still finds "Supermercado" when the stored name is "🛒 Supermercado", and lists stay
 A-Z by the words whatever the emoji. Anything that matches category names typed by a person (such as the planned
 spreadsheet import) must compare the words only as well.
 
