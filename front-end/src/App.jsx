@@ -13,6 +13,7 @@ import Account from './pages/account';
 import AccountLayout from './pages/account-layout';
 import AccountData from './pages/account-data';
 import AccountFamily from './pages/account-family';
+import AccountCategories from './pages/account-categories';
 import { isAuthenticated } from './lib/auth';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
@@ -43,6 +44,7 @@ function App() {
             <Route path='/account' element={<AccountLayout/>}>
               <Route index element={<Account/>}/>
               <Route path='family' element={<AccountFamily/>}/>
+              <Route path='categories' element={<AccountCategories/>}/>
               <Route path='data' element={<AccountData/>}/>
             </Route>
           </Route>

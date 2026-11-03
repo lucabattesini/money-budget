@@ -1,11 +1,12 @@
 import { Box, Flex, Heading, Link, Stack, Text } from "@chakra-ui/react";
 import { NavLink, Outlet } from "react-router-dom";
-import { LuArrowDownUp, LuUser, LuUsers } from "react-icons/lu";
+import { LuArrowDownUp, LuTags, LuUser, LuUsers } from "react-icons/lu";
 
 // One entry per section of the account area. Add a line here (and a route in App.jsx) for a new section.
 const ACCOUNT_SECTIONS = [
     { name: "Perfil", path: "/account", icon: LuUser, end: true },
     { name: "Família", path: "/account/family", icon: LuUsers },
+    { name: "Categorias", path: "/account/categories", icon: LuTags },
     { name: "Importar e exportar", path: "/account/data", icon: LuArrowDownUp },
 ];
 

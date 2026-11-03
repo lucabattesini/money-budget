@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   cancelInvite,
+  createCategory,
+  deleteCategory,
+  getCategoryGroups,
+  updateCategory,
   createInvite,
   deleteTransaction,
   getFamily,
@@ -179,6 +183,10 @@ describe('an expired login', () => {
     ['getFamily', () => getFamily('old'), 'GET /families/me'],
     ['joinFamily', () => joinFamily('CODE', true, 'old'), 'POST /families/join'],
     ['returnToPreviousFamily', () => returnToPreviousFamily('old'), 'POST /families/rollback'],
+    ['getCategoryGroups', () => getCategoryGroups('old'), 'GET /categories/groups'],
+    ['createCategory', () => createCategory({ name: 'x' }, 'old'), 'POST /categories'],
+    ['updateCategory', () => updateCategory(1, { name: 'x' }, 'old'), 'PATCH /categories/1'],
+    ['deleteCategory', () => deleteCategory(1, 'old'), 'DELETE /categories/1'],
   ])('%s forgets the token and sends the user to the login page', async (_name, call, route) => {
     saveToken('old')
     window.location.hash = '#/transactions'
@@ -242,5 +250,34 @@ describe('family calls', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
     expect(await getFamily('tok')).toEqual({ ok: false })
+  })
+})
+
+
+describe('category management calls', () => {
+  it('send the token, the right route and the body', async () => {
+    const api = mockApi({
+      'POST /categories': [{ data: { id: 1 } }, 201],
+      'PATCH /categories/1': { data: { id: 1 } },
+      'DELETE /categories/1': { data: {} },
+    })
+
+    await createCategory({ name: 'Jogos', group_id: 2 }, 'tok')
+    await updateCategory(1, { name: 'Novo' }, 'tok')
+    await deleteCategory(1, 'tok')
+
+    expect(api.mock.calls.map(([, o]) => o.headers.Authorization)).toEqual(Array(3).fill('Bearer tok'))
+    expect(JSON.parse(api.mock.calls[0][1].body)).toEqual({ name: 'Jogos', group_id: 2 })
+    expect(JSON.parse(api.mock.calls[1][1].body)).toEqual({ name: 'Novo' })
+  })
+
+  it('hand back the status and the server message when it refuses', async () => {
+    mockApi({ 'DELETE /categories/1': [{ detail: 'Esta categoria é usada por 2 transações.' }, 409] })
+
+    expect(await deleteCategory(1, 'tok')).toEqual({
+      ok: false,
+      status: 409,
+      detail: 'Esta categoria é usada por 2 transações.',
+    })
   })
 })

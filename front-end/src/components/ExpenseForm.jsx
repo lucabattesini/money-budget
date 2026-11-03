@@ -21,11 +21,14 @@ export default function ExpenseForm() {
             const categoriesData = await getAllCategories(token)
 
             if (categoriesData && categoriesData.data) {
-                const organizedCategories = categoriesData.data.map((category) => ({
-                    id: category.id,
-                    name: category.name,
-                    value: String(category.id)
-                }));
+                // Alphabetical, so categories are easy to find in every list
+                const organizedCategories = categoriesData.data
+                    .map((category) => ({
+                        id: category.id,
+                        name: category.name,
+                        value: String(category.id)
+                    }))
+                    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 
                 setCategories(organizedCategories);
                 setFilteredCategories(organizedCategories)

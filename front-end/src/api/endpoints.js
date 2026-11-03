@@ -178,10 +178,11 @@ export function downloadExport(id, token) {
 
 // ─── Families ─────────────────────────────────────────────────────────────────
 
-// One call for every family endpoint. Resolves { ok: true, data } on success, { ok: false, status, detail } when the
-// server answered with an error (detail is its message, to show the user), and { ok: false } when it cannot be reached.
-function familyCall(path, method, token, body) {
-    return fetch(endpoints.families + path, {
+// One call for the endpoints that answer with a message people can read. Resolves { ok: true, data } on success,
+// { ok: false, status, detail } when the server answered with an error (detail is its message, to show the user),
+// and { ok: false } when it cannot be reached.
+function jsonCall(url, method, token, body) {
+    return fetch(url, {
         method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -192,10 +193,19 @@ function familyCall(path, method, token, body) {
         return res.ok ? { ok: true, data: json.data } : { ok: false, status: res.status, detail: json.detail };
     })
     .catch(error => {
-        console.error("Failed to call the family API", error);
+        console.error(`Failed to call ${method} ${url}`, error);
         return { ok: false };
     });
 }
+
+const familyCall = (path, method, token, body) => jsonCall(endpoints.families + path, method, token, body);
+
+// ─── Managing categories ──────────────────────────────────────────────────────
+
+export const getCategoryGroups = (token) => jsonCall(endpoints.categories + "/groups", "get", token);
+export const createCategory = (payload, token) => jsonCall(endpoints.categories, "post", token, payload);
+export const updateCategory = (id, payload, token) => jsonCall(endpoints.categories + `/${id}`, "patch", token, payload);
+export const deleteCategory = (id, token) => jsonCall(endpoints.categories + `/${id}`, "delete", token);
 
 export const getFamily = (token) => familyCall("/me", "get", token);
 export const getInvites = (token) => familyCall("/invites", "get", token);
