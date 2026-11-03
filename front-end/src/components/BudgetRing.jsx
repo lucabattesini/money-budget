@@ -1,6 +1,6 @@
 import { Box, chakra, Link, Spinner, Stack, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "react-router-dom";
-import { budgetStatus } from "../lib/budget";
+import { budgetStatus, budgetsLink } from "../lib/budget";
 import { useLocale } from "../lib/locale";
 import { formatCents } from "../lib/money";
 import DashboardCard from "./DashboardCard";
@@ -12,7 +12,7 @@ const ARC_LENGTH = Math.PI * 90;
 
 // How much is left to spend this month, as a half ring. `budget` is the answer of the budgets API for the month:
 // undefined while it loads, null when it could not be loaded.
-export default function BudgetRing({ budget }) {
+export default function BudgetRing({ budget, month }) {
     useLocale(); // amounts follow the family's currency
     const totals = budget?.totals;
     const planned = totals?.budgeted > 0;
@@ -28,7 +28,7 @@ export default function BudgetRing({ budget }) {
         body = (
             <Text color="fg.muted">
                 Nenhum orçamento definido para este mês.{" "}
-                <Link as={RouterLink} to="/budgets">Definir orçamentos</Link>
+                <Link as={RouterLink} to={budgetsLink(month)}>Definir orçamentos</Link>
             </Text>
         );
     } else {
@@ -68,7 +68,7 @@ export default function BudgetRing({ budget }) {
     }
 
     return (
-        <DashboardCard title="Orçamento" to="/budgets" linkText="Ver orçamentos">
+        <DashboardCard title="Orçamento" to={budgetsLink(month)} linkText="Ver orçamentos">
             {body}
         </DashboardCard>
     );

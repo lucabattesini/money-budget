@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { Box, Center, Grid, Heading, HStack, IconButton, Stack } from "@chakra-ui/react";
+import { useSearchParams } from "react-router-dom";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { getAllCategories, getTransactions, getMe, getBudgets } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { monthKey, monthLabel, shiftMonth } from "../lib/budget";
-import { spendingOfMonth } from "../lib/dashboard";
+import { monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
+import { countsAsIncoming, countsAsSpending, spendingOfMonth, sumCents, transactionsOfMonth } from "../lib/dashboard";
 import { useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import BudgetRing from "../components/BudgetRing";
+import CashFlowCard from "../components/CashFlowCard";
 import SpendingCard from "../components/SpendingCard";
 import RecentTransactions from "../components/RecentTransactions";
 import TopCategoriesBarList from "../components/TopCategoriesBarList";
@@ -21,7 +23,12 @@ export default function Dashboard() {
     const [user, setUser] = useState(null);
     const [now] = useState(() => new Date());
     const thisMonth = monthKey(now);
-    const [month, setMonth] = useState(thisMonth); // every card shows this month
+    // Every card shows this month. It lives in the address (?month=2026-03), so reloading or sharing the page keeps it;
+    // this month is the default and needs no parameter. A month that is missing, invalid or still to come is this month.
+    const [params, setParams] = useSearchParams();
+    const requested = monthFromLink(params.get("month"), thisMonth);
+    const month = requested > thisMonth ? thisMonth : requested;
+    const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key }, { replace: true });
     const [budget, setBudget] = useState(undefined); // the plan of the month: undefined while loading, null when it failed
 
     useEffect(() => {
@@ -71,7 +78,11 @@ export default function Dashboard() {
         };
     }, [month]);
 
-    const spending = useMemo(() => spendingOfMonth(transactions, month), [transactions, month]);
+    // Only money that was really spent: no credits, no transfers between accounts, like the budget
+    const outgoing = useMemo(() => countsAsSpending(transactions, categories), [transactions, categories]);
+    const spending = useMemo(() => spendingOfMonth(outgoing, month), [outgoing, month]);
+    // What came in: credits, but not the other side of a transfer between accounts
+    const entered = useMemo(() => sumCents(transactionsOfMonth(countsAsIncoming(transactions, categories), month)), [transactions, categories, month]);
 
     return (
         <Center>
@@ -101,12 +112,13 @@ export default function Dashboard() {
                     <Grid templateColumns={{ base: "1fr", lg: "3fr 2fr" }} gap={6} alignItems="start">
                         {/* On a phone the two columns become one list and the chart goes last (order); on a wide screen they are columns */}
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
-                            <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} /></Box>
-                            <Box order={{ base: 4, lg: 0 }}><SpendingCard transactions={transactions} month={month} now={now} /></Box>
+                            <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} month={month} /></Box>
+                            <Box order={{ base: 2, lg: 0 }}><CashFlowCard entered={entered} spent={sumCents(spending)} month={month} /></Box>
+                            <Box order={{ base: 5, lg: 0 }}><SpendingCard transactions={outgoing} month={month} now={now} /></Box>
                         </Stack>
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
-                            <Box order={{ base: 2, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} /></Box>
-                            <Box order={{ base: 3, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
+                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} month={month} /></Box>
+                            <Box order={{ base: 4, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
                         </Stack>
                     </Grid>
                 )}

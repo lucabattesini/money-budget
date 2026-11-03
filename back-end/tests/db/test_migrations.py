@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0015"
+LATEST = "0016"
 
 
 def _version(engine):
@@ -45,6 +45,7 @@ def test_a_new_database_gets_every_table_and_ends_on_the_latest_revision(url, en
         "transactions",
         "export_jobs",
         "budgets",
+        "import_jobs",
     }
     assert _version(engine) == LATEST
 
@@ -180,6 +181,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         ("0013", "0013"),
         ("0014", "0014"),
         ("0015", "0015"),
+        ("0016", "0016"),
     ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
@@ -1046,3 +1048,16 @@ def test_undoing_the_position_revision_drops_only_the_column(url, engine):
     assert "position" not in {c["name"] for c in inspect(engine).get_columns("category_groups")}
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM category_groups")).scalar() == 14
+
+
+# --- 0016: importing transactions in steps ------------------------------------------------------------------------------
+
+
+def test_undoing_the_import_revision_drops_only_its_table(url, engine):
+    upgrade_database(url)
+
+    command.downgrade(alembic_config(url), "0015")
+
+    names = set(inspect(engine).get_table_names())
+    assert "import_jobs" not in names
+    assert {"export_jobs", "transactions", "budgets"} <= names

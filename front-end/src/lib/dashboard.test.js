@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { isSpending, latestSpending, spendingByDay, spendingOfMonth } from './dashboard'
+import {
+  countsAsIncoming,
+  countsAsSpending,
+  isSpending,
+  latestSpending,
+  spendingByDay,
+  spendingOfMonth,
+  sumCents,
+  transactionsOfMonth,
+} from './dashboard'
 
 const tx = (date, value, type = 'debit', id = Math.random()) => ({ id, transactioned_at: `${date}T10:00:00`, value, type })
 
@@ -8,6 +17,50 @@ describe('isSpending', () => {
     expect(isSpending({ type: 'debit' })).toBe(true)
     expect(isSpending({})).toBe(true)
     expect(isSpending({ type: 'credit' })).toBe(false)
+  })
+})
+
+describe('countsAsSpending', () => {
+  const categories = [
+    { id: 1, group_name: 'Alimentação' },
+    { id: 2, group_name: 'Transferências' },
+    { id: 3, group_name: 'Receitas' },
+    { id: 4, group_name: 'Outros' },
+  ]
+  const at = (category_id, type = 'debit') => ({ ...tx('2026-03-10', 100, type), category_id })
+
+  it('keeps the debits of ordinary categories', () => {
+    const food = at(1)
+    const other = at(4)
+
+    expect(countsAsSpending([food, other], categories)).toEqual([food, other])
+  })
+
+  it('leaves out transfers between accounts, such as paying the card bill, even though they are debits', () => {
+    expect(countsAsSpending([at(2)], categories)).toEqual([])
+  })
+
+  it('leaves out the income group even when a row there is a debit', () => {
+    expect(countsAsSpending([at(3)], categories)).toEqual([])
+  })
+
+  it('leaves out credits, in any category', () => {
+    expect(countsAsSpending([at(1, 'credit'), at(2, 'credit'), at(4, 'credit')], categories)).toEqual([])
+  })
+
+  it('still counts a debit whose category is unknown or has no group', () => {
+    const lost = at(99)
+
+    expect(countsAsSpending([lost], categories)).toEqual([lost])
+    expect(countsAsSpending([lost], [{ id: 99 }])).toEqual([lost])
+  })
+
+  it('does not change the list it is given', () => {
+    const list = [at(1), at(2)]
+
+    countsAsSpending(list, categories)
+
+    expect(list).toHaveLength(2)
   })
 })
 
@@ -97,5 +150,51 @@ describe('latestSpending', () => {
     latestSpending(list)
 
     expect(list.map((t) => t.id)).toEqual([1, 2])
+  })
+})
+
+describe('transactionsOfMonth', () => {
+  it('keeps debits and credits of that month only, not another month or another year', () => {
+    const march = [tx('2026-03-01', 1), tx('2026-03-31', 2, 'credit')]
+    const others = [tx('2026-02-28', 4), tx('2026-04-01', 8), tx('2025-03-15', 16)]
+
+    expect(transactionsOfMonth([...others, ...march], '2026-03')).toEqual(march)
+  })
+})
+
+describe('countsAsIncoming', () => {
+  const categories = [
+    { id: 1, group_name: 'Receitas' },
+    { id: 2, group_name: 'Transferências' },
+    { id: 3, group_name: 'Alimentação' },
+  ]
+  const at = (category_id, type = 'credit') => ({ ...tx('2026-03-10', 100, type), category_id })
+
+  it('counts a salary, and a refund in an ordinary category', () => {
+    const salary = at(1)
+    const refund = at(3)
+
+    expect(countsAsIncoming([salary, refund], categories)).toEqual([salary, refund])
+  })
+
+  it('leaves out the other side of a transfer between accounts', () => {
+    expect(countsAsIncoming([at(2)], categories)).toEqual([])
+  })
+
+  it('leaves out debits', () => {
+    expect(countsAsIncoming([at(1, 'debit'), at(3, 'debit'), { ...tx('2026-03-10', 1), category_id: 3 }], categories)).toEqual([])
+  })
+
+  it('counts a credit whose category is unknown', () => {
+    const lost = at(99)
+
+    expect(countsAsIncoming([lost], categories)).toEqual([lost])
+  })
+})
+
+describe('sumCents', () => {
+  it('adds the values, and is zero for nothing', () => {
+    expect(sumCents([tx('2026-03-01', 150), tx('2026-03-02', 275)])).toBe(425)
+    expect(sumCents([])).toBe(0)
   })
 })

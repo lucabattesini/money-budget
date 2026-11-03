@@ -5,7 +5,16 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from api.utils.category_names import plain_name
-from schemas.tables import Budgets, Categories, ExportJobDB, Families, FamilyInvites, TransactionDB, Users
+from schemas.tables import (
+    Budgets,
+    Categories,
+    ExportJobDB,
+    Families,
+    FamilyInvites,
+    ImportJobDB,
+    TransactionDB,
+    Users,
+)
 
 INVITE_LIFETIME = timedelta(days=7)  # asked of the database clock, like the export times
 ABANDONED_KEPT_FOR = timedelta(days=30)  # how long a family nobody is in is kept, in case someone goes back
@@ -251,6 +260,7 @@ def purge_abandoned_families(db: Session) -> None:
     db.query(Budgets).filter(Budgets.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(Categories).filter(Categories.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(ExportJobDB).filter(ExportJobDB.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(ImportJobDB).filter(ImportJobDB.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(FamilyInvites).filter(FamilyInvites.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(Users).filter(Users.previous_family_id.in_(ids)).update(
         {Users.previous_family_id: None}, synchronize_session=False

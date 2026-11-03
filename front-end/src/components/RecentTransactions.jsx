@@ -1,4 +1,5 @@
 import { Box, HStack, Stack, Text } from "@chakra-ui/react";
+import { transactionsLink } from "../lib/budget";
 import { splitName } from "../lib/categoryName";
 import { latestSpending } from "../lib/dashboard";
 import { formatDate, useLocale } from "../lib/locale";
@@ -6,12 +7,12 @@ import { formatCents } from "../lib/money";
 import DashboardCard from "./DashboardCard";
 
 // The latest spending of the month (`transactions` is already that month's), with the emoji of its category.
-export default function RecentTransactions({ transactions, categories }) {
+export default function RecentTransactions({ transactions, categories, month }) {
     useLocale(); // amounts and dates follow the family's currency and language
     const latest = latestSpending(transactions);
 
     return (
-        <DashboardCard title="Últimas transações" to="/transactions" linkText="Ver todas">
+        <DashboardCard title="Últimas transações" to={transactionsLink(month, "debit")} linkText="Ver todas">
             {latest.length === 0 ? (
                 <Text color="fg.muted">Nenhum gasto neste mês.</Text>
             ) : (

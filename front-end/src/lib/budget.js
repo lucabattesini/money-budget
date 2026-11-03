@@ -8,6 +8,27 @@ export const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth(
 export const FIRST_MONTH = '2000-01'
 export const LAST_MONTH = '2099-12'
 
+/** A month from a link ("?month=2026-03"): that month, or `fallback` when it is missing or not one the server offers. */
+export function monthFromLink(value, fallback) {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value ?? '') && value >= FIRST_MONTH && value <= LAST_MONTH ? value : fallback
+}
+
+/** The first and last day of a month, as the date filters write them: "2026-02" -> { from: "2026-02-01", to: "2026-02-28" }. */
+export function monthDays(key) {
+  const [year, month] = key.split('-').map(Number)
+  const last = new Date(year, month, 0).getDate()
+  return { from: `${key}-01`, to: `${key}-${String(last).padStart(2, '0')}` }
+}
+
+/** The budgets page, opened on that month. */
+export const budgetsLink = (key) => `/budgets?month=${key}`
+
+/** The transactions page with the days of that month already filtered, and optionally only debits or credits. */
+export function transactionsLink(key, type) {
+  const { from, to } = monthDays(key)
+  return `/transactions?from=${from}&to=${to}${type ? `&type=${type}` : ''}`
+}
+
 /** "2026-12" + 1 -> "2027-01"; -1 goes back. */
 export function shiftMonth(key, delta) {
   const [year, month] = key.split('-').map(Number)

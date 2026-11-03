@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Box, Heading, HStack, IconButton, Input, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
+import { useSearchParams } from "react-router-dom";
 import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp } from "react-icons/lu";
 import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { budgetStatus, FIRST_MONTH, LAST_MONTH, monthKey, monthLabel, shiftMonth } from "../lib/budget";
+import { budgetStatus, FIRST_MONTH, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { compareCategories, plainName } from "../lib/categoryName";
 import { useLocale } from "../lib/locale";
 import { digitsToCents, formatCents, maskAmount } from "../lib/money";
@@ -45,7 +46,9 @@ function leftText(spent, budgeted) {
 // One month of the family's plan: what is planned for each spending category, what was spent and what is left.
 export default function Budgets() {
     useLocale(); // amounts and the month name follow the family's currency and language
-    const [month, setMonth] = useState(() => monthKey(new Date()));
+    const [params] = useSearchParams();
+    // Opens on the month the link asks for (the dashboard sends the month it shows), this month otherwise
+    const [month, setMonth] = useState(() => monthFromLink(params.get("month"), monthKey(new Date())));
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
     const [drafts, setDrafts] = useState({}); // what is being typed, by category id, until it is saved

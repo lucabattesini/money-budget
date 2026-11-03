@@ -162,7 +162,7 @@ describe('dashboard', () => {
 
     const panel = within(await waitFor(() => card('Orçamento')))
     expect(await panel.findByText(/Nenhum orçamento definido/)).toBeInTheDocument()
-    expect(panel.getByRole('link', { name: 'Definir orçamentos' })).toHaveAttribute('href', '/budgets')
+    expect(panel.getByRole('link', { name: 'Definir orçamentos' })).toHaveAttribute('href', '/budgets?month=2026-03')
   })
 
   it('still shows the rest of the page, without an error message, when the budgets cannot be loaded', async () => {
@@ -241,6 +241,269 @@ describe('dashboard', () => {
     // the chart prints compact numbers: 100,00 -> "100", 25,50 -> "25.5"
     expect(screen.getByText('100')).toBeInTheDocument()
     expect(screen.getByText('25.5')).toBeInTheDocument()
+  })
+
+  describe('transfers and income are not spending', () => {
+    const GROUPED = {
+      ...ROUTES,
+      'GET /categories': {
+        data: [
+          { id: 1, name: '🛒 Alimentação', group_name: 'Alimentação' },
+          { id: 2, name: '🚌 Transporte', group_name: 'Auto e Transporte' },
+          { id: 3, name: '💳 Pagamento de fatura do cartão', group_name: 'Transferências' },
+          { id: 4, name: '💰 Salário', group_name: 'Receitas' },
+        ],
+      },
+      'POST /transactions': {
+        data: [
+          t(1, 10000, '2026-03-02T10:00:00'),
+          t(2, 2550, '2026-03-14T10:00:00', 2),
+          t(3, 777700, '2026-03-12T10:00:00', 3, 'debit', 'Fatura'), // paying the card bill: a debit, but not spending
+          t(4, 555500, '2026-03-12T10:00:00', 3, 'credit'), // the other side of a transfer
+          t(5, 300000, '2026-03-05T10:00:00', 4, 'credit'), // salary
+          t(6, 40000, '2026-03-06T10:00:00', 4, 'debit', 'Ajuste'), // a debit in an income category
+          t(7, 888800, '2026-02-12T10:00:00', 3), // last month's card bill: must not make the comparison look huge
+        ],
+      },
+    }
+
+    it('counts only what was really spent in the total of the month', async () => {
+      mockApi(GROUPED)
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(monthTotal()).toBe('R$ 125,50')) // 100,00 + 25,50, none of the 7.777,00 of the bill
+    })
+
+    it('leaves them out of the recent list too', async () => {
+      mockApi(GROUPED)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByText('Compra 1')
+      expect(screen.queryByText('Fatura')).not.toBeInTheDocument()
+      expect(screen.queryByText('Ajuste')).not.toBeInTheDocument()
+    })
+
+    it('leaves them out of the ranking of categories', async () => {
+      mockApi(GROUPED)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByText('Principais categorias')
+      expect(screen.getByText('100')).toBeInTheDocument()
+      expect(screen.getByText('25.5')).toBeInTheDocument()
+      expect(screen.queryByText(/Pagamento de fatura/)).not.toBeInTheDocument()
+    })
+
+    it('agrees with the budget, which leaves the same groups out', async () => {
+      mockApi({ ...GROUPED, [MARCH]: { data: budgetOf('2026-03', 100000, 12550) } })
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(monthTotal()).toBe('R$ 125,50'))
+      const panel = within(await waitFor(() => card('Orçamento')))
+      expect(plain((await panel.findByText(/gastos de/)).textContent)).toBe('R$ 125,50 gastos de R$ 1.000,00') // the same amount
+    })
+  })
+
+  describe('what came in and what went out', () => {
+    const text = (label) => plain(screen.getByLabelText(label).textContent)
+    const FLOW = {
+      ...ROUTES,
+      'GET /categories': {
+        data: [
+          { id: 1, name: '🛒 Alimentação', group_name: 'Alimentação' },
+          { id: 3, name: '💳 Fatura', group_name: 'Transferências' },
+          { id: 4, name: '💰 Salário', group_name: 'Receitas' },
+        ],
+      },
+      'POST /transactions': {
+        data: [
+          t(1, 10000, '2026-03-02T10:00:00'), // out
+          t(2, 2550, '2026-03-14T10:00:00'), // out
+          t(3, 300000, '2026-03-05T10:00:00', 4, 'credit'), // salary: in
+          t(4, 5000, '2026-03-08T10:00:00', 1, 'credit'), // a refund: in
+          t(5, 777700, '2026-03-12T10:00:00', 3, 'debit'), // card bill: neither
+          t(6, 555500, '2026-03-12T10:00:00', 3, 'credit'), // the other side of the transfer: neither
+          t(7, 99900, '2026-02-10T10:00:00', 4, 'credit'), // last month's salary
+          t(8, 20000, '2026-02-11T10:00:00'), // last month's spending
+        ],
+      },
+    }
+
+    it('shows the entries, the exits and the balance of the month', async () => {
+      mockApi(FLOW)
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 3.050,00')) // 3.000,00 salary + 50,00 refund
+      expect(text('Saídas do mês')).toBe('R$ 125,50') // 100,00 + 25,50
+      expect(text('Saldo do mês')).toBe('R$ 2.924,50')
+    })
+
+    it('leaves transfers out of both sides', async () => {
+      mockApi(FLOW)
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 3.050,00')) // not 8.605,00
+      expect(text('Saídas do mês')).not.toContain('7.777')
+    })
+
+    it('follows the month chosen', async () => {
+      mockApi({ ...FLOW, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />)
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 3.050,00'))
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 999,00'))
+      expect(text('Saídas do mês')).toBe('R$ 200,00')
+      expect(text('Saldo do mês')).toBe('R$ 799,00')
+    })
+
+    it('shows zeros for a month with nothing in it', async () => {
+      mockApi({ ...FLOW, 'POST /transactions': { data: [] } })
+
+      renderApp(<Dashboard />)
+
+      await waitFor(() => expect(text('Entradas do mês')).toBe('R$ 0,00'))
+      expect(screen.getByText('Nenhuma entrada ou saída neste mês.')).toBeInTheDocument()
+    })
+
+    it('comes right after the budget in the left column, before the chart', async () => {
+      mockApi(FLOW)
+
+      renderApp(<Dashboard />)
+
+      const [budget, flow, chart] = await Promise.all(
+        ['Orçamento', 'Entradas e saídas', 'Gastos'].map((title) => screen.findByRole('heading', { name: title })),
+      )
+      expect(budget.compareDocumentPosition(flow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(flow.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+  })
+
+  describe('links to the other pages', () => {
+    const link = (name) => screen.getByRole('link', { name })
+
+    it('opens each page on the month the dashboard shows', async () => {
+      mockApi(ROUTES)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByLabelText('Total gasto no mês')
+      expect(link('Ver orçamentos')).toHaveAttribute('href', '/budgets?month=2026-03')
+      const transactions = screen.getAllByRole('link', { name: /^Ver transações$|^Ver todas$/ }).map((a) => a.getAttribute('href'))
+      expect(transactions).toEqual(expect.arrayContaining(['/transactions?from=2026-03-01&to=2026-03-31&type=debit']))
+      expect(link('Ver todas')).toHaveAttribute('href', '/transactions?from=2026-03-01&to=2026-03-31&type=debit')
+    })
+
+    it('sends the entries and exits panel to all the transactions of the month, credits included', async () => {
+      mockApi(ROUTES)
+
+      renderApp(<Dashboard />)
+
+      await screen.findByLabelText('Total gasto no mês')
+      const hrefs = screen.getAllByRole('link', { name: 'Ver transações' }).map((a) => a.getAttribute('href'))
+      expect(hrefs).toEqual(
+        expect.arrayContaining(['/transactions?from=2026-03-01&to=2026-03-31', '/transactions?from=2026-03-01&to=2026-03-31&type=debit']),
+      )
+    })
+
+    it('follows the month chosen with the switcher', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />)
+      await screen.findByLabelText('Total gasto no mês')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+
+      await waitFor(() => expect(link('Ver orçamentos')).toHaveAttribute('href', '/budgets?month=2026-02'))
+      expect(link('Ver todas')).toHaveAttribute('href', '/transactions?from=2026-02-01&to=2026-02-28&type=debit')
+    })
+
+    it('opens the budgets on the same month when the plan is still to be made', async () => {
+      mockApi({ ...ROUTES, [MARCH]: { data: budgetOf('2026-03', 0, 0) } })
+
+      renderApp(<Dashboard />)
+
+      expect(await screen.findByRole('link', { name: 'Definir orçamentos' })).toHaveAttribute('href', '/budgets?month=2026-03')
+    })
+  })
+
+  describe('month in the address', () => {
+    const where = () => screen.getByTestId('location').textContent
+
+    it('has no month in the address on the current month', async () => {
+      mockApi(ROUTES)
+
+      renderApp(<Dashboard />, { route: '/' })
+
+      await screen.findByLabelText('Total gasto no mês')
+      expect(where()).toBe('/')
+    })
+
+    it('writes the month to the address when the user goes back, and takes it off when back on this month', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />, { route: '/' })
+      await screen.findByLabelText('Total gasto no mês')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      await waitFor(() => expect(where()).toBe('/?month=2026-02'))
+      expect(screen.getByRole('heading', { name: 'fevereiro de 2026' })).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
+      await waitFor(() => expect(where()).toBe('/'))
+      expect(screen.getByRole('heading', { name: 'março de 2026' })).toBeInTheDocument()
+    })
+
+    it('opens on the month in the address, asking for that month\'s plan and showing its spending', async () => {
+      const api = mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 200000, 150000) } })
+
+      renderApp(<Dashboard />, { route: '/?month=2026-02' })
+
+      expect(await screen.findByRole('heading', { name: 'fevereiro de 2026' })).toBeInTheDocument()
+      await waitFor(() => expect(monthTotal()).toBe('R$ 1.099,00')) // 999,00 + 100,00 of February
+      expect(requestsMade(api)).toContain(FEBRUARY)
+      expect(requestsMade(api)).not.toContain(MARCH) // this month's plan is never asked for
+      expect(where()).toBe('/?month=2026-02')
+    })
+
+    it('keeps the month through a reload: a new page on the same address shows the same month', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      const first = renderApp(<Dashboard />, { route: '/' })
+      await screen.findByLabelText('Total gasto no mês')
+      await userEvent.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      await waitFor(() => expect(where()).toBe('/?month=2026-02'))
+      const address = where()
+      first.unmount()
+
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+      renderApp(<Dashboard />, { route: address })
+
+      expect(await screen.findByRole('heading', { name: 'fevereiro de 2026' })).toBeInTheDocument()
+    })
+
+    it.each(['?month=banana', '?month=2026-13', '?month=2026-04', '?month=2030-01', '?month='])(
+      'opens on this month for the address %j',
+      async (search) => {
+        mockApi(ROUTES)
+
+        renderApp(<Dashboard />, { route: `/${search}` })
+
+        expect(await screen.findByRole('heading', { name: 'março de 2026' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Próximo mês' })).toBeDisabled()
+      },
+    )
+
+    it('makes the links of the cards follow the month of the address', async () => {
+      mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
+
+      renderApp(<Dashboard />, { route: '/?month=2026-02' })
+
+      expect(await screen.findByRole('link', { name: 'Ver orçamentos' })).toHaveAttribute('href', '/budgets?month=2026-02')
+    })
   })
 
   describe('month switcher', () => {

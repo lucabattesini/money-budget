@@ -51,6 +51,42 @@ beforeEach(() => {
   toaster.remove() // toasts live in a global store: an earlier test's toast would crowd out the one we look for
 })
 
+describe('budgets page: the month in the link', () => {
+  const OTHER = '2026-03'
+
+  it('opens on the month the link asks for', async () => {
+    const api = mockApi({ [`GET /budgets?month=${OTHER}`]: { data: month(OTHER) } })
+
+    renderApp(<Budgets />, { route: `/budgets?month=${OTHER}` })
+
+    expect(await screen.findByText('Orçado')).toBeInTheDocument()
+    expect(requestsMade(api)).toEqual([`GET /budgets?month=${OTHER}`]) // not this month's plan first
+    expect(screen.getByText('março de 2026')).toBeInTheDocument()
+  })
+
+  it('can still move to the months around it', async () => {
+    const api = mockApi({
+      [`GET /budgets?month=${OTHER}`]: { data: month(OTHER) },
+      'GET /budgets?month=2026-04': { data: month('2026-04') },
+    })
+    renderApp(<Budgets />, { route: `/budgets?month=${OTHER}` })
+    await screen.findByText('Orçado')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
+
+    await waitFor(() => expect(requestsMade(api)).toContain('GET /budgets?month=2026-04'))
+  })
+
+  it.each(['?month=banana', '?month=2026-13', '?month=1999-01', ''])('opens on this month for the link %j', async (search) => {
+    const api = mockApi({ [`GET /budgets?month=${NOW}`]: { data: month(NOW) } })
+
+    renderApp(<Budgets />, { route: `/budgets${search}` })
+
+    expect(await screen.findByText('Orçado')).toBeInTheDocument()
+    expect(requestsMade(api)).toEqual([`GET /budgets?month=${NOW}`])
+  })
+})
+
 describe('budgets page: what it shows', () => {
   it('shows the month, the totals and every group with its categories', async () => {
     mockApi({ [`GET /budgets?month=${NOW}`]: { data: month(NOW) } })

@@ -2,6 +2,16 @@ import { digitsToCents } from "./money";
 
 export const EMPTY_FILTERS = { search: "", category: "", type: "", from: "", to: "", min: "", max: "" };
 
+const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
+
+/** The filters a link asks for ("?from=2026-03-01&to=2026-03-31&type=debit"); anything missing or invalid is left empty. */
+export function filtersFromLink(search) {
+    const params = new URLSearchParams(search);
+    const day = (name) => (isDay(params.get(name)) ? params.get(name) : "");
+    const type = params.get("type");
+    return { ...EMPTY_FILTERS, from: day("from"), to: day("to"), type: type === "debit" || type === "credit" ? type : "" };
+}
+
 export function countActiveFilters(filters) {
     return Object.values(filters).filter((value) => value !== "").length;
 }

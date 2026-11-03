@@ -153,6 +153,24 @@ class ExportJobCreate(BaseModel):
     format: ExportFormat = "csv"
 
 
+class ImportColumnsChoice(BaseModel):
+    """Which column of the file (its position, from 0) holds each field: {"Data": 0, "Valor": 3, "Tipo": null}."""
+
+    mapping: dict[str, Optional[int]] = Field(max_length=20)
+    # How dates written as text are read: "auto" looks at the file, then at the family's language
+    date_order: Literal["auto", "day_first", "month_first", "iso"] = "auto"
+    # How amounts are written: "br" is 1.234,56 and "us" is 1,234.56; "auto" accepts both
+    amount_style: Literal["auto", "br", "us"] = "auto"
+    # How the sign of the amount is read: always positive with the type in the Tipo column, or the sign says the direction
+    sign: Literal["type_column", "negative_debit", "negative_credit"] = "type_column"
+
+
+class ImportCategoriesChoice(BaseModel):
+    """Which of the family's categories each category name in the file stands for: {"Pets": 12}."""
+
+    mapping: dict[str, int] = Field(max_length=500)
+
+
 class ExportJobOut(BaseModel):
     id: int
     format: ExportFormat

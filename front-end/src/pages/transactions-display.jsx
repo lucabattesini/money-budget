@@ -1,11 +1,12 @@
 import { Fragment, useState, useEffect } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
+import { useLocation } from "react-router-dom";
 import { getTransactions, getAllCategories, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
 import { formatDate, useLocale } from "../lib/locale";
-import { EMPTY_FILTERS, applyFilters, countActiveFilters, hasActiveFilters } from "../lib/transactionFilters";
+import { applyFilters, countActiveFilters, filtersFromLink, hasActiveFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
@@ -24,7 +25,9 @@ export default function TransactionsDisplay() {
     const [trigger, setTrigger] = useState(0);
     const [adding, setAdding] = useState(false);
     const [editing, setEditing] = useState(null); // the transaction being edited
-    const [filters, setFilters] = useState(EMPTY_FILTERS);
+    const { search } = useLocation();
+    // Opens with the filters the link asks for (the dashboard sends the month it shows)
+    const [filters, setFilters] = useState(() => filtersFromLink(search));
     const [page, setPage] = useState(1);
 
     useEffect(() => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_FILTERS, applyFilters, hasActiveFilters } from './transactionFilters'
+import { EMPTY_FILTERS, applyFilters, filtersFromLink, hasActiveFilters } from './transactionFilters'
+import { transactionsLink } from './budget'
 
 const t = (id, label, value, date, category_id = 1) => ({ id, label, value, transactioned_at: date, category_id })
 const DATA = [
@@ -38,5 +39,46 @@ describe('hasActiveFilters', () => {
   it('is false for the empty filters and true as soon as one is set', () => {
     expect(hasActiveFilters(EMPTY_FILTERS)).toBe(false)
     expect(hasActiveFilters({ ...EMPTY_FILTERS, max: '1,00' })).toBe(true)
+  })
+})
+
+describe('filtersFromLink', () => {
+  it('has no filter without a link', () => {
+    expect(filtersFromLink('')).toEqual(EMPTY_FILTERS)
+  })
+
+  it('reads the days and the type a link asks for', () => {
+    expect(filtersFromLink('?from=2026-03-01&to=2026-03-31&type=debit')).toEqual({
+      ...EMPTY_FILTERS,
+      from: '2026-03-01',
+      to: '2026-03-31',
+      type: 'debit',
+    })
+    expect(filtersFromLink('?type=credit').type).toBe('credit')
+  })
+
+  it('ignores what is not a day or a type, and anything else in the link', () => {
+    expect(filtersFromLink('?from=ontem&to=2026-13-45&type=pix&search=x&category=3')).toEqual(EMPTY_FILTERS)
+    expect(filtersFromLink('?from=2026-3-1&to=2026-03-31')).toEqual({ ...EMPTY_FILTERS, to: '2026-03-31' })
+  })
+
+  it('reads back what the dashboard link asks for', () => {
+    const search = transactionsLink('2026-03', 'debit').split('?')[1]
+
+    expect(filtersFromLink(search)).toEqual({ ...EMPTY_FILTERS, from: '2026-03-01', to: '2026-03-31', type: 'debit' })
+  })
+
+  it('filters the transactions of the month, the last day included', () => {
+    const list = [
+      { transactioned_at: '2026-02-28T23:59:00', value: 1, type: 'debit' },
+      { transactioned_at: '2026-03-01T00:00:00', value: 2, type: 'debit' },
+      { transactioned_at: '2026-03-31T23:59:00', value: 4, type: 'debit' },
+      { transactioned_at: '2026-04-01T00:00:00', value: 8, type: 'debit' },
+      { transactioned_at: '2026-03-10T10:00:00', value: 16, type: 'credit' },
+    ]
+
+    const kept = applyFilters(list, filtersFromLink('?from=2026-03-01&to=2026-03-31&type=debit'))
+
+    expect(kept.map((t) => t.value)).toEqual([2, 4])
   })
 })
