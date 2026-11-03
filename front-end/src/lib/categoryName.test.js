@@ -14,6 +14,8 @@ describe('splitting a category name', () => {
     ['Carro 🚗', '', 'Carro 🚗'], // only an emoji at the start belongs to the name's decoration
     ['1️⃣ Primeiro', '', '1️⃣ Primeiro'], // a digit is a word, not an emoji
     ['€ Euro', '', '€ Euro'],
+    ['★ Favorito', '★', 'Favorito'], // the same rule as the server: any leading symbol counts
+    ['© Direitos', '©', 'Direitos'],
     ['🛒', '🛒', ''],
     ['', '', ''],
     [null, '', ''],

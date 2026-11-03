@@ -1,8 +1,11 @@
 // A category name may start with an emoji ("🛒 Supermercado"): the emoji is part of the name, not a separate field.
 // These helpers split it and put it together again, and sort by the words only, so lists stay A-Z whatever the emoji.
 
-// What an emoji is made of: pictographs, skin tones, flags, and the invisible joiners and variation selectors.
-const EMOJI = String.raw`(?:[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}]|\u200d|\ufe0f)`
+// What the start of a name may be made of besides its words. This is exactly the rule the server uses
+// (back-end/api/utils/category_names.py), so the page and the server split a name the same way: symbols (Unicode
+// category So: pictographs, flags, arrows...), modifier symbols (Sk: skin tones), the zero-width joiner and the
+// emoji variation selector.
+const EMOJI = String.raw`(?:[\p{So}\p{Sk}]|\u200d|\ufe0f)`
 const LEADING_EMOJI = new RegExp(`^\\s*(${EMOJI}+)\\s*`, "u")
 
 /** "🛒 Supermercado" -> { emoji: "🛒", text: "Supermercado" }. A name without emoji has an empty emoji. */

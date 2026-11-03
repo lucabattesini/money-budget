@@ -251,6 +251,40 @@ describe('categories page: editing', () => {
   })
 })
 
+describe('categories page: when the category changed meanwhile', () => {
+  it('says so, closes the panel and shows the real list when saving finds the category gone', async () => {
+    const lists = [LIST, { data: LIST.data.filter((c) => c.id !== 12) }]
+    const api = await renderPage({
+      'GET /categories': () => jsonResponse(lists.shift() ?? LIST),
+      'PATCH /categories/12': [{ detail: 'Categoria não encontrada.' }, 404],
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Editar Água da casa' }))
+    const dialog = within(await screen.findByRole('dialog'))
+
+    await userEvent.type(dialog.getByLabelText(/nome/i), ' 2')
+    await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
+
+    expect(await screen.findByText('Categoria não encontrada.')).toBeInTheDocument()
+    await waitFor(() => expect(names('Casa')).toEqual(['AluguelPadrão'])) // the list was reloaded
+    expect(requestsMade(api).filter((r) => r === 'GET /categories')).toHaveLength(2)
+  })
+
+  it('sends only one delete request when the confirm button is clicked twice quickly', async () => {
+    let finish
+    const api = await renderPage({
+      'DELETE /categories/12': () => new Promise((resolve) => (finish = () => resolve(new Response('{"data":{}}')))),
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Apagar Água da casa' }))
+    const confirm = screen.getByRole('button', { name: 'Apagar' })
+
+    await userEvent.dblClick(confirm)
+    finish()
+
+    await waitFor(() => expect(requestsMade(api)).toContain('DELETE /categories/12'))
+    expect(requestsMade(api).filter((r) => r.startsWith('DELETE'))).toHaveLength(1)
+  })
+})
+
 describe('categories page: deleting', () => {
   it('asks to confirm, then deletes and refreshes the list', async () => {
     const lists = [LIST, { data: LIST.data.filter((c) => c.id !== 12) }]

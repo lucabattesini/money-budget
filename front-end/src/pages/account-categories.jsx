@@ -88,6 +88,11 @@ function CategoryDrawer({ open, onClose, groups, category, onSaved }) {
             onClose();
         } else if (result.status === 409 || result.status === 422) {
             setError(result.detail); // the server says what is wrong, for example that the name already exists
+        } else if (result.status === 404) {
+            // The category is gone (deleted in another tab, say): say so and show the real list
+            customToaster("Erro", "error", result.detail || "Essa categoria não existe mais.");
+            onSaved();
+            onClose();
         } else {
             customToaster("Erro", "error", "Não foi possível salvar a categoria. Tente novamente.");
         }
@@ -163,6 +168,7 @@ export default function AccountCategories() {
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [drawer, setDrawer] = useState({ open: false, category: null });
+    const [deleting, setDeleting] = useState(false);
     const [confirming, setConfirming] = useState(null); // the id of the category waiting for "Apagar" to be confirmed
 
     const load = useCallback(async () => {
@@ -187,8 +193,11 @@ export default function AccountCategories() {
     }, [load]);
 
     const handleDelete = async (category) => {
+        if (deleting) return; // a double click must not send the request twice
+        setDeleting(true);
         const result = await deleteCategory(category.id, getToken());
         setConfirming(null);
+        setDeleting(false);
         if (result.ok) {
             customToaster("Apagada", "success", `A categoria "${category.name}" foi apagada.`);
         } else if (result.status === 409) {

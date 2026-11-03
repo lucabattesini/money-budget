@@ -18,6 +18,8 @@ from api.utils.category_names import plain_name, same_name
         ("Carro 🚗", "Carro 🚗"),  # only what the name STARTS with is decoration
         ("1️⃣ Primeiro", "1️⃣ Primeiro"),  # a digit is a word character, so it stays
         ("€ Euro", "€ Euro"),  # a currency sign is not an emoji
+        ("★ Favorito", "Favorito"),  # the same rule as the page: any leading symbol counts
+        ("© Direitos", "Direitos"),
         ("🛒", ""),  # nothing but an emoji
         ("", ""),
         ("   ", ""),
