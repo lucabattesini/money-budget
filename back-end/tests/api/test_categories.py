@@ -6,7 +6,14 @@ def test_lists_exactly_the_default_categories(client, auth_headers):
 
     assert response.status_code == 200
     names = sorted(c["name"] for c in response.json()["data"])
-    assert names == ["Aluguel", "Educação", "Restaurantes e Bares", "Sem categoria", "Supermercado", "Transporte público"]
+    assert names == [
+        "Aluguel",
+        "Educação",
+        "Restaurantes e Bares",
+        "Sem categoria",
+        "Supermercado",
+        "Transporte público",
+    ]
 
 
 def test_each_category_has_an_id_and_name(client, auth_headers):

@@ -375,7 +375,9 @@ def upgrade() -> None:
     conn.execute(sa.text("UPDATE category_groups SET name = '__old_' || id"))
     for name in GROUPS:
         conn.execute(sa.text("INSERT INTO category_groups (name) VALUES (:name)"), {"name": name})
-    new_groups = dict(conn.execute(sa.text("SELECT name, id FROM category_groups WHERE left(name, 6) <> '__old_'")).all())
+    new_groups = dict(
+        conn.execute(sa.text("SELECT name, id FROM category_groups WHERE left(name, 6) <> '__old_'")).all()
+    )
 
     # 2. A family's categories go to the group that replaces their old one ("Outros" if the group is not known)
     for old_name, old_id in old_groups.items():
@@ -388,7 +390,9 @@ def upgrade() -> None:
     # 3. The old default categories become (or are merged into) the new ones
     by_words = {words.casefold(): new for words, new in CATEGORY_MAP.items()}
     group_of = {name: group for group, names in GROUPS.items() for name in names}
-    by_words.update({name.casefold(): name for name in group_of if name.casefold() not in by_words})  # already a new name
+    by_words.update(
+        {name.casefold(): name for name in group_of if name.casefold() not in by_words}
+    )  # already a new name
     kept: dict[str, int] = {}  # new name -> id of the row that now holds it
     rows = conn.execute(sa.text("SELECT id, name FROM categories WHERE family_id IS NULL ORDER BY id")).all()
     for row in rows:
@@ -421,7 +425,9 @@ def downgrade() -> None:
     conn.execute(sa.text("UPDATE category_groups SET name = '__new_' || id"))
     for name in OLD_GROUPS:
         conn.execute(sa.text("INSERT INTO category_groups (name) VALUES (:name)"), {"name": name})
-    old_groups = dict(conn.execute(sa.text("SELECT name, id FROM category_groups WHERE left(name, 6) <> '__new_'")).all())
+    old_groups = dict(
+        conn.execute(sa.text("SELECT name, id FROM category_groups WHERE left(name, 6) <> '__new_'")).all()
+    )
 
     for name, new_id in new_groups.items():
         conn.execute(

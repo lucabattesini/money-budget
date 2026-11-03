@@ -94,7 +94,9 @@ def test_queueing_rejects_an_unknown_format(client, db, auth_headers, file_forma
 def test_csv_file_has_the_documented_columns_and_brazilian_formatting(
     client, user, auth_headers, make_transaction, category_ids, queue
 ):
-    make_transaction(user, category_ids["Restaurantes e Bares"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0))
+    make_transaction(
+        user, category_ids["Restaurantes e Bares"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0)
+    )
     make_transaction(
         user, category_ids["Transporte público"], label="Salário", value=5, when=datetime(2026, 3, 1), type="credit"
     )
@@ -113,7 +115,9 @@ def test_csv_file_has_the_documented_columns_and_brazilian_formatting(
 
 
 def test_xlsx_file_has_real_dates_and_numbers(client, user, auth_headers, make_transaction, category_ids, queue):
-    make_transaction(user, category_ids["Restaurantes e Bares"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0))
+    make_transaction(
+        user, category_ids["Restaurantes e Bares"], label="Almoço", value=123456, when=datetime(2026, 3, 15, 12, 0)
+    )
     job_id = _run(client, queue, auth_headers, "xlsx")
 
     response = _file(client, auth_headers, job_id)

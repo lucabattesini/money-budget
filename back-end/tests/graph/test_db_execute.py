@@ -34,7 +34,10 @@ def test_summarize_groups_by_category_and_converts_cents_to_reais(user, make_tra
         "max": 100.0,
     }
     assert rows["Transporte público"]["total"] == 19.99
-    assert [r["category"] for r in result["result"]] == ["Restaurantes e Bares", "Transporte público"]  # biggest total first
+    assert [r["category"] for r in result["result"]] == [
+        "Restaurantes e Bares",
+        "Transporte público",
+    ]  # biggest total first
 
 
 def test_summarize_by_weekday_names_the_day(user, make_transaction, category_ids):

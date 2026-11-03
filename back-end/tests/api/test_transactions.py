@@ -181,7 +181,12 @@ def test_a_transaction_is_a_debit_unless_said_otherwise(client, db, auth_headers
 def test_a_credit_is_stored_as_a_positive_amount_in_cents(client, db, auth_headers, category_ids):
     response = client.post(
         "/transactions/create",
-        json={"label": "Salário", "value": 150000, "category_id": category_ids["Restaurantes e Bares"], "type": "credit"},
+        json={
+            "label": "Salário",
+            "value": 150000,
+            "category_id": category_ids["Restaurantes e Bares"],
+            "type": "credit",
+        },
         headers=auth_headers,
     )
 
@@ -293,7 +298,9 @@ def test_update_changes_label_amount_and_category_and_keeps_the_date(
     row = make_transaction(user, category_ids["Restaurantes e Bares"], label="Velho", value=1000)
     original_date = row.transactioned_at
 
-    response = _update(client, auth_headers, row.id, label="Novo", value=3050, category_id=category_ids["Transporte público"])
+    response = _update(
+        client, auth_headers, row.id, label="Novo", value=3050, category_id=category_ids["Transporte público"]
+    )
 
     assert response.status_code == 200
     assert response.json()["data"]["label"] == "Novo"

@@ -136,7 +136,9 @@ def test_a_database_made_by_the_migration_alone_gets_the_missing_categories_from
     upgrade_database(url)
     with engine.begin() as conn:  # what the migration leaves for an existing database: some defaults, already grouped
         conn.execute(
-            text("INSERT INTO categories (name, group_id) SELECT '💰 Salário', id FROM category_groups WHERE name = 'Receitas'")
+            text(
+                "INSERT INTO categories (name, group_id) SELECT '💰 Salário', id FROM category_groups WHERE name = 'Receitas'"
+            )
         )
 
     _run(url, "-m", "db.seed")
@@ -260,5 +262,7 @@ def test_the_assistants_category_list_is_the_default_categories_without_income_a
     from db.seed import DEFAULT_GROUPS
     from schemas.agents_schemas import CategoryType
 
-    expected = [n for group, names in DEFAULT_GROUPS.items() if group not in ("Receitas", "Transferências") for n in names]
+    expected = [
+        n for group, names in DEFAULT_GROUPS.items() if group not in ("Receitas", "Transferências") for n in names
+    ]
     assert list(get_args(CategoryType)) == expected

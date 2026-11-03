@@ -20,7 +20,9 @@ def seeded(db, user, make_transaction, category_ids):
     c = category_ids
     rows = {
         "cafe": make_transaction(user, c["Restaurantes e Bares"], "Café com Leite", 500, datetime(2026, 3, 1, 9, 0, 0)),
-        "jantar": make_transaction(user, c["Restaurantes e Bares"], "Jantar 100%", 4000, datetime(2026, 3, 1, 23, 59, 59)),
+        "jantar": make_transaction(
+            user, c["Restaurantes e Bares"], "Jantar 100%", 4000, datetime(2026, 3, 1, 23, 59, 59)
+        ),
         "uber": make_transaction(user, c["Transporte público"], "Uber centro", 1500, datetime(2026, 3, 2, 0, 0, 0)),
         "mercado": make_transaction(user, c["Supermercado"], "Mercado", 20000, datetime(2026, 3, 15, 12, 0, 0)),
         "aluguel": make_transaction(user, c["Aluguel"], "Aluguel abril", 150000, datetime(2026, 4, 10, 12, 0, 0)),

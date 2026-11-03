@@ -254,7 +254,10 @@ def test_default_categories_are_never_touched_when_joining(
     _join(client, headers_for(other_user), _invite(client, auth_headers)["code"], bring_data=True)
 
     assert db.query(Categories).filter(Categories.family_id.is_(None)).count() == before
-    assert {c.name for c in db.query(Categories).filter(Categories.family_id.is_(None))} >= {"Sem categoria", "Restaurantes e Bares"}
+    assert {c.name for c in db.query(Categories).filter(Categories.family_id.is_(None))} >= {
+        "Sem categoria",
+        "Restaurantes e Bares",
+    }
 
 
 def test_joining_is_all_or_nothing(

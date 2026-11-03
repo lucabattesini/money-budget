@@ -73,7 +73,11 @@ def test_group_by_weekday_uses_sunday_as_zero(db, user, seeded):
 
 def test_filters_apply_to_aggregates(db, user, seeded, category_ids):
     [row] = agg(
-        db, user, start_date=date(2026, 3, 1), end_date=date(2026, 3, 31), category_ids=[category_ids["Restaurantes e Bares"]]
+        db,
+        user,
+        start_date=date(2026, 3, 1),
+        end_date=date(2026, 3, 31),
+        category_ids=[category_ids["Restaurantes e Bares"]],
     )
 
     assert (row.total, row.count) == (4000, 2)

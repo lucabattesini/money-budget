@@ -828,7 +828,7 @@ def _category_rows(engine):
             row.id: (row.name, row.family_id, row.group)
             for row in conn.execute(
                 text(
-                    "SELECT c.id, c.name, c.family_id, g.name AS \"group\" "
+                    'SELECT c.id, c.name, c.family_id, g.name AS "group" '
                     "FROM categories c JOIN category_groups g ON g.id = c.group_id"
                 )
             )
