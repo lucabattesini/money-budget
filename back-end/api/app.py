@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers import (
     auth_router,
+    budgets_router,
     categories_router,
     exports_router,
     families_router,
@@ -30,6 +31,7 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(users_router.router)
 app.include_router(categories_router.router)
+app.include_router(budgets_router.router)
 app.include_router(transactions_router.router)
 app.include_router(exports_router.router)
 app.include_router(families_router.router)

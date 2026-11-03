@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, func, select
 
 from db.connection import Base
 
@@ -100,6 +100,19 @@ class Categories(Base):
     name = Column(String(100))
     # Every category has exactly one group; without one it goes to "Outros"
     group_id = Column(Integer, ForeignKey("category_groups.id"), nullable=False, default=_fallback_group_id)
+
+
+class Budgets(Base):
+    """How much a family plans to spend in a category in one month (integer cents, like every amount)."""
+
+    __tablename__ = "budgets"
+    __table_args__ = (UniqueConstraint("family_id", "category_id", "month", name="uq_budgets_family_category_month"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    month = Column(Date, nullable=False)  # always the first day of the month
+    amount = Column(Integer, nullable=False)  # cents, always more than zero: no budget is no row
 
 
 class ExportJobDB(Base):

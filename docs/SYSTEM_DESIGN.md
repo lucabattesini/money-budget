@@ -29,6 +29,7 @@ flowchart TB
         TxR["transactions_router"]
         ExR["exports_router"]
         FamR["families_router"]
+        BudR["budgets_router"]
         WAR["whatsapp_router\n(/webhook)"]
 
         AuthC["auth_controller\n(verify Google token, issue JWT)"]
@@ -36,11 +37,12 @@ flowchart TB
         CatC["categories_controller"]
         TxC["transactions_controller"]
         ExC["exports_controller\n(queue + background job)"]
+        BudC["budgets_controller"]
         FamC["families_controller\n(invite codes, joining)"]
         WAC["whatsapp_controller"]
         WAS["whatsapp_service\n(send message via Meta API)"]
 
-        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, exports_repo,\nfamilies_repo)"]
+        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, budgets_repo,\nexports_repo, families_repo)"]
         ExS["export_service"]
         DocGW["document gateway\n(CSV / Excel)"]
 
@@ -55,7 +57,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / export_jobs")]
+    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / budgets / export_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -113,7 +115,7 @@ flowchart TB
 - React (Vite) SPA, `HashRouter`-based, Chakra UI for components/theming.
 - `lib/auth.js` stores the JWT in `localStorage` and attaches it as a Bearer
   token to every API call (`lib/utils.js` / `api/endpoints.js`).
-- Pages: `dashboard` (balance + charts), `report-expense` (manual entry),
+- Pages: `dashboard` (balance + charts), `budgets` (the monthly plan per category and how it is going), `report-expense` (manual entry),
   `transactions-display` (table of history with filters in a menu, 10-per-page
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
@@ -253,6 +255,13 @@ erDiagram
         datetime used_at
     }
 
+    BUDGETS {
+        int id PK
+        int family_id FK
+        int category_id FK
+        date month "first day of the month"
+        int amount "cents, always above zero: no budget is no row; unique per family, category and month"
+    }
     EXPORT_JOBS {
         int id PK
         int family_id FK
@@ -271,11 +280,13 @@ erDiagram
     FAMILIES ||--o{ TRANSACTIONS : "owns"
     FAMILIES ||--o{ CATEGORIES : "owns"
     FAMILIES ||--o{ EXPORT_JOBS : "owns"
+    FAMILIES ||--o{ BUDGETS : "plans"
     FAMILIES ||--o{ FAMILY_INVITES : "hands out"
     USERS ||--o{ TRANSACTIONS : "created"
     USERS ||--o{ EXPORT_JOBS : "asked for"
     CATEGORY_GROUPS ||--|{ CATEGORIES : "groups"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
+    CATEGORIES ||--o{ BUDGETS : "has"
 ```
 **Families.** Data belongs to a family (the people who share one budget), not to a
 person. A user is in exactly one family (`users.family_id`, not null; no membership
@@ -291,6 +302,26 @@ login and returns the defaults plus the family's own, each with its group (`grou
 transactions, but only the person in `requested_by` can see or download the job, and a
 family can have one export queued or running at a time. The chatbot state carries both
 `user_id` (who spoke, saved on the transaction) and `family_id` (what it reads and writes).
+
+**Budgets** (`/budgets`, TKT-61, all require login and only see the caller's family). A family plans, for one
+month at a time, how much to spend in each spending category (`budgets`: family, category, first day of the month,
+amount in cents; one row per family, category and month, and no budget is no row). Categories of the groups
+"Receitas" and "Transferências" have no budget: money coming in or moving between accounts is not spending.
+`GET /budgets?month=YYYY-MM` answers the month by group and category: `budgeted` (null when not planned), `spent`
+(debits of the month in that category, credits never count; the month runs from its first moment to the first moment
+of the next), and totals. `totals.spent` only counts categories that have a budget, so it compares with
+`totals.budgeted`; `totals.remaining` is the difference (negative when over) and `totals.unbudgeted_spent` is what
+was spent in the others. `PUT /budgets {category_id, month, amount}` sets one amount (0 removes it) and answers with
+the month as `GET` shows it; another family's category, an income or transfer one and an unknown id all answer `404`,
+and a bad month or an amount that is negative or over the 32-bit limit `422`. `POST /budgets/copy {from_month,
+to_month}` copies the budgets of one month to another only for categories that have none there yet (answers `copied`
+and the month; the same month twice is `422`). The Orçamentos page (`/budgets`, in the top menu) shows one month with
+buttons to move between months, totals with a bar, the groups (open when they have a plan or spending) and a field
+per category that saves when it is left or Enter is pressed; a bar turns orange from 80% of the plan and red when it
+is exceeded. Budgets follow their categories: deleting a category deletes its budgets; joining another family with the
+data brings the budgets along (when both families planned the same category and month, the family being joined
+keeps its own); a family that is deleted after 30 days takes its budgets with it. Not built yet: carrying unused
+money over to the next month, budgets for a group or for income, a yearly view and alerts.
 
 **Currency and language** (family settings, TKT-25). `families.currency` (`BRL` default, also `USD`, `CAD`, `EUR`,
 `GBP`) and `families.language` (`pt` default, also `en`) belong to the family, so everyone in it sees the same and a
@@ -369,7 +400,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese).
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table.
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de

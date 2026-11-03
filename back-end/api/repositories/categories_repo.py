@@ -1,6 +1,7 @@
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from api.repositories.budgets_repo import delete_budgets_of_category
 from api.utils.category_names import same_name
 from schemas.tables import Categories, CategoryGroups, Families, TransactionDB
 
@@ -90,6 +91,7 @@ def count_transactions_using(db: Session, category_id: int) -> int:
 
 
 def delete_category(db: Session, category: Categories) -> None:
+    delete_budgets_of_category(db, category.id)  # a budget has no meaning without its category
     db.delete(category)
     try:
         db.commit()

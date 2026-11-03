@@ -129,6 +129,24 @@ class FamilySettings(BaseModel):
     language: Optional[Language] = None
 
 
+MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"  # "2026-11"
+
+
+class BudgetSet(BaseModel):
+    """Plan an amount for a category in a month. 0 removes the budget."""
+
+    category_id: int
+    month: str = Field(pattern=MONTH_PATTERN)
+    amount: int = Field(ge=0, le=2147483647)  # cents, must fit the 32-bit column
+
+
+class BudgetCopy(BaseModel):
+    """Copy the budgets of one month to another."""
+
+    from_month: str = Field(pattern=MONTH_PATTERN)
+    to_month: str = Field(pattern=MONTH_PATTERN)
+
+
 class JoinFamily(BaseModel):
     code: str
     bring_data: bool  # no default: joining always asks whether to bring the old data along

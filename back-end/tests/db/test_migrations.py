@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0013"
+LATEST = "0014"
 
 
 def _version(engine):
@@ -44,6 +44,7 @@ def test_a_new_database_gets_every_table_and_ends_on_the_latest_revision(url, en
         "categories",
         "transactions",
         "export_jobs",
+        "budgets",
     }
     assert _version(engine) == LATEST
 
@@ -170,6 +171,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         ("0011", "0010"),  # only names changed: the schema looks like 0010, and running 0011 again changes nothing
         ("0012", "0010"),  # likewise: only the default categories changed
         ("0013", "0013"),
+        ("0014", "0014"),
     ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
@@ -971,3 +973,34 @@ def test_undoing_the_currency_and_language_revision_drops_only_those_columns(url
     columns = {c["name"] for c in inspect(engine).get_columns("families")}
     assert "currency" not in columns and "language" not in columns
     assert {"id", "created_at", "abandoned_at"} <= columns
+
+
+# --- 0014: monthly budgets ---------------------------------------------------------------------------------
+
+
+def test_the_budgets_table_allows_one_amount_per_family_category_and_month(url, engine):
+    upgrade_database(url)
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(text("INSERT INTO categories (id, name, group_id) SELECT 1, 'x', min(id) FROM category_groups"))
+        conn.execute(
+            text("INSERT INTO budgets (family_id, category_id, month, amount) VALUES (1, 1, '2026-11-01', 100)")
+        )
+        conn.execute(
+            text("INSERT INTO budgets (family_id, category_id, month, amount) VALUES (1, 1, '2026-12-01', 100)")
+        )
+
+    with engine.begin() as conn:
+        with pytest.raises(Exception, match="uq_budgets_family_category_month"):
+            conn.execute(
+                text("INSERT INTO budgets (family_id, category_id, month, amount) VALUES (1, 1, '2026-11-01', 200)")
+            )
+
+
+def test_undoing_the_budgets_revision_drops_only_the_budgets(url, engine):
+    upgrade_database(url)
+
+    command.downgrade(alembic_config(url), "0013")
+
+    assert "budgets" not in inspect(engine).get_table_names()
+    assert {"families", "categories", "transactions"} <= set(inspect(engine).get_table_names())

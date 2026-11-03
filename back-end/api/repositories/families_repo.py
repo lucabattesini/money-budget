@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from api.utils.category_names import plain_name
-from schemas.tables import Categories, ExportJobDB, Families, FamilyInvites, TransactionDB, Users
+from schemas.tables import Budgets, Categories, ExportJobDB, Families, FamilyInvites, TransactionDB, Users
 
 INVITE_LIFETIME = timedelta(days=7)  # asked of the database clock, like the export times
 ABANDONED_KEPT_FOR = timedelta(days=30)  # how long a family nobody is in is kept, in case someone goes back
@@ -103,11 +103,12 @@ def _fold(name: str | None) -> str:
 
 
 def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
-    """Move the family's transactions and categories to the new family.
+    """Move the family's transactions, categories and budgets to the new family.
 
     A category whose name matches one the new family already has is merged into it: its transactions are
     re-pointed and it is deleted. The others come along as they are. Default categories belong to nobody
-    and are never touched.
+    and are never touched. Budgets follow their category; when the new family already planned that category
+    for the same month, its own plan wins and the one brought along is dropped.
     """
     kept = {_fold(c.name): c for c in db.query(Categories).filter(Categories.family_id == new_family_id)}
     db.query(TransactionDB).filter(TransactionDB.family_id == old_family_id).update(
@@ -122,7 +123,27 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
             db.query(TransactionDB).filter(TransactionDB.category_id == category.id).update(
                 {TransactionDB.category_id: target.id}, synchronize_session=False
             )
+            _move_budgets(db, old_family_id, new_family_id, {category.id: target.id})
             db.delete(category)
+    # Budgets of the categories that came along as they are, and of the default categories
+    _move_budgets(db, old_family_id, new_family_id, {})
+
+
+def _move_budgets(db: Session, old_family_id: int, new_family_id: int, renamed: dict[int, int]) -> None:
+    """Hand the old family's budgets to the new one. `renamed` maps a category that is being merged into another
+    to the one that stays. A budget whose (category, month) the new family already has is deleted."""
+    taken = {(b.category_id, b.month) for b in db.query(Budgets).filter(Budgets.family_id == new_family_id)}
+    only = list(renamed) if renamed else None
+    query = db.query(Budgets).filter(Budgets.family_id == old_family_id)
+    if only is not None:
+        query = query.filter(Budgets.category_id.in_(only))
+    for budget in query.all():
+        category_id = renamed.get(budget.category_id, budget.category_id)
+        if (category_id, budget.month) in taken:
+            db.delete(budget)
+        else:
+            budget.family_id, budget.category_id = new_family_id, category_id
+            taken.add((category_id, budget.month))
 
 
 def _lock_families(db: Session, *family_ids: int) -> dict[int, Families]:
@@ -245,6 +266,7 @@ def purge_abandoned_families(db: Session) -> None:
         {TransactionDB.category_id: None}, synchronize_session=False
     )
     db.query(TransactionDB).filter(TransactionDB.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(Budgets).filter(Budgets.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(Categories).filter(Categories.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(ExportJobDB).filter(ExportJobDB.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(FamilyInvites).filter(FamilyInvites.family_id.in_(ids)).delete(synchronize_session=False)

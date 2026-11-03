@@ -59,7 +59,9 @@ def detect_revision(inspector) -> str | None:
         return "0009"
     if "currency" not in {c["name"] for c in inspector.get_columns("families")}:
         return "0010"
-    return "0013"
+    if not inspector.has_table("budgets"):
+        return "0013"
+    return "0014"
 
 
 def upgrade_database(url: str = DATABASE_URL) -> None:
