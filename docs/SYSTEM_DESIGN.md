@@ -347,7 +347,8 @@ oldest account keeps it), `0007` families (one per existing user; rows move from
 person's category becomes uncategorised), `0008` `users.role` (everyone is an owner) and `family_invites`, `0009` `families.abandoned_at` (families that
 are already empty start their 30 days) and `users.previous_family_id`, `0010` `category_groups` and `categories.group_id`
 (default categories are grouped by name; every other category, such as a family's own, goes to "Outros"; the
-new default categories are created by the seed command).
+new default categories are created by the seed command), `0011` an emoji in front of the name of each default
+category (data only: no column; a family's own categories are untouched).
 
 **Category groups.** Categories are listed under a group (Casa, Alimentação, Transporte, Saúde e bem-estar,
 Lazer, Educação, Compras e presentes, Finanças, Receitas, Transferências, Investimentos, Outros). The groups are a fixed set, the same for every family:
@@ -369,6 +370,17 @@ default category, another family's category or an id that does not exist all ans
 while the family row is locked, so two requests cannot both take the same name. Every message is in Portuguese,
 ready to show in the page. The lists that offer categories (the new-transaction form, the filters, the import
 page) fetch them whenever they open, so a new category appears at once, sorted A-Z.
+
+**Emoji in category names.** A category's emoji is the start of its name ("🛒 Supermercado"), not a separate
+column. The default categories ship with one (`DEFAULT_EMOJIS` in `db/seed.py`, a test makes sure every default has
+one; migration `0011` renames the existing ones, with its own frozen copy of the list). The add/edit panel offers a
+grid of about 80 emojis, or none, and also accepts one typed into the name box; the page splits a stored name back
+into its emoji and its words when editing. Because the emoji is part of the name, everything that compares or sorts
+names looks at the words only (`api/utils/category_names.py` on the server, `lib/categoryName.js` in the page): the
+duplicate check treats "Plantas" and "🌱 Plantas" as the same name, a name with nothing but an emoji is refused as
+empty, the WhatsApp assistant still finds "Supermercado" when the stored name is "🛒 Supermercado", and lists stay
+A-Z by the words whatever the emoji. Anything that matches category names typed by a person (such as the planned
+spreadsheet import) must compare the words only as well.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
