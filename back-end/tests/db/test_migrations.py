@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0007"
+LATEST = "0009"
 
 
 def _version(engine):
@@ -38,6 +38,7 @@ def test_a_new_database_gets_every_table_and_ends_on_the_latest_revision(url, en
     assert set(inspect(engine).get_table_names()) == {
         "alembic_version",
         "families",
+        "family_invites",
         "users",
         "categories",
         "transactions",
@@ -143,7 +144,16 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
 
 @pytest.mark.parametrize(
     ("revision", "expected_detection"),
-    [("0002", "0002"), ("0003", "0003"), ("0004", "0004"), ("0005", "0005"), ("0006", "0006"), ("0007", "0007")],
+    [
+        ("0002", "0002"),
+        ("0003", "0003"),
+        ("0004", "0004"),
+        ("0005", "0005"),
+        ("0006", "0006"),
+        ("0007", "0007"),
+        ("0008", "0008"),
+        ("0009", "0009"),
+    ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
     _old_database(url, engine, revision)
@@ -539,3 +549,56 @@ def test_a_transaction_that_used_another_persons_category_loses_it_instead_of_sh
     assert categories[1] is None  # was Bia's private category
     assert categories[2] is not None  # Ana's own category is kept
     assert categories[3] == 3  # Bia's own is kept
+
+
+# --- 0008: roles and invite codes ------------------------------------------------------------
+
+
+def test_everyone_who_exists_becomes_the_owner_of_their_own_family(url, engine):
+    _database_before_families(url, engine)
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT role FROM users ORDER BY id")).scalars().all() == ["owner", "owner"]
+        assert conn.execute(text("SELECT count(*) FROM family_invites")).scalar() == 0
+
+
+def test_undoing_the_invites_revision_removes_roles_and_codes_and_keeps_the_families(url, engine):
+    _database_before_families(url, engine)
+    command.upgrade(alembic_config(url), "head")
+
+    command.downgrade(alembic_config(url), "0007")
+
+    assert "family_invites" not in inspect(engine).get_table_names()
+    assert "role" not in {c["name"] for c in inspect(engine).get_columns("users")}
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM families")).scalar() == 2
+
+
+# --- 0009: families kept for 30 days after their last person left ---------------------------------
+
+
+def test_a_family_that_is_already_empty_is_marked_abandoned_and_the_others_are_not(url, engine):
+    command.upgrade(alembic_config(url), "0008")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1), (2)"))
+        conn.execute(
+            text("INSERT INTO users (id, family_id, google_id, name, email) VALUES (1, 1, 'g', 'Ana', 'a@e.com')")
+        )
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        abandoned = dict(conn.execute(text("SELECT id, abandoned_at IS NOT NULL FROM families")).all())
+        assert conn.execute(text("SELECT previous_family_id FROM users")).scalar() is None
+    assert abandoned == {1: False, 2: True}  # family 2 has nobody, so its 30 days start now
+
+
+def test_undoing_the_abandoned_families_revision_drops_only_its_columns(url, engine):
+    upgrade_database(url)
+
+    command.downgrade(alembic_config(url), "0008")
+
+    assert "abandoned_at" not in {c["name"] for c in inspect(engine).get_columns("families")}
+    assert "previous_family_id" not in {c["name"] for c in inspect(engine).get_columns("users")}

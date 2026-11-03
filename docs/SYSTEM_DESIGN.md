@@ -28,6 +28,7 @@ flowchart TB
         CatR["categories_router"]
         TxR["transactions_router"]
         ExR["exports_router"]
+        FamR["families_router"]
         WAR["whatsapp_router\n(/webhook)"]
 
         AuthC["auth_controller\n(verify Google token, issue JWT)"]
@@ -35,10 +36,11 @@ flowchart TB
         CatC["categories_controller"]
         TxC["transactions_controller"]
         ExC["exports_controller\n(queue + background job)"]
+        FamC["families_controller\n(invite codes, joining)"]
         WAC["whatsapp_controller"]
         WAS["whatsapp_service\n(send message via Meta API)"]
 
-        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, exports_repo)"]
+        Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, exports_repo,\nfamilies_repo)"]
         ExS["export_service"]
         DocGW["document gateway\n(CSV / Excel)"]
 
@@ -53,7 +55,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nfamilies / users / categories / transactions / export_jobs")]
+    DB[("PostgreSQL\nfamilies / family_invites / users / categories / transactions / export_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -62,6 +64,7 @@ flowchart TB
     Web --> CatR
     Web --> TxR
     Web -- "queue, poll, download" --> ExR
+    Web -- "members, invites, join" --> FamR
 
     WA <--> WAAPI
     WAAPI -- "POST /webhook" --> WAR
@@ -76,6 +79,7 @@ flowchart TB
     CatR --> CatC
     TxR --> TxC
     ExR --> ExC
+    FamR --> FamC
     ExC --> ExS
     ExS --> DocGW
 
@@ -98,6 +102,7 @@ flowchart TB
     CatC --> Repos
     TxC --> Repos
     ExC --> Repos
+    FamC --> Repos
 
     Repos --> DB
 ```
@@ -112,7 +117,8 @@ flowchart TB
   `transactions-display` (table of history with filters in a menu, 10-per-page
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
-  (a left menu with sections as nested routes: `/account` profile and
+  (a left menu with sections as nested routes: `/account` profile,
+  `/account/family` the family (people, invite codes for the owner, joining with a code, going back to the family left behind for 30 days) and
   `/account/data` import/export: the export queues a job (`POST /exports`), shows a
   toast, follows the job and downloads the file when it is done, with a second
   toast; the follow-up lives in `lib/exportJobs.js` (outside React) so it
@@ -191,10 +197,13 @@ erDiagram
     FAMILIES {
         int id PK
         datetime created_at
+        datetime abandoned_at "when its last person left; deleted 30 days later"
     }
     USERS {
         int id PK
         int family_id FK
+        string role "owner or member"
+        int previous_family_id FK "the family left behind, to go back to"
         string google_id
         string name
         string email
@@ -222,6 +231,18 @@ erDiagram
         int category_id FK
     }
 
+    FAMILY_INVITES {
+        int id PK
+        int family_id FK
+        int created_by FK
+        string code_hash "the code is never stored"
+        string code_hint "its last 4 characters"
+        datetime created_at
+        datetime expires_at "7 days after creation"
+        int used_by FK "empty until used"
+        datetime used_at
+    }
+
     EXPORT_JOBS {
         int id PK
         int family_id FK
@@ -240,14 +261,15 @@ erDiagram
     FAMILIES ||--o{ TRANSACTIONS : "owns"
     FAMILIES ||--o{ CATEGORIES : "owns"
     FAMILIES ||--o{ EXPORT_JOBS : "owns"
+    FAMILIES ||--o{ FAMILY_INVITES : "hands out"
     USERS ||--o{ TRANSACTIONS : "created"
     USERS ||--o{ EXPORT_JOBS : "asked for"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
 ```
 **Families.** Data belongs to a family (the people who share one budget), not to a
 person. A user is in exactly one family (`users.family_id`, not null; no membership
-table). Every new user gets a family of their own on their first login, so for now
-every family has one person; inviting people comes with TKT-43. `transactions`,
+table). Every new user gets a family of their own on their first login and is its
+owner (`users.role`, `owner` or `member`); people who join with an invite are members. `transactions`,
 `categories` and `export_jobs` carry `family_id`, and every list, create, edit,
 delete, export and chatbot action filters by the caller's family. A foreign id
 answers `404`, the same as a missing one. `transactions.user_id` records who
@@ -257,6 +279,38 @@ login and returns the defaults plus the family's own. Export jobs read the famil
 transactions, but only the person in `requested_by` can see or download the job, and a
 family can have one export queued or running at a time. The chatbot state carries both
 `user_id` (who spoke, saved on the transaction) and `family_id` (what it reads and writes).
+
+**Inviting and joining** (`/families`, all require login). `GET /families/me` shows the
+family's people and the caller's role. Only the owner can `POST /families/invites`
+(answers the code, `201`), `GET /families/invites` (the active codes) and
+`DELETE /families/invites/{id}`; a member gets `403`. A code is 16 characters from an
+alphabet without look-alikes, shown only when created: the table keeps a SHA-256 hash and the last four
+characters (to tell codes apart in a list). It works once and expires after 7 days (database clock); an owner can
+have 3 active codes (counted under a lock on the family, so two requests cannot both take the last place). `POST /families/join {code, bring_data}` moves the caller into the code's family
+as a member; `bring_data` is required, so the choice is always explicit. A code that is wrong, used, expired
+or cancelled all answer the same `404`. Rules: someone who shares a family with other people cannot join
+another (`409`; leaving or handing over ownership comes later); a code for one's own family is refused (`409`) and
+not used up. Joining is one database transaction under row locks (the family being left, and the code), so
+the code cannot be used twice at once and a failure changes nothing. With `bring_data` true the
+caller's transactions move to the new family (`user_id` still the author) and each of their categories is
+merged into the new family's category with the same name (ignoring case and accents; its transactions are
+re-pointed, the duplicate deleted), otherwise it comes along as it is; default categories are never touched.
+With it false the old data stays in the old family, out of sight.
+Either way the old family is left empty: it is marked abandoned (`families.abandoned_at`) and its unused
+codes are deleted, because they could otherwise let a stranger into the data left there. Joining also takes
+its locks in a fixed order (the person, both families by id, the code), so one person cannot join twice at
+once, and nobody can join a family while its only person is walking out of it (a family nobody is in cannot
+be joined).
+
+**Going back and cleanup.** A person who joined with `bring_data` false has `users.previous_family_id`, and
+`POST /families/rollback` takes them back to that family as its owner for 30 days after it was abandoned
+(`404` after that, when they brought their data, or when there is nothing to go back to; `409` for an owner of
+a family with other people). What they entered in the family they leave stays in it, and if that leaves it
+empty it is abandoned too. `GET /families/me` shows `previous_family.available_until` while going back is
+possible, and the Família page offers the button. After 30 days an abandoned family is deleted for good with
+everything it holds (transactions, its own categories, export files, codes). The deletion has no scheduler: it
+runs, like the export files cleanup, whenever someone joins a family. It only touches families nobody is in,
+whatever their date says, and a person whose previous family is deleted simply has nothing to go back to.
 
 **`transactions` columns**
 
@@ -281,7 +335,8 @@ renamed to `transactioned_at` with `created_at` back-filled from it (before the 
 `users.whatsapp_phone` (numbers are cleaned to digits first; when several users shared one, the
 oldest account keeps it), `0007` families (one per existing user; rows move from `user_id` to
 `family_id` (and `requested_by` on exports; transactions keep `user_id` as the author); transactions with no user, which nobody could read, are deleted; a transaction that pointed at another
-person's category becomes uncategorised).
+person's category becomes uncategorised), `0008` `users.role` (everyone is an owner) and `family_invites`, `0009` `families.abandoned_at` (families that
+are already empty start their 30 days) and `users.previous_family_id`.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,

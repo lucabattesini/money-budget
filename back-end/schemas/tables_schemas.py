@@ -108,6 +108,11 @@ class GetTransactionsParams(BaseModel):
         return self
 
 
+class JoinFamily(BaseModel):
+    code: str
+    bring_data: bool  # no default: joining always asks whether to bring the old data along
+
+
 ExportFormat = Literal["csv", "xlsx"]
 ExportStatus = Literal["queued", "running", "done", "failed"]
 
