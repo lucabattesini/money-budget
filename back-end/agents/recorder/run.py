@@ -29,6 +29,13 @@ CANNOT_RECORD = {
 }
 
 
+# How a number typed by the user is read, in each language (the format follows the family's language)
+NUMBER_RULES = {
+    "pt": 'Brazilian decimals use a comma, so "12,50" is 12.5 and "1.200" is 1200.',
+    "en": 'Decimals use a dot and thousands a comma, so "12.50" is 12.5 and "1,200" is 1200.',
+}
+
+
 def run_recorder(user_input: str, language: str = "pt") -> RecorderResponse:
     model = genai.GenerativeModel(GEMINI_MODEL, tools=[RECORDER_TOOLS])
 
@@ -38,7 +45,10 @@ def run_recorder(user_input: str, language: str = "pt") -> RecorderResponse:
     tool_config = {"function_calling_config": {"mode": "AUTO"}}
 
     full_prompt = RECORDER_SYSTEM_PROMPT.format(
-        user_message=user_input, language_name=LANGUAGE_NAMES[language], **today_context()
+        user_message=user_input,
+        language_name=LANGUAGE_NAMES[language],
+        number_rule=NUMBER_RULES[language],
+        **today_context(),
     )
 
     response = model.generate_content(full_prompt, generation_config=generation_config, tool_config=tool_config)

@@ -1,3 +1,4 @@
+import { resetLocale } from './locale';
 const TOKEN_KEY = "auth_token";
 
 export function saveToken(token) {
@@ -10,6 +11,7 @@ export function getToken() {
 
 export function removeToken() {
     localStorage.removeItem(TOKEN_KEY);
+    resetLocale(); // the next person to log in must not see this family's currency and language
 }
 
 export function isAuthenticated() {

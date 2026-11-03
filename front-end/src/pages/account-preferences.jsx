@@ -33,7 +33,7 @@ export default function AccountPreferences() {
         const result = await updateFamilySettings({ [field]: value }, getToken());
         setSaving(false);
         if (!result.ok) {
-            setLocale(before);
+            setLocale({ [field]: before[field] }); // only the field that failed: another change may have succeeded meanwhile
             customToaster("Erro", "error", result.detail || "Não foi possível salvar. Tente novamente.");
             return;
         }

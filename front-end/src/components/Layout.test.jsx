@@ -1,9 +1,9 @@
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
-import { saveToken } from '../lib/auth'
+import { removeToken, saveToken } from '../lib/auth'
 import { formatCents } from '../lib/money'
-import { useLocale } from '../lib/locale'
+import { getLocale, setLocale, useLocale } from '../lib/locale'
 import { mockApi, renderApp } from '../test/helpers'
 import Layout from './Layout'
 
@@ -24,6 +24,14 @@ const renderLayout = () =>
 beforeEach(() => saveToken('tok'))
 
 describe('layout', () => {
+  it('forgets the family\'s settings when the person logs out', async () => {
+    setLocale({ currency: 'USD', language: 'en' })
+
+    removeToken()
+
+    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt' })
+  })
+
   it('loads the currency and language of the family and every page shows them', async () => {
     mockApi({
       'GET /user/me': { data: { name: 'Clara' } },
@@ -32,7 +40,7 @@ describe('layout', () => {
 
     renderLayout()
 
-    expect(await screen.findByText('$1,234.50')).toBeInTheDocument()
+    expect(await screen.findByText('US$1,234.50')).toBeInTheDocument()
   })
 
   it('keeps reais and Portuguese when the settings cannot be loaded', async () => {

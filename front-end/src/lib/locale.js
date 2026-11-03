@@ -55,10 +55,16 @@ export const useLocale = () => useSyncExternalStore(subscribe, getLocale)
 export const languageTag = () => BCP47[current.language]
 
 /** 1234.5 -> "R$ 1.234,50" (Portuguese) or "R$1,234.50" (English). The amount is in whole units, not cents. */
-export const formatMoney = (value, options = {}) =>
-  new Intl.NumberFormat(languageTag(), { style: 'currency', currency: current.currency, ...options })
-    .format(value || 0)
+export const formatMoney = (value, options = {}) => {
+  // The symbol comes from the table above, not from Intl, so the page and the WhatsApp assistant write the same
+  // ("US$1,234.50": Intl alone would write "$" for English)
+  const symbol = CURRENCIES.find((c) => c.code === current.currency).symbol
+  return new Intl.NumberFormat(languageTag(), { style: 'currency', currency: current.currency, ...options })
+    .formatToParts(value || 0)
+    .map((part) => (part.type === 'currency' ? symbol : part.value))
+    .join('')
     .replace(/\s/g, ' ')
+}
 
 /** A date as people write it: 05/03/2026 in Portuguese, 3/5/2026 in English. */
 export const formatDate = (value, options) => new Date(value).toLocaleDateString(languageTag(), options)
