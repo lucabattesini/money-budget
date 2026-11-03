@@ -1,6 +1,6 @@
 import { Flex, Link, Text, Icon } from "@chakra-ui/react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
-import { LuLayoutDashboard, LuReceipt, LuArrowRightLeft, LuPiggyBank, LuUser } from "react-icons/lu";
+import { LuLayoutDashboard, LuArrowRightLeft, LuPiggyBank, LuUser } from "react-icons/lu";
 
 export default function Header() {
     const location = useLocation();
@@ -10,7 +10,6 @@ export default function Header() {
         { name: "Dashboard", path: "/", icon: LuLayoutDashboard },
         { name: "Transações", path: "/transactions", icon: LuArrowRightLeft },
         { name: "Orçamentos", path: "/budgets", icon: LuPiggyBank },
-        { name: "Registrar Despesa", path: "/report-expense", icon: LuReceipt },
         { name: "Conta", path: "/account", icon: LuUser },
     ];
 

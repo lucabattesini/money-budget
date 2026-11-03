@@ -81,8 +81,9 @@ describe('routing', () => {
 
     renderAt('#/investments')
 
-    for (const name of ['Dashboard', 'Transações', 'Registrar Despesa', 'Conta']) {
+    for (const name of ['Dashboard', 'Transações', 'Conta']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument()
     }
+    expect(screen.queryByRole('link', { name: 'Registrar Despesa' })).not.toBeInTheDocument() // hidden, the page itself still exists
   })
 })

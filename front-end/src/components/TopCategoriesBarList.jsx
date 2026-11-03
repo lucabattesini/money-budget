@@ -1,4 +1,5 @@
-import { Box, Heading, Text, Center } from "@chakra-ui/react";
+import { Box, Text, Center } from "@chakra-ui/react";
+import DashboardCard from "./DashboardCard";
 import { BarList, useChart } from "@chakra-ui/charts";
 import { useMemo } from "react";
 
@@ -6,7 +7,7 @@ export default function TopCategoriesBarList({ transactions, categories }) {
     const data = useMemo(() => {
         if (!transactions || !categories) return [];
 
-        // Sum by category for all-time
+        // Sum by category (the page passes the spending of one month)
         const sums = {};
         transactions.forEach(t => {
             if (!sums[t.category_id]) sums[t.category_id] = 0;
@@ -33,8 +34,7 @@ export default function TopCategoriesBarList({ transactions, categories }) {
     });
 
     return (
-        <Box w="full" p={4} borderRadius="lg">
-            <Heading size="md" mb={4} textAlign="center">Top 5 Categorias</Heading>
+        <DashboardCard title="Principais categorias">
             {data.length === 0 ? (
                 <Center h="100px">
                     <Text color="gray.500">Nenhum gasto registrado.</Text>
@@ -49,6 +49,6 @@ export default function TopCategoriesBarList({ transactions, categories }) {
                     </BarList.Root>
                 </Box>
             )}
-        </Box>
+        </DashboardCard>
     );
 }
