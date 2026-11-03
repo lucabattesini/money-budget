@@ -344,13 +344,14 @@ oldest account keeps it), `0007` families (one per existing user; rows move from
 `family_id` (and `requested_by` on exports; transactions keep `user_id` as the author); transactions with no user, which nobody could read, are deleted; a transaction that pointed at another
 person's category becomes uncategorised), `0008` `users.role` (everyone is an owner) and `family_invites`, `0009` `families.abandoned_at` (families that
 are already empty start their 30 days) and `users.previous_family_id`, `0010` `category_groups` and `categories.group_id`
-(default categories are grouped by name; every other category, such as a family's own, goes to "Outros").
+(default categories are grouped by name; every other category, such as a family's own, goes to "Outros"; the
+new default categories are created by the seed command).
 
 **Category groups.** Categories are listed under a group (Casa, Alimentação, Transporte, Saúde e bem-estar,
-Lazer, Educação, Compras e presentes, Finanças, Outros). The groups are a fixed set, the same for every family:
+Lazer, Educação, Compras e presentes, Finanças, Receitas, Transferências, Investimentos, Outros). The groups are a fixed set, the same for every family:
 nothing in the API creates, renames or deletes one. Each category has exactly one (`categories.group_id`, not
-null, a foreign key), and a category saved without one goes to "Outros". The grouping of the 26 default
-categories lives in `db/seed.py` (`DEFAULT_GROUPS`) for new databases; migration `0010` keeps its own copy for
+null, a foreign key), and a category saved without one goes to "Outros". The grouping of the 39 default
+categories (26 for spending, plus income, transfer and investment ones such as "Salário", "Transferência entre contas" and "Renda fixa") lives in `db/seed.py` (`DEFAULT_GROUPS`) for new databases; migration `0010` keeps its own copy for
 existing ones. Showing groups in the screens (filters, totals per group) is not built yet. The assistant's own
 category list (`schemas/agents_schemas.py`) is separate and does not use groups.
 

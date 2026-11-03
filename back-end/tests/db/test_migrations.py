@@ -651,7 +651,7 @@ def _groups_of_categories(engine):
     return dict(rows)
 
 
-def test_the_nine_groups_exist_after_the_migration(url, engine):
+def test_the_twelve_groups_exist_after_the_migration_with_outros_last(url, engine):
     upgrade_database(url)
 
     with engine.connect() as conn:
@@ -665,6 +665,9 @@ def test_the_nine_groups_exist_after_the_migration(url, engine):
         "Educação",
         "Compras e presentes",
         "Finanças",
+        "Receitas",
+        "Transferências",
+        "Investimentos",
         "Outros",
     ]
 
@@ -677,7 +680,7 @@ def test_existing_default_categories_are_grouped_by_name_and_the_rest_goes_to_ou
     assert _groups_of_categories(engine) == {
         1: "Casa",
         2: "Alimentação",
-        3: "Finanças",  # the match ignores case
+        3: "Investimentos",  # the match ignores case
         4: "Outros",
         5: "Outros",  # a default category the list does not know
         6: "Outros",  # a family's own category

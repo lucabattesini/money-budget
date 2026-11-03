@@ -77,6 +77,9 @@ def test_the_groups_are_the_same_fixed_set_for_every_family_in_a_stable_order(
         "Educação",
         "Compras e presentes",
         "Finanças",
+        "Receitas",
+        "Transferências",
+        "Investimentos",
         "Outros",
     ]
 

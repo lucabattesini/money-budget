@@ -60,7 +60,7 @@ def test_the_seed_gives_every_default_category_the_group_of_the_agreed_list(url,
             text("SELECT g.name, c.name FROM categories c JOIN category_groups g ON g.id = c.group_id")
         ).all()
     assert sorted(rows) == sorted((group, name) for group, names in DEFAULT_GROUPS.items() for name in names)
-    assert len(rows) == 26  # the ticket's 26 default categories
+    assert len(rows) == 39  # 26 expense categories plus the ones for income, transfers and investments
 
 
 def test_seeding_twice_adds_no_group_and_no_category(url, engine):
@@ -72,7 +72,7 @@ def test_seeding_twice_adds_no_group_and_no_category(url, engine):
 
     with engine.connect() as conn:
         after = [conn.execute(text(f"SELECT count(*) FROM {t}")).scalar() for t in ("category_groups", "categories")]
-    assert after == before == [9, 26]
+    assert after == before == [12, 39]
 
 
 def test_the_seed_repairs_a_missing_default_category_without_touching_the_others(url, engine):
@@ -86,7 +86,7 @@ def test_the_seed_repairs_a_missing_default_category_without_touching_the_others
         group = conn.execute(
             text("SELECT g.name FROM categories c JOIN category_groups g ON g.id = c.group_id WHERE c.name = 'Viagem'")
         ).scalar()
-        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 26
+        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 39
     assert group == "Lazer"
 
 
@@ -105,3 +105,39 @@ def test_a_family_with_a_category_of_the_same_name_does_not_stop_the_default_fro
             conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Pets' AND family_id IS NULL")).scalar()
             == 1
         )
+
+
+def test_there_are_default_categories_for_income_transfers_and_investments(url, engine):
+    _seeded(url, engine)
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT g.name, c.name FROM categories c JOIN category_groups g ON g.id = c.group_id")
+        ).all()
+    by_group = {}
+    for group, name in rows:
+        by_group.setdefault(group, set()).add(name)
+    assert {"Salário", "Renda extra e freelance", "Reembolsos"} <= by_group["Receitas"]
+    assert {"Transferência entre contas", "Pagamento de fatura do cartão"} <= by_group["Transferências"]
+    assert {"Investimentos", "Fundo de Emergência", "Renda fixa", "Ações e fundos"} <= by_group["Investimentos"]
+    assert "Investimentos" not in by_group["Finanças"] and "Fundo de Emergência" not in by_group["Finanças"]
+
+
+def test_a_database_made_by_the_migration_alone_gets_the_new_categories_from_the_seed_without_touching_old_ones(
+    url, engine
+):
+    upgrade_database(url)
+    with engine.begin() as conn:  # what an existing database has: the old default categories, already grouped
+        conn.execute(
+            text(
+                "INSERT INTO categories (name, group_id) "
+                "SELECT 'Investimentos', id FROM category_groups WHERE name = 'Investimentos'"
+            )
+        )
+
+    _run(url, "-m", "db.seed")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Investimentos'")).scalar() == 1
+        assert conn.execute(text("SELECT count(*) FROM categories WHERE name = 'Salário'")).scalar() == 1
+        assert conn.execute(text("SELECT count(*) FROM categories")).scalar() == 39

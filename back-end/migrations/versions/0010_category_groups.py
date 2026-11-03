@@ -4,6 +4,10 @@
 the default categories by name (the grouping below is a copy made on purpose, so this migration keeps working
 whatever the app's list becomes later), and anything else, such as a category a family made, goes to "Outros".
 
+The groups also cover money coming in (Receitas), moving between accounts (Transferências) and investing
+(Investimentos). Only the categories that already exist are grouped here; the seed command creates the new
+default categories (such as "Salário") that an existing database does not have yet.
+
 The downgrade drops the groups; nothing else about the categories changes.
 
 Revision ID: 0010
@@ -26,7 +30,24 @@ GROUPS = {
     "Lazer": ["Entretenimento", "Hobbies", "Viagem", "Assinaturas", "Eventos Especiais"],
     "Educação": ["Educação"],
     "Compras e presentes": ["Compras", "Presentes e Doações"],
-    "Finanças": ["Seguros", "Pagamento de Dívidas", "Impostos", "Emergências", "Fundo de Emergência", "Investimentos"],
+    "Finanças": ["Seguros", "Pagamento de Dívidas", "Impostos", "Emergências"],
+    "Receitas": [
+        "Salário",
+        "Renda extra e freelance",
+        "Rendimentos de investimentos",
+        "Reembolsos",
+        "Presentes recebidos",
+        "Outras receitas",
+    ],
+    "Transferências": ["Transferência entre contas", "Pagamento de fatura do cartão", "Retirada e depósito"],
+    "Investimentos": [
+        "Investimentos",
+        "Fundo de Emergência",
+        "Renda fixa",
+        "Ações e fundos",
+        "Previdência privada",
+        "Criptomoedas",
+    ],
     "Outros": ["Outros"],
 }
 
