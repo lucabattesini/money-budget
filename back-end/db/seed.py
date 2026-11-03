@@ -118,12 +118,13 @@ def seed_categories():
         # Two API containers starting together must not seed at the same time (the same lock the upgrade uses,
         # released when this transaction ends)
         db.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": MIGRATION_LOCK_ID})
-        for group_name, category_names in DEFAULT_GROUPS.items():
+        for position, (group_name, category_names) in enumerate(DEFAULT_GROUPS.items(), start=1):
             group = db.query(CategoryGroups).filter_by(name=group_name).first()
             if not group:
-                group = CategoryGroups(name=group_name)
+                group = CategoryGroups(name=group_name, position=position)
                 db.add(group)
                 db.flush()
+            group.position = position  # the order of the list above is the order everywhere
             for name in category_names:
                 # Only default categories count: a family may have its own category with the same name. Names are
                 # compared by their words, so a default stored with or without its emoji is found either way.

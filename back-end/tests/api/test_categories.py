@@ -132,7 +132,7 @@ def test_groups_cannot_share_a_name(db):
     import pytest
     from sqlalchemy.exc import IntegrityError
 
-    db.add(CategoryGroups(name="Moradia"))
+    db.add(CategoryGroups(name="Moradia", position=99))
 
     with pytest.raises(IntegrityError):
         db.commit()
@@ -151,3 +151,33 @@ def test_a_category_without_a_group_gets_a_clear_error_when_the_outros_group_is_
         db.commit()
     db.rollback()
     assert "does not exist" in str(error.value)
+
+
+# --- the order of the groups is data (position) --------------------------------------------------------
+
+
+def test_the_groups_follow_their_position_not_the_order_they_were_created_in(client, db, auth_headers):
+    first = db.query(CategoryGroups).filter_by(name="Outros").one()
+    first.position = 0  # moved to the top by the data alone
+    db.commit()
+
+    names = [g["name"] for g in _groups(client, auth_headers)]
+
+    assert names[0] == "Outros"
+    assert names[1] == "Receitas"
+
+
+def test_the_budget_page_lists_the_groups_in_the_same_order_as_the_categories_page(client, db, auth_headers):
+    last = db.query(CategoryGroups).filter_by(name="Alimentação").one()
+    last.position = 500
+    db.commit()
+
+    categories_page = [g["name"] for g in _groups(client, auth_headers)]
+    budget_page = [
+        g["name"]
+        for g in client.get("/budgets", params={"month": "2026-11"}, headers=auth_headers).json()["data"]["groups"]
+    ]
+
+    assert categories_page[-1] == "Alimentação"
+    assert budget_page == [name for name in categories_page if name in budget_page]
+    assert budget_page[-1] == "Alimentação"

@@ -4,9 +4,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from api.controllers.auth_controller import get_current_family_id
-from api.controllers.budgets_controller import copy_month_budgets, get_month_budget, set_category_budget
+from api.controllers.budgets_controller import get_month_budget, set_category_budget
 from db.connection import get_db
-from schemas.tables_schemas import MONTH_PATTERN, BudgetCopy, BudgetSet
+from schemas.tables_schemas import MONTH_PATTERN, BudgetSet
 
 router = APIRouter(prefix="/budgets", tags=["budgets"], responses={404: {"description": "Not found"}})
 
@@ -31,13 +31,6 @@ async def get_budget_router(
 async def set_budget_router(
     params: BudgetSet, family_id: int = Depends(get_current_family_id), db: Session = Depends(get_db)
 ):
-    """Plan an amount for a category in a month (0 removes it). Answers with the month as `GET` shows it."""
+    """Plan an amount for a category from a month on, until a later month changes it (0: nothing from then on).
+    Answers with the month as `GET` shows it."""
     return _ok(set_category_budget(db, family_id, params.category_id, params.month, params.amount))
-
-
-@router.post("/copy")
-async def copy_budget_router(
-    params: BudgetCopy, family_id: int = Depends(get_current_family_id), db: Session = Depends(get_db)
-):
-    """Copy a month's budgets to another month, only for the categories that have none there yet."""
-    return _ok(copy_month_budgets(db, family_id, params.from_month, params.to_month))

@@ -12,7 +12,7 @@ const NOW = monthKey(new Date())
 const NEXT = shiftMonth(NOW, 1)
 const PREV = shiftMonth(NOW, -1)
 
-const category = (id, name, budgeted = null, spent = 0) => ({ id, name, budgeted, spent })
+const category = (id, name, budgeted = null, spent = 0, since = budgeted ? NOW : null) => ({ id, name, budgeted, since, spent })
 const group = (id, name, categories) => ({
   id,
   name,
@@ -126,19 +126,58 @@ describe('budgets page: what it shows', () => {
     expect(await screen.findByText(/Nada planejado para este mês/)).toBeInTheDocument()
   })
 
-  it('opens the groups that have a plan or spending and keeps the empty ones closed until asked', async () => {
+  it('starts with every group open, the empty ones too, and lets each be closed and opened again', async () => {
     mockApi({ [`GET /budgets?month=${NOW}`]: { data: month(NOW) } })
     renderApp(<Budgets />)
     await screen.findByText('Orçado')
 
-    expect(screen.getByLabelText('Orçamento de Aluguel')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Orçamento de Pets')).not.toBeInTheDocument() // nothing in "Viagem e Estilo de Vida"
-
-    await userEvent.click(screen.getByRole('button', { name: 'Viagem e Estilo de Vida: abrir' }))
-    expect(screen.getByLabelText('Orçamento de Pets')).toBeInTheDocument()
+    for (const field of ['Aluguel', 'Restaurantes e Bares', 'Transporte público', 'Pets']) {
+      expect(screen.getByLabelText(`Orçamento de ${field}`)).toBeInTheDocument()
+    }
+    for (const name of ['Alimentação', 'Moradia', 'Auto e Transporte', 'Viagem e Estilo de Vida']) {
+      expect(screen.getByRole('button', { name: `${name}: fechar` })).toHaveAttribute('aria-expanded', 'true')
+    }
 
     await userEvent.click(screen.getByRole('button', { name: 'Moradia: fechar' }))
     expect(screen.queryByLabelText('Orçamento de Aluguel')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Orçamento de Pets')).toBeInTheDocument() // the others stay as they were
+
+    await userEvent.click(screen.getByRole('button', { name: 'Moradia: abrir' }))
+    expect(screen.getByLabelText('Orçamento de Aluguel')).toBeInTheDocument()
+  })
+
+  it('lists the categories of a group A-Z in Portuguese order, accents and emoji aside', async () => {
+    const data = month(NOW)
+    data.groups[0].categories = [
+      category(1, '🅱️ Zebra'),
+      category(2, '🅰️ Água'),
+      category(3, '🥐 Abelha'),
+      category(4, 'Cafeterias'),
+    ]
+    mockApi({ [`GET /budgets?month=${NOW}`]: { data } })
+
+    renderApp(<Budgets />)
+
+    const list = await screen.findByRole('list', { name: 'Alimentação' })
+    expect(within(list).getAllByRole('listitem').map((item) => within(item).getByRole('textbox').getAttribute('aria-label'))).toEqual([
+      'Orçamento de Abelha',
+      'Orçamento de Água',
+      'Orçamento de Cafeterias',
+      'Orçamento de Zebra',
+    ])
+  })
+
+  it('says which month an amount is repeated from, and nothing when it was set in this month', async () => {
+    const data = month(NOW)
+    data.groups[0].categories[0] = category(10, '🍽️ Restaurantes e Bares', 50000, 20000, shiftMonth(NOW, -2))
+    mockApi({ [`GET /budgets?month=${NOW}`]: { data } })
+
+    renderApp(<Budgets />)
+
+    const food = within((await screen.findByLabelText('Orçamento de Restaurantes e Bares')).closest('li'))
+    expect(food.getByText(/Repetido de /)).toBeInTheDocument()
+    const rent = within(screen.getByLabelText('Orçamento de Aluguel').closest('li')) // set in this very month
+    expect(rent.queryByText(/Repetido de /)).not.toBeInTheDocument()
   })
 
   it('writes amounts in the currency and language of the family', async () => {
@@ -278,45 +317,6 @@ describe('budgets page: months', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: /\d{4}$/ }).textContent).not.toBe(before))
   })
 
-  it('copies the previous month into this one and tells how many were copied', async () => {
-    const copied = { ...month(NOW), copied: 2 }
-    const api = mockApi({ [`GET /budgets?month=${NOW}`]: { data: EMPTY }, 'POST /budgets/copy': { data: copied } })
-    renderApp(<Budgets />)
-    await screen.findByText(/Nada planejado/)
-
-    await userEvent.click(screen.getByRole('button', { name: /Copiar do mês anterior/ }))
-
-    expect(await screen.findByText('2 orçamentos copiados.')).toBeInTheDocument()
-    expect(calls(api, 'POST')[0].body).toEqual({ from_month: PREV, to_month: NOW })
-    expect(await screen.findByText('R$ 2.400,00')).toBeInTheDocument()
-  })
-
-  it('says when there was nothing to copy', async () => {
-    mockApi({
-      [`GET /budgets?month=${NOW}`]: { data: EMPTY },
-      'POST /budgets/copy': { data: { ...EMPTY, copied: 0 } },
-    })
-    renderApp(<Budgets />)
-    await screen.findByText(/Nada planejado/)
-
-    await userEvent.click(screen.getByRole('button', { name: /Copiar do mês anterior/ }))
-
-    expect(await screen.findByText('Nada para copiar')).toBeInTheDocument()
-  })
-
-  it('shows a refusal to copy', async () => {
-    mockApi({
-      [`GET /budgets?month=${NOW}`]: { data: EMPTY },
-      'POST /budgets/copy': [{ detail: 'Escolha dois meses diferentes para copiar.' }, 422],
-    })
-    renderApp(<Budgets />)
-    await screen.findByText(/Nada planejado/)
-
-    await userEvent.click(screen.getByRole('button', { name: /Copiar do mês anterior/ }))
-
-    expect(await screen.findByText('Escolha dois meses diferentes para copiar.')).toBeInTheDocument()
-  })
-
   it('keeps the page of the month on screen when a slow answer for another month arrives late', async () => {
     let answerNow
     mockApi({
@@ -361,7 +361,6 @@ describe('budgets page: slow and failing answers', () => {
     renderApp(<Budgets />)
     await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '30000')
     await userEvent.tab() // the first save is still on its way
-    await userEvent.click(screen.getByRole('button', { name: 'Viagem e Estilo de Vida: abrir' }))
     await userEvent.type(screen.getByLabelText('Orçamento de Pets'), '70000')
     await userEvent.tab()
     await waitFor(() => expect(screen.getByLabelText('Orçamento de Pets')).toHaveValue('700,00'))

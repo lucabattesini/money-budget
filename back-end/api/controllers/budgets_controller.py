@@ -3,16 +3,13 @@ from datetime import date
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from api.repositories.budgets_repo import (
-    budgetable_categories,
-    budgets_of_month,
-    copy_budgets,
-    month_bounds,
-    set_budget,
-)
+from api.repositories.budgets_repo import budgetable_categories, effective_budgets, month_bounds, set_budget
 from api.repositories.categories_repo import lock_family
 from api.repositories.transactions_repo import get_transactions_summed_by_category
-from api.utils.category_names import name_key
+
+
+def month_key(day: date) -> str:
+    return f"{day.year}-{day.month:02d}"
 
 
 def parse_month(text: str) -> date:
@@ -24,12 +21,15 @@ def parse_month(text: str) -> date:
 def get_month_budget(db: Session, family_id: int, month_text: str) -> dict:
     """The family's plan and spending for one month, by group and category. Amounts are in cents.
 
+    A plan stays in force until it is changed, so `budgeted` is the amount of the latest month up to this one that
+    set one, and `since` says which month that was (the month itself when it was set here).
+
     `totals.spent` only counts the categories that have a budget, so it can be compared with `totals.budgeted`;
     what was spent in categories without one is `totals.unbudgeted_spent`.
     """
     month = parse_month(month_text)
     start, end = month_bounds(month)
-    planned = budgets_of_month(db, family_id, month)
+    planned = effective_budgets(db, family_id, month)
     spent = {row.category_id: int(row.total) for row in get_transactions_summed_by_category(db, start, end, family_id)}
 
     groups: dict[int, dict] = {}
@@ -39,7 +39,8 @@ def get_month_budget(db: Session, family_id: int, month_text: str) -> dict:
             {
                 "id": category.id,
                 "name": category.name,
-                "budgeted": planned.get(category.id),
+                "budgeted": planned[category.id][0] if category.id in planned else None,
+                "since": month_key(planned[category.id][1]) if category.id in planned else None,
                 "spent": spent.get(category.id, 0),
             }
         )
@@ -47,7 +48,6 @@ def get_month_budget(db: Session, family_id: int, month_text: str) -> dict:
     result = []
     totals = {"budgeted": 0, "spent": 0, "unbudgeted_spent": 0}
     for entry in groups.values():
-        entry["categories"].sort(key=lambda c: name_key(c["name"]))  # A-Z by the words, whatever the emoji
         entry["budgeted"] = sum(c["budgeted"] or 0 for c in entry["categories"])
         entry["spent"] = sum(c["spent"] for c in entry["categories"] if c["budgeted"])
         totals["budgeted"] += entry["budgeted"]
@@ -69,13 +69,3 @@ def set_category_budget(db: Session, family_id: int, category_id: int, month_tex
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria não encontrada.")
     set_budget(db, family_id, category_id, parse_month(month_text), amount)
     return get_month_budget(db, family_id, month_text)
-
-
-def copy_month_budgets(db: Session, family_id: int, from_text: str, to_text: str) -> dict:
-    if from_text == to_text:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Escolha dois meses diferentes para copiar."
-        )
-    lock_family(db, family_id)
-    copied = copy_budgets(db, family_id, parse_month(from_text), parse_month(to_text))
-    return {"copied": copied, **get_month_budget(db, family_id, to_text)}

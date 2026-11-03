@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge, Box, Button, Heading, HStack, IconButton, Input, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
-import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp, LuCopy } from "react-icons/lu";
-import { copyBudgets, getBudgets, setBudget } from "../api/endpoints";
+import { Badge, Box, Heading, HStack, IconButton, Input, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
+import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp } from "react-icons/lu";
+import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { budgetStatus, FIRST_MONTH, LAST_MONTH, monthKey, monthLabel, shiftMonth } from "../lib/budget";
-import { plainName } from "../lib/categoryName";
+import { compareCategories, plainName } from "../lib/categoryName";
 import { useLocale } from "../lib/locale";
 import { digitsToCents, formatCents, maskAmount } from "../lib/money";
 import customToaster from "../utils/customToaster";
@@ -49,8 +49,7 @@ export default function Budgets() {
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
     const [drafts, setDrafts] = useState({}); // what is being typed, by category id, until it is saved
-    const [opened, setOpened] = useState({}); // groups the person opened or closed by hand, by group id
-    const [copying, setCopying] = useState(false);
+    const [opened, setOpened] = useState({}); // groups the person closed (or opened again) by hand, by group id
     const shown = useRef(month); // an answer for a month that is no longer on the page must be ignored
     shown.current = month;
     const latest = useRef(0); // and so must an answer that a newer request has already replaced
@@ -104,50 +103,28 @@ export default function Budgets() {
         setData(result.data);
     };
 
-    const copyFromPreviousMonth = async () => {
-        setCopying(true);
-        const mine = ++latest.current;
-        const result = await copyBudgets(shiftMonth(month, -1), month, getToken());
-        setCopying(false);
-        if (!result.ok) {
-            customToaster("Erro", "error", result.detail || "Não foi possível copiar. Tente novamente.");
-            return;
-        }
-        const { copied, ...view } = result.data;
-        if (shown.current === view.month && latest.current === mine) {
-            setData(view);
-            setDrafts({});
-        }
-        if (copied === 0) customToaster("Nada para copiar", "info", "O mês anterior não tem orçamentos que este mês ainda não tenha.");
-        else customToaster("Pronto", "success", copied === 1 ? "1 orçamento copiado." : `${copied} orçamentos copiados.`);
-    };
-
-    const isOpen = (group) => opened[group.id] ?? (group.budgeted > 0 || group.categories.some((c) => c.spent > 0));
+    const isOpen = (group) => opened[group.id] ?? true; // every group starts open
 
     return (
         <Stack gap={6} maxW="5xl" mx="auto" px={6} pt={10} pb={12}>
             <Stack gap={1}>
                 <Heading size="2xl">Orçamentos</Heading>
                 <Text color="fg.muted">
-                    Planeje quanto gastar em cada categoria a cada mês e acompanhe o que já foi gasto. Só entram as saídas de dinheiro.
+                    Planeje quanto gastar em cada categoria e acompanhe o que já foi gasto. O valor de um mês vale para os
+                    meses seguintes até você mudar. Só entram as saídas de dinheiro.
                 </Text>
             </Stack>
 
-            <HStack justify="space-between" wrap="wrap" gap={3}>
-                <HStack gap={2}>
-                    <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
-                        <LuChevronLeft />
-                    </IconButton>
-                    <Heading size="lg" minW="11rem" textAlign="center" textTransform="capitalize" aria-live="polite">
-                        {monthLabel(month)}
-                    </Heading>
-                    <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
-                        <LuChevronRight />
-                    </IconButton>
-                </HStack>
-                <Button variant="outline" size="sm" onClick={copyFromPreviousMonth} loading={copying} disabled={!data}>
-                    <LuCopy /> Copiar do mês anterior
-                </Button>
+            <HStack gap={2}>
+                <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
+                    <LuChevronLeft />
+                </IconButton>
+                <Heading size="lg" minW="11rem" textAlign="center" textTransform="capitalize" aria-live="polite">
+                    {monthLabel(month)}
+                </Heading>
+                <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
+                    <LuChevronRight />
+                </IconButton>
             </HStack>
 
             {failed && <Text color="fg.error">Não foi possível carregar o orçamento. Tente novamente mais tarde.</Text>}
@@ -169,7 +146,7 @@ export default function Budgets() {
                             <SpentBar spent={data.totals.spent} budgeted={data.totals.budgeted} label="Total gasto do orçamento do mês" />
                             {data.totals.budgeted === 0 && (
                                 <Text color="fg.muted" fontSize="sm">
-                                    Nada planejado para este mês. Digite um valor em uma categoria abaixo ou copie o mês anterior.
+                                    Nada planejado para este mês. Digite um valor em uma categoria abaixo: ele vale para este mês e os seguintes.
                                 </Text>
                             )}
                             {data.totals.unbudgeted_spent > 0 && (
@@ -205,7 +182,7 @@ export default function Budgets() {
 
                             {isOpen(group) && (
                                 <Stack as="ul" listStyleType="none" gap={0} aria-label={group.name}>
-                                    {group.categories.map((category) => {
+                                    {[...group.categories].sort(compareCategories).map((category) => {
                                         const name = plainName(category.name);
                                         const { state } = budgetStatus(category.spent, category.budgeted);
                                         return (
@@ -234,6 +211,7 @@ export default function Budgets() {
                                                         <HStack justify="space-between">
                                                             <Text fontSize="xs" color={state === "over" ? "fg.error" : "fg.muted"}>
                                                                 {leftText(category.spent, category.budgeted)}
+                                                                {category.since && category.since !== month && ` · Repetido de ${monthLabel(category.since)}`}
                                                             </Text>
                                                             {state === "over" && <Badge colorPalette="red">Acima do orçamento</Badge>}
                                                             {state === "warn" && <Badge colorPalette="orange">Perto do limite</Badge>}

@@ -24,7 +24,7 @@ def get_all_categories(db: Session, family_id: int):
 
 def get_all_groups(db: Session):
     """Every group, in the order they are shown. The same for everyone."""
-    return db.query(CategoryGroups).order_by(CategoryGroups.id).all()
+    return db.query(CategoryGroups).order_by(CategoryGroups.position, CategoryGroups.id).all()
 
 
 def get_category_by_name(db: Session, name: str, family_id: int):

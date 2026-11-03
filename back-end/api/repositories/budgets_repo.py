@@ -23,25 +23,52 @@ def budgetable_categories(db: Session, family_id: int):
         .join(CategoryGroups, Categories.group_id == CategoryGroups.id)
         .filter(or_(Categories.family_id.is_(None), Categories.family_id == family_id))
         .filter(CategoryGroups.name.notin_(UNBUDGETED_GROUPS))
-        .order_by(CategoryGroups.id, Categories.id)
+        .order_by(CategoryGroups.position, CategoryGroups.id, Categories.id)
         .all()
     )
 
 
-def budgets_of_month(db: Session, family_id: int, month: date) -> dict[int, int]:
-    """category id -> planned cents, for the month."""
-    rows = db.query(Budgets.category_id, Budgets.amount).filter(Budgets.family_id == family_id, Budgets.month == month)
-    return dict(rows.all())
+def effective_budgets(db: Session, family_id: int, month: date) -> dict[int, tuple[int, date]]:
+    """What the family has planned for the month, by category: category id -> (cents, the month the amount was set).
+
+    A plan stays in force until it is changed: a month with no row of its own uses the most recent earlier one.
+    A row of 0 is the family saying "nothing from this month on", so that category has no plan until a later row.
+    """
+    rows = (
+        db.query(Budgets.category_id, Budgets.month, Budgets.amount)
+        .filter(Budgets.family_id == family_id, Budgets.month <= month)
+        .order_by(Budgets.month)
+        .all()
+    )
+    latest: dict[int, tuple[int, date]] = {}
+    for category_id, set_in, amount in rows:  # oldest first, so the last one for a category wins
+        latest[category_id] = (amount, set_in)
+    return {category_id: found for category_id, found in latest.items() if found[0] > 0}
+
+
+def _amount_before(db: Session, family_id: int, category_id: int, month: date) -> int:
+    """What would be planned for the category in the month if the month had no row of its own (0: nothing)."""
+    row = (
+        db.query(Budgets.amount)
+        .filter(Budgets.family_id == family_id, Budgets.category_id == category_id, Budgets.month < month)
+        .order_by(Budgets.month.desc())
+        .first()
+    )
+    return row.amount if row else 0
 
 
 def set_budget(db: Session, family_id: int, category_id: int, month: date, amount: int) -> None:
-    """Plan `amount` cents for the category in the month; 0 removes the budget."""
+    """Plan `amount` cents for the category from this month on (until a later month changes it); 0 means nothing.
+
+    A row is only kept when it says something the earlier months do not: asking for what already applies from an
+    earlier month removes this month's own row, so the month goes back to following the earlier plan.
+    """
     row = (
         db.query(Budgets)
         .filter(Budgets.family_id == family_id, Budgets.category_id == category_id, Budgets.month == month)
         .first()
     )
-    if amount == 0:
+    if amount == _amount_before(db, family_id, category_id, month):
         if row is not None:
             db.delete(row)
     elif row is None:
@@ -49,20 +76,6 @@ def set_budget(db: Session, family_id: int, category_id: int, month: date, amoun
     else:
         row.amount = amount
     db.commit()
-
-
-def copy_budgets(db: Session, family_id: int, from_month: date, to_month: date) -> int:
-    """Copy the budgets of one month to another, only for the categories that have none there yet and that can
-    still be planned (a category may have moved to an income or transfer group since). Returns how many were copied."""
-    already = budgets_of_month(db, family_id, to_month)
-    allowed = {category.id for category, _ in budgetable_categories(db, family_id)}
-    copied = 0
-    for category_id, amount in budgets_of_month(db, family_id, from_month).items():
-        if category_id not in already and category_id in allowed:
-            db.add(Budgets(family_id=family_id, category_id=category_id, month=to_month, amount=amount))
-            copied += 1
-    db.commit()
-    return copied
 
 
 def delete_budgets_of_category(db: Session, category_id: int) -> None:

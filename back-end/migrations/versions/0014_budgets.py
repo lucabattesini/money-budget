@@ -1,7 +1,8 @@
-"""Monthly budgets: how much a family plans to spend in a category in a month.
+"""Budgets: how much a family plans to spend in a category from a month on.
 
-One row per family, category and month, with the amount in integer cents (more than zero: no budget is no row).
-Nothing existing changes.
+One row per family, category and month, with the amount in integer cents. A plan stays in force until a later
+month changes it (a month with no row follows the latest earlier one), and a row of 0 means "nothing from this month
+on". Nothing existing changes.
 
 Revision ID: 0014
 Revises: 0013

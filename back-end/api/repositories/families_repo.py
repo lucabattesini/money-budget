@@ -107,8 +107,8 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
 
     A category whose name matches one the new family already has is merged into it: its transactions are
     re-pointed and it is deleted. The others come along as they are. Default categories belong to nobody
-    and are never touched. Budgets follow their category; when the new family already planned that category
-    for the same month, its own plan wins and the one brought along is dropped.
+    and are never touched. Budgets follow their category; a plan stays in force until it is changed, so when the new
+    family already planned that category at all, its own plan wins and every one brought along for it is dropped.
     """
     kept = {_fold(c.name): c for c in db.query(Categories).filter(Categories.family_id == new_family_id)}
     db.query(TransactionDB).filter(TransactionDB.family_id == old_family_id).update(
@@ -131,19 +131,19 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
 
 def _move_budgets(db: Session, old_family_id: int, new_family_id: int, renamed: dict[int, int]) -> None:
     """Hand the old family's budgets to the new one. `renamed` maps a category that is being merged into another
-    to the one that stays. A budget whose (category, month) the new family already has is deleted."""
-    taken = {(b.category_id, b.month) for b in db.query(Budgets).filter(Budgets.family_id == new_family_id)}
+    to the one that stays. A budget of a category the new family already planned is deleted: mixing the months of two
+    plans would change what the new family's later months say."""
+    planned = {b.category_id for b in db.query(Budgets.category_id).filter(Budgets.family_id == new_family_id)}
     only = list(renamed) if renamed else None
     query = db.query(Budgets).filter(Budgets.family_id == old_family_id)
     if only is not None:
         query = query.filter(Budgets.category_id.in_(only))
     for budget in query.all():
         category_id = renamed.get(budget.category_id, budget.category_id)
-        if (category_id, budget.month) in taken:
+        if category_id in planned:
             db.delete(budget)
         else:
             budget.family_id, budget.category_id = new_family_id, category_id
-            taken.add((category_id, budget.month))
 
 
 def _lock_families(db: Session, *family_ids: int) -> dict[int, Families]:
