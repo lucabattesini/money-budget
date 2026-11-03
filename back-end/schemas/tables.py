@@ -10,6 +10,7 @@ class Families(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime, server_default=func.now())
+    abandoned_at = Column(DateTime, nullable=True)  # when its last person left; it is deleted 30 days later
 
 
 class TransactionDB(Base):
@@ -35,6 +36,8 @@ class Users(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # a person is in exactly one family
     role = Column(String(10), nullable=False, default="owner", server_default="owner")  # "owner" | "member"
+    # The family left behind when joining another one with the data kept there: the person can go back for 30 days
+    previous_family_id = Column(Integer, ForeignKey("families.id"), nullable=True)
     google_id = Column(String(100), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)

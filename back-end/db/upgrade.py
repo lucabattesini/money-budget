@@ -53,7 +53,9 @@ def detect_revision(inspector) -> str | None:
         return "0006"
     if not inspector.has_table("family_invites"):
         return "0007"
-    return "0008"
+    if "abandoned_at" not in {c["name"] for c in inspector.get_columns("families")}:
+        return "0008"
+    return "0009"
 
 
 def upgrade_database(url: str = DATABASE_URL) -> None:
