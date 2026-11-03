@@ -78,9 +78,15 @@ class CategoryGroups(Base):
 
 def _fallback_group_id(context) -> int:
     """The default group of a new category: "Outros". Runs inside the insert, on its own connection."""
-    return context.connection.execute(
+    group_id = context.connection.execute(
         select(CategoryGroups.id).where(CategoryGroups.name == FALLBACK_GROUP)
-    ).scalar_one()
+    ).scalar()
+    if group_id is None:
+        raise RuntimeError(
+            f'The category group "{FALLBACK_GROUP}" does not exist, so a category without a group cannot be saved. '
+            "Run `python -m db.upgrade`, which creates the groups."
+        )
+    return group_id
 
 
 class Categories(Base):

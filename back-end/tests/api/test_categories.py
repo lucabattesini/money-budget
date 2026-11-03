@@ -127,3 +127,17 @@ def test_groups_cannot_share_a_name(db):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+def test_a_category_without_a_group_gets_a_clear_error_when_the_outros_group_is_missing(db, user, monkeypatch):
+    import pytest
+
+    from schemas import tables
+
+    monkeypatch.setattr(tables, "FALLBACK_GROUP", "Grupo que não existe")
+    db.add(Categories(name="Sem grupo", family_id=user.family_id))
+
+    with pytest.raises(Exception, match="db.upgrade") as error:
+        db.commit()
+    db.rollback()
+    assert "does not exist" in str(error.value)
