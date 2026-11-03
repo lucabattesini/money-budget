@@ -14,14 +14,17 @@ from api.repositories.families_repo import (
     TooManyInvites,
     cancel_invite,
     create_invite,
+    get_family,
     join_family,
     list_active_invites,
     list_members,
     purge_abandoned_families,
     return_deadline,
     return_to_previous_family,
+    update_settings,
 )
 from schemas.tables import Users
+from schemas.tables_schemas import FamilySettings
 
 # No 0/O/1/I/L: codes are read aloud and typed by hand. 16 characters of 31 are far too many to guess.
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -49,15 +52,24 @@ def _only_owner(user: Users) -> None:
 
 def get_my_family(db: Session, user: Users) -> dict:
     deadline = return_deadline(db, user)
+    family = get_family(db, user.family_id)
     return {
         "id": user.family_id,
         "role": user.role,
+        "currency": family.currency,
+        "language": family.language,
         # Set while the person can still go back to the family they left (they started empty when joining)
         "previous_family": None if deadline is None else {"available_until": deadline},
         "members": [
             {"id": m.id, "name": m.name, "picture": m.picture, "role": m.role} for m in list_members(db, user.family_id)
         ],
     }
+
+
+def change_family_settings(db: Session, user: Users, settings: FamilySettings) -> dict:
+    """Any member may change the family's currency and language; everyone in the family then sees the change."""
+    update_settings(db, user.family_id, settings.currency, settings.language)
+    return get_my_family(db, user)
 
 
 def _invite_out(invite) -> dict:

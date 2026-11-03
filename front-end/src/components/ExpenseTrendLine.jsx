@@ -1,14 +1,18 @@
 import { Box, Heading, Text, Center } from "@chakra-ui/react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useMemo } from "react";
+import { formatMoney, useLocale } from "../lib/locale";
 
-const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTH_NAMES = {
+    pt: ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"],
+    en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+};
 
 // Compact labels (e.g. "R$ 3,5 mil") so the Y axis ticks don't get clipped
-const axisFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 });
-const formatAxisValue = (value) => axisFormatter.format(value);
+const formatAxisValue = (value) => formatMoney(value, { notation: 'compact', maximumFractionDigits: 1 });
 
 export default function ExpenseTrendLine({ transactions }) {
+    const { language } = useLocale();
     const data = useMemo(() => {
         if (!transactions) return [];
 
@@ -25,7 +29,7 @@ export default function ExpenseTrendLine({ transactions }) {
                 monthMap[key] = {
                     month: m,
                     year: y,
-                    label: `${MONTH_NAMES[m]} ${y}`,
+                    label: `${MONTH_NAMES[language][m]} ${y}`,
                     total: 0
                 };
             }
@@ -38,7 +42,7 @@ export default function ExpenseTrendLine({ transactions }) {
             .map(key => monthMap[key]);
 
         return sortedMonths;
-    }, [transactions]);
+    }, [transactions, language]);
 
     return (
         <Box w="full" h="300px" p={4} borderRadius="lg">
@@ -53,7 +57,7 @@ export default function ExpenseTrendLine({ transactions }) {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="label" />
                         <YAxis width={80} tickFormatter={formatAxisValue} />
-                        <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
+                        <Tooltip formatter={(value) => formatMoney(value)} />
                         <Line type="monotone" dataKey="total" stroke="#00C49F" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 8 }} />
                     </LineChart>
                 </ResponsiveContainer>

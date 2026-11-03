@@ -208,6 +208,7 @@ export const updateCategory = (id, payload, token) => jsonCall(endpoints.categor
 export const deleteCategory = (id, token) => jsonCall(endpoints.categories + `/${id}`, "delete", token);
 
 export const getFamily = (token) => familyCall("/me", "get", token);
+export const updateFamilySettings = (settings, token) => familyCall("/me/settings", "patch", token, settings);
 export const getInvites = (token) => familyCall("/invites", "get", token);
 export const createInvite = (token) => familyCall("/invites", "post", token);
 export const cancelInvite = (id, token) => familyCall(`/invites/${id}`, "delete", token);

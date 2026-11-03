@@ -33,11 +33,11 @@ FILTER_PROPERTIES = {
     },
     "min_amount": {
         "type": "number",
-        "description": "Minimum amount in reais (inclusive).",
+        "description": "Minimum amount in whole units of the currency (inclusive).",
     },
     "max_amount": {
         "type": "number",
-        "description": "Maximum amount in reais (inclusive).",
+        "description": "Maximum amount in whole units of the currency (inclusive).",
     },
     "weekdays": {
         "type": "array",

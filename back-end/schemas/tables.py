@@ -11,6 +11,9 @@ class Families(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime, server_default=func.now())
     abandoned_at = Column(DateTime, nullable=True)  # when its last person left; it is deleted 30 days later
+    # How the family sees amounts and dates, and the language the assistant answers in (see schemas/family_settings.py)
+    currency = Column(String(3), nullable=False, default="BRL", server_default="BRL")
+    language = Column(String(2), nullable=False, default="pt", server_default="pt")
 
 
 class TransactionDB(Base):

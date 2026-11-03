@@ -3,6 +3,7 @@ import { Button, Drawer, Field, Input, NativeSelect, Portal, RadioGroup, Stack, 
 import { insertNewTransaction, updateTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { digitsToCents, maskAmount } from "../lib/money";
+import { CURRENCIES, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
 const MAX_LABEL = 25;
@@ -27,6 +28,8 @@ const nowTime = () => {
 // Side panel with the form for a transaction: a new one, or `transaction` to edit it.
 // Calls onSaved() after the API accepted it.
 export default function TransactionDrawer({ open, onClose, categories, onSaved, transaction = null }) {
+    const { currency } = useLocale(); // the amount is typed in the family's currency
+    const unit = CURRENCIES.find((c) => c.code === currency);
     const editing = transaction !== null;
     const [type, setType] = useState("debit");
     const [amount, setAmount] = useState("");
@@ -123,11 +126,11 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
                                     <RequiredLabel>Valor</RequiredLabel>
                                     <Input
                                         inputMode="numeric"
-                                        placeholder="0,00"
+                                        placeholder={maskAmount("0")}
                                         value={amount}
                                         onChange={(e) => setAmount(maskAmount(e.target.value))}
                                     />
-                                    <Text fontSize="xs" color="fg.muted">Em reais (R$)</Text>
+                                    <Text fontSize="xs" color="fg.muted">Em {unit.name} ({unit.symbol})</Text>
                                     <Field.ErrorText>{errors.amount}</Field.ErrorText>
                                 </Field.Root>
 

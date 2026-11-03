@@ -1,6 +1,8 @@
 import { Flex, Box, Text } from "@chakra-ui/react";
+import { formatMoney, useLocale } from "../lib/locale";
 
 export default function TransactionSummary({ transactions }) {
+    useLocale(); // show amounts in the family's currency
     const now = new Date();
     
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -30,9 +32,7 @@ export default function TransactionSummary({ transactions }) {
         }
     });
 
-    const formatCurrency = (val) => {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-    };
+    const formatCurrency = (val) => formatMoney(val);
 
     return (
         <Flex w="full" justify="space-between" mb={8} gap={4}>

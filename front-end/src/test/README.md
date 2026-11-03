@@ -26,6 +26,9 @@ Vitest + jsdom, React Testing Library, `@testing-library/user-event` and
   Promise). The app swallows network errors, so a request the test did not declare
   would otherwise go unnoticed: `afterEach` fails the test if there was one. To
   simulate the server being down on purpose, call `networkDown()`.
+- **The family's currency and language are global** (`src/lib/locale.js`, one value for the whole app), so
+  `setup.js` resets them to reais and Portuguese before every test. A test that needs another one calls
+  `setLocale({ currency: 'USD', language: 'en' })` itself.
 - **Fixed environment.** `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` are set in
   `vite.config.js`, so a developer's own `.env` cannot change results. To test a
   missing variable use `vi.stubEnv(...)` and `vi.resetModules()`.

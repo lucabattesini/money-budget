@@ -3,6 +3,7 @@ import { Avatar, Badge, Box, Button, Code, Field, Heading, HStack, Input, RadioG
 import { LuCopy } from "react-icons/lu";
 import { cancelInvite, createInvite, getFamily, getInvites, joinFamily, returnToPreviousFamily } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { formatDate, setLocale, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
 const ROLE_NAMES = { owner: "Dono", member: "Membro" };
@@ -12,10 +13,10 @@ const JOIN_CHOICES = [
     { value: "empty", label: "Começar vazio", hint: "Só vejo os dados da nova família. Os meus ficam guardados por 30 dias, sem aparecer: nesse prazo você pode voltar. Depois disso, são apagados." },
 ];
 
-const formatDate = (iso) => new Date(iso).toLocaleDateString("pt-BR");
 
 // The people who share this budget, the invite codes (owner only) and a field to join another family.
 export default function AccountFamily() {
+    useLocale(); // dates follow the family's language
     const [family, setFamily] = useState(null);
     const [invites, setInvites] = useState([]);
     const [newCode, setNewCode] = useState(null); // shown once, right after it is created
@@ -40,6 +41,7 @@ export default function AccountFamily() {
         }
         setFailed(false);
         setFamily(mine.data);
+        setLocale(mine.data); // after joining another family, its currency and language apply
         if (mine.data.role === "owner") {
             const active = await getInvites(token);
             setInvites(active.ok ? active.data : []);

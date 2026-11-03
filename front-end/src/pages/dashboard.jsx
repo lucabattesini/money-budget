@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Box, Stack, Center, Heading, SimpleGrid, GridItem, Text, Flex } from "@chakra-ui/react";
 import { getAllCategories, getTransactions, getMe } from "../api/endpoints";
 import { getToken } from "../lib/auth";
+import { formatDate, formatMoney, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import CategoryPieChart from "../components/CategoryPieChart";
@@ -9,6 +10,7 @@ import ExpenseTrendLine from "../components/ExpenseTrendLine";
 import TopCategoriesBarList from "../components/TopCategoriesBarList";
 
 export default function Dashboard() {
+    useLocale(); // amounts and the month name follow the family's currency and language
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
@@ -51,8 +53,8 @@ export default function Dashboard() {
             return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
         })
         .reduce((sum, t) => sum + t.value / 100, 0);
-    const monthName = now.toLocaleDateString('pt-BR', { month: 'long' });
-    const formattedMonthTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotal);
+    const monthName = formatDate(now, { month: 'long' });
+    const formattedMonthTotal = formatMoney(monthTotal);
 
     return (
         <Center>

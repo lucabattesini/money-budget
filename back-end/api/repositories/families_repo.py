@@ -35,6 +35,21 @@ class OwnerCannotLeave(Exception):
     """The person owns a family with other people in it, so they cannot walk out of it."""
 
 
+def get_family(db: Session, family_id: int) -> Families:
+    return db.query(Families).filter(Families.id == family_id).one()
+
+
+def update_settings(db: Session, family_id: int, currency: str | None, language: str | None) -> Families:
+    """Change the family's currency and/or language (a value left as None keeps its current one)."""
+    family = db.query(Families).filter(Families.id == family_id).with_for_update().one()
+    if currency is not None:
+        family.currency = currency
+    if language is not None:
+        family.language = language
+    db.commit()
+    return family
+
+
 def list_members(db: Session, family_id: int) -> list[Users]:
     return db.query(Users).filter(Users.family_id == family_id).order_by(Users.id).all()
 

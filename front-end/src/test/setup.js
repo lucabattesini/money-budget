@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { strayRequests } from './helpers'
+import { resetLocale } from '../lib/locale'
 
 // jsdom lacks these browser APIs; Chakra UI, recharts and the chatbot use them.
 globalThis.ResizeObserver ??= class {
@@ -23,6 +24,7 @@ Element.prototype.scrollIntoView ??= function scrollIntoView() {}
 
 beforeEach(() => {
   localStorage.clear()
+  resetLocale() // the family's currency and language are global: every test starts with reais and Portuguese
   // Nothing may reach a real server: every test that needs the API mocks fetch itself.
   strayRequests.length = 0
   vi.stubGlobal('fetch', vi.fn((url, options = {}) => {

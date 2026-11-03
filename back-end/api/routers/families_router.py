@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from api.controllers.auth_controller import get_current_user_id
 from api.controllers.families_controller import (
     cancel_family_invite,
+    change_family_settings,
     create_family_invite,
     get_my_family,
     go_back_to_previous_family,
@@ -14,7 +15,7 @@ from api.controllers.families_controller import (
 )
 from api.controllers.users_controller import get_user_by_id_ctrl
 from db.connection import get_db
-from schemas.tables_schemas import JoinFamily
+from schemas.tables_schemas import FamilySettings, JoinFamily
 
 router = APIRouter(prefix="/families", tags=["families"], responses={404: {"description": "Not found"}})
 
@@ -33,6 +34,12 @@ def _ok(data, code=status.HTTP_200_OK):
 @router.get("/me")
 async def get_my_family_router(user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(get_my_family(db, user))
+
+
+@router.patch("/me/settings")
+async def change_settings_router(settings: FamilySettings, user=Depends(_current_user), db: Session = Depends(get_db)):
+    """Change the family's currency and/or language. Any member may; a field left out keeps its value."""
+    return _ok(change_family_settings(db, user, settings))
 
 
 @router.post("/invites")

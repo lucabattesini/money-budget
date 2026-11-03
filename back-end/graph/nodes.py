@@ -10,18 +10,14 @@ from agents.query.tools import LIST_TRANSACTIONS, SUMMARIZE_TRANSACTIONS
 from agents.recorder.run import run_recorder
 from agents.secretary.run import run_secretary
 from api.repositories.categories_repo import get_category_by_name
+from api.repositories.families_repo import get_family
 from api.repositories.transactions_repo import aggregate_transactions, create_transaction, list_transactions
+from api.utils.formatting import format_day_month, format_money
 from db.connection import session_scope
+from graph.messages import MESSAGES, WEEKDAY_NAMES
 from graph.state import AssistantState
 from schemas.agents_schemas import ListTransactionsArgs, QueryFiltersArgs, SummarizeTransactionsArgs, ToolCall
 from schemas.tables_schemas import Transaction, TransactionFilters
-
-# Same order as SQL's day-of-week: 0 = Sunday
-SQL_WEEKDAY_NAMES = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"]
-
-
-def _format_brl(amount: float) -> str:
-    return "R$ " + f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _to_cents(amount: float | None) -> int | None:
@@ -48,8 +44,9 @@ def _to_filters(db: Session, family_id: int, args: QueryFiltersArgs) -> Transact
     )
 
 
-def _run_query_tool(db: Session, call: ToolCall, family_id: int) -> dict:
-    """Execute one query tool call for the family and return its result with amounts in reais."""
+def _run_query_tool(db: Session, call: ToolCall, family_id: int, language: str = "pt") -> dict:
+    """Execute one query tool call for the family and return its result with amounts in the family's currency
+    (whole units, not cents)."""
     try:
         if call.name == LIST_TRANSACTIONS:
             args = ListTransactionsArgs(**call.args)
@@ -79,7 +76,7 @@ def _run_query_tool(db: Session, call: ToolCall, family_id: int) -> dict:
                 if args.group_by == "category":
                     item["category"] = row.category_name
                 elif args.group_by == "weekday":
-                    item["weekday"] = SQL_WEEKDAY_NAMES[row.weekday]
+                    item["weekday"] = WEEKDAY_NAMES[language][row.weekday]
                 elif args.group_by:
                     item["period"] = row.period
                 item.update(
@@ -104,7 +101,11 @@ def node_orchestrator(state: AssistantState):
 
 
 def node_recorder(state: AssistantState):
-    response = run_recorder(state["user_message"])
+    with session_scope() as db:
+        family = get_family(db, state["family_id"])
+        currency, language = family.currency, family.language
+    response = run_recorder(state["user_message"], language=language)
+    text = MESSAGES[language]
     now = datetime.now()
 
     registered = []
@@ -124,16 +125,17 @@ def node_recorder(state: AssistantState):
             )
             create_transaction(db, t, state["family_id"], state["user_id"])
             registered.append(
-                f"• {_format_brl(item.amount)} em {cat_obj.name} ({item.description}, {expense_date.strftime('%d/%m')})"
+                f"• {format_money(item.amount, currency, language)} {text['in_category']} {cat_obj.name} "
+                f"({item.description}, {format_day_month(expense_date, language)})"
             )
 
     parts = []
     if registered:
-        parts.append("Registrado!\n" + "\n".join(registered))
+        parts.append(text["registered"] + "\n" + "\n".join(registered))
     if response.reply:
         parts.append(response.reply)
     if not parts:
-        parts.append("Não encontrei nenhum gasto com valor na sua mensagem. Pode me dizer quanto foi?")
+        parts.append(text["no_amount"])
 
     return {"extracted_items": response.items, "final_response": "\n\n".join(parts)}
 
@@ -145,15 +147,21 @@ def node_query(state: AssistantState):
 
 def node_db_execute(state: AssistantState):
     with session_scope() as db:
-        db_results = [_run_query_tool(db, call, state["family_id"]) for call in state["query_tool_calls"]]
+        language = get_family(db, state["family_id"]).language
+        db_results = [_run_query_tool(db, call, state["family_id"], language) for call in state["query_tool_calls"]]
     return {"db_results": db_results}
 
 
 def node_secretary(state: AssistantState):
     query_results = json.dumps(state["db_results"], ensure_ascii=False)
-    response = run_secretary(state["user_message"], query_results)
+    with session_scope() as db:
+        family = get_family(db, state["family_id"])
+        currency, language = family.currency, family.language
+    response = run_secretary(state["user_message"], query_results, currency=currency, language=language)
     return {"final_response": response.reply}
 
 
 def node_off_topic(state: AssistantState):
-    return {"final_response": "Desculpe, só consigo te ajudar com suas finanças."}
+    with session_scope() as db:
+        language = get_family(db, state["family_id"]).language
+    return {"final_response": MESSAGES[language]["off_topic"]}

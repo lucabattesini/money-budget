@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0012"
+LATEST = "0013"
 
 
 def _version(engine):
@@ -168,6 +168,8 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         ("0009", "0009"),
         ("0010", "0010"),
         ("0011", "0010"),  # only names changed: the schema looks like 0010, and running 0011 again changes nothing
+        ("0012", "0010"),  # likewise: only the default categories changed
+        ("0013", "0013"),
     ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
@@ -944,3 +946,28 @@ def test_a_default_category_that_already_has_a_new_name_is_put_in_its_new_group(
     command.upgrade(alembic_config(url), "head")
 
     assert _category_rows(engine)[1] == ("📱 Telefone", None, "Contas e Serviços")
+
+
+# --- 0013: the currency and the language of a family -------------------------------------------------------
+
+
+def test_existing_families_keep_seeing_reais_in_portuguese(url, engine):
+    command.upgrade(alembic_config(url), "0012")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1), (2)"))
+
+    command.upgrade(alembic_config(url), "head")
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT currency, language FROM families ORDER BY id")).all()
+    assert rows == [("BRL", "pt"), ("BRL", "pt")]
+
+
+def test_undoing_the_currency_and_language_revision_drops_only_those_columns(url, engine):
+    upgrade_database(url)
+
+    command.downgrade(alembic_config(url), "0012")
+
+    columns = {c["name"] for c in inspect(engine).get_columns("families")}
+    assert "currency" not in columns and "language" not in columns
+    assert {"id", "created_at", "abandoned_at"} <= columns
