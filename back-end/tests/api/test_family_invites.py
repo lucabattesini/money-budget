@@ -8,6 +8,7 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
+from sqlalchemy import func
 
 from api.controllers.families_controller import _hash
 from api.repositories import families_repo
@@ -99,7 +100,7 @@ def test_the_list_leaves_out_used_and_expired_codes(client, db, user, other_user
     expired = _invite(client, auth_headers)
     active = _invite(client, auth_headers)
     _join(client, headers_for(other_user), used["code"])
-    db.query(FamilyInvites).filter_by(id=expired["id"]).update({"expires_at": datetime.now() - timedelta(minutes=1)})
+    db.query(FamilyInvites).filter_by(id=expired["id"]).update({"expires_at": func.now() - timedelta(minutes=1)})
     db.commit()
 
     listed = client.get("/families/invites", headers=auth_headers).json()["data"]
@@ -143,7 +144,7 @@ def test_used_and_expired_codes_do_not_count_towards_the_limit(client, db, other
     expired = _invite(client, auth_headers)
     _invite(client, auth_headers)
     _join(client, headers_for(other_user), used["code"])
-    db.query(FamilyInvites).filter_by(id=expired["id"]).update({"expires_at": datetime.now() - timedelta(minutes=1)})
+    db.query(FamilyInvites).filter_by(id=expired["id"]).update({"expires_at": func.now() - timedelta(minutes=1)})
     db.commit()
 
     assert client.post("/families/invites", headers=auth_headers).status_code == 201
@@ -297,7 +298,7 @@ def test_a_code_works_only_once(client, make_user, user, other_user, auth_header
 
 def test_an_expired_code_does_not_work(client, db, user, other_user, auth_headers, headers_for):
     created = _invite(client, auth_headers)
-    db.query(FamilyInvites).filter_by(id=created["id"]).update({"expires_at": datetime.now() - timedelta(seconds=1)})
+    db.query(FamilyInvites).filter_by(id=created["id"]).update({"expires_at": func.now() - timedelta(seconds=1)})
     db.commit()
 
     response = _join(client, headers_for(other_user), created["code"])
@@ -312,7 +313,7 @@ def test_wrong_used_and_expired_codes_all_get_the_same_answer(
     used = _invite(client, auth_headers)["code"]
     _join(client, headers_for(other_user), used)
     expired = _invite(client, auth_headers)
-    db.query(FamilyInvites).filter_by(id=expired["id"]).update({"expires_at": datetime.now() - timedelta(days=1)})
+    db.query(FamilyInvites).filter_by(id=expired["id"]).update({"expires_at": func.now() - timedelta(days=1)})
     db.commit()
     stranger = headers_for(make_user("Stranger"))
 
@@ -392,3 +393,56 @@ def test_the_joiner_shares_the_budget_afterwards(
     seen = client.post("/transactions/", json={}, headers=auth_headers).json()["data"]
 
     assert sorted(t["label"] for t in seen) == ["Joiner's", "Owner's"]
+
+
+def test_several_categories_that_fold_to_the_same_name_all_merge_into_one(
+    client, db, user, other_user, auth_headers, headers_for, make_transaction
+):
+    family_cat = _category(db, user, "Alimentação")
+    first, second = _category(db, other_user, "alimentacao"), _category(db, other_user, "ALIMENTAÇÃO ")
+    a = make_transaction(other_user, first.id, label="A")
+    b = make_transaction(other_user, second.id, label="B")
+
+    _join(client, headers_for(other_user), _invite(client, auth_headers)["code"], bring_data=True)
+
+    db.expire_all()
+    assert {db.get(TransactionDB, a.id).category_id, db.get(TransactionDB, b.id).category_id} == {family_cat.id}
+    assert [c.name for c in db.query(Categories).filter_by(family_id=user.family_id)] == ["Alimentação"]
+
+
+def test_two_of_the_joiners_own_categories_with_the_same_name_become_one_when_the_family_has_none(
+    client, db, user, other_user, auth_headers, headers_for, make_transaction
+):
+    first, second = _category(db, other_user, "Plantas"), _category(db, other_user, "plantas")
+    a = make_transaction(other_user, first.id, label="A")
+    b = make_transaction(other_user, second.id, label="B")
+
+    _join(client, headers_for(other_user), _invite(client, auth_headers)["code"], bring_data=True)
+
+    db.expire_all()
+    names = [c.name for c in db.query(Categories).filter_by(family_id=user.family_id)]
+    assert names == ["Plantas"]  # the first one kept, the second merged into it
+    assert db.get(TransactionDB, a.id).category_id == db.get(TransactionDB, b.id).category_id
+
+
+def test_a_failure_after_the_data_has_been_moved_undoes_all_of_it(
+    client, db, user, other_user, auth_headers, headers_for, make_transaction, monkeypatch
+):
+    """The real merge runs; only the final commit fails. Nothing may stay half done."""
+    family_cat = _category(db, user, "Alimentação")
+    joiner_cat = _category(db, other_user, "alimentacao")
+    row = make_transaction(other_user, joiner_cat.id)
+    created = _invite(client, auth_headers)
+    old_family, joiner_cat_id = other_user.family_id, joiner_cat.id
+
+    with session_scope() as attempt, pytest.raises(RuntimeError):
+        monkeypatch.setattr(attempt, "commit", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+        families_repo.join_family(attempt, attempt.get(Users, other_user.id), _hash(created["code"]), True)
+
+    db.expire_all()
+    assert db.get(Users, other_user.id).family_id == old_family
+    assert db.get(TransactionDB, row.id).family_id == old_family
+    assert db.get(TransactionDB, row.id).category_id == joiner_cat_id  # not re-pointed
+    assert db.query(Categories).filter_by(id=joiner_cat_id).first() is not None  # not deleted
+    assert db.get(FamilyInvites, created["id"]).used_at is None
+    assert family_cat.id != joiner_cat_id

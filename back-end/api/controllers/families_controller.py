@@ -8,13 +8,18 @@ from sqlalchemy.orm import Session
 from api.repositories.families_repo import (
     HasOtherMembers,
     InvalidInvite,
+    NothingToReturnTo,
+    OwnerCannotLeave,
     SameFamily,
+    TooManyInvites,
     cancel_invite,
-    count_active_invites,
     create_invite,
     join_family,
     list_active_invites,
     list_members,
+    purge_abandoned_families,
+    return_deadline,
+    return_to_previous_family,
 )
 from schemas.tables import Users
 
@@ -43,9 +48,12 @@ def _only_owner(user: Users) -> None:
 
 
 def get_my_family(db: Session, user: Users) -> dict:
+    deadline = return_deadline(db, user)
     return {
         "id": user.family_id,
         "role": user.role,
+        # Set while the person can still go back to the family they left (they started empty when joining)
+        "previous_family": None if deadline is None else {"available_until": deadline},
         "members": [
             {"id": m.id, "name": m.name, "picture": m.picture, "role": m.role} for m in list_members(db, user.family_id)
         ],
@@ -64,13 +72,14 @@ def _invite_out(invite) -> dict:
 def create_family_invite(db: Session, user: Users) -> dict:
     """A new code for the family. The code is returned here and never again: only its hash is kept."""
     _only_owner(user)
-    if count_active_invites(db, user.family_id) >= MAX_ACTIVE_INVITES:
+    code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+    try:
+        invite = create_invite(db, user.family_id, user.id, _hash(code), code[-4:], MAX_ACTIVE_INVITES)
+    except TooManyInvites:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Você já tem {MAX_ACTIVE_INVITES} códigos ativos. Cancele algum antes.",
         )
-    code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
-    invite = create_invite(db, user.family_id, user.id, _hash(code), code[-4:])
     return {**_invite_out(invite), "code": _display(code)}
 
 
@@ -88,6 +97,7 @@ def cancel_family_invite(db: Session, user: Users, invite_id: int) -> dict:
 
 
 def join_with_code(db: Session, user: Users, code: str, bring_data: bool) -> dict:
+    purge_abandoned_families(db)  # like export files: old leftovers are cleaned whenever someone moves
     try:
         join_family(db, user, _hash(code), bring_data)
     except InvalidInvite:
@@ -99,4 +109,19 @@ def join_with_code(db: Session, user: Users, code: str, bring_data: bool) -> dic
         )
     except SameFamily:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Você já faz parte dessa família.")
+    return get_my_family(db, user)
+
+
+def go_back_to_previous_family(db: Session, user: Users) -> dict:
+    try:
+        return_to_previous_family(db, user)
+    except NothingToReturnTo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Não há uma família anterior para voltar, ou o prazo acabou."
+        )
+    except OwnerCannotLeave:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Você é dono de uma família com outras pessoas. Passe a posse antes de sair dela.",
+        )
     return get_my_family(db, user)

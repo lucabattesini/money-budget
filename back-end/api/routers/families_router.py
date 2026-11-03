@@ -8,6 +8,7 @@ from api.controllers.families_controller import (
     cancel_family_invite,
     create_family_invite,
     get_my_family,
+    go_back_to_previous_family,
     join_with_code,
     list_family_invites,
 )
@@ -52,3 +53,9 @@ async def cancel_invite_router(invite_id: int, user=Depends(_current_user), db: 
 @router.post("/join")
 async def join_family_router(params: JoinFamily, user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(join_with_code(db, user, params.code, params.bring_data))
+
+
+@router.post("/rollback")
+async def go_back_router(user=Depends(_current_user), db: Session = Depends(get_db)):
+    """Go back to the family left behind when joining another one with "start empty" (kept for 30 days)."""
+    return _ok(go_back_to_previous_family(db, user))

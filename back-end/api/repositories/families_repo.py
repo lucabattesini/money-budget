@@ -1,12 +1,13 @@
 import unicodedata
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from schemas.tables import Categories, Families, FamilyInvites, TransactionDB, Users
+from schemas.tables import Categories, ExportJobDB, Families, FamilyInvites, TransactionDB, Users
 
 INVITE_LIFETIME = timedelta(days=7)  # asked of the database clock, like the export times
+ABANDONED_KEPT_FOR = timedelta(days=30)  # how long a family nobody is in is kept, in case someone goes back
 
 
 class InvalidInvite(Exception):
@@ -21,6 +22,18 @@ class SameFamily(Exception):
     """The code is for the family the person is already in."""
 
 
+class TooManyInvites(Exception):
+    """The family already has the most active codes it may have."""
+
+
+class NothingToReturnTo(Exception):
+    """There is no previous family to go back to (none, brought along, expired or no longer empty)."""
+
+
+class OwnerCannotLeave(Exception):
+    """The person owns a family with other people in it, so they cannot walk out of it."""
+
+
 def list_members(db: Session, family_id: int) -> list[Users]:
     return db.query(Users).filter(Users.family_id == family_id).order_by(Users.id).all()
 
@@ -33,7 +46,14 @@ def _active(query):
     return query.filter(FamilyInvites.used_at.is_(None), FamilyInvites.expires_at > func.now())
 
 
-def create_invite(db: Session, family_id: int, user_id: int, code_hash: str, code_hint: str) -> FamilyInvites:
+def create_invite(
+    db: Session, family_id: int, user_id: int, code_hash: str, code_hint: str, max_active: int
+) -> FamilyInvites:
+    """Add a code to the family. The family row is locked while counting, so two requests cannot both fit the last place."""
+    db.query(Families).filter(Families.id == family_id).with_for_update().one()
+    if count_active_invites(db, family_id) >= max_active:
+        db.rollback()
+        raise TooManyInvites()
     invite = FamilyInvites(
         family_id=family_id,
         created_by=user_id,
@@ -89,22 +109,44 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
             db.delete(category)
 
 
+def _lock_families(db: Session, *family_ids: int) -> dict[int, Families]:
+    """Lock families in id order, always, so two people moving at once cannot wait on each other forever."""
+    rows = db.query(Families).filter(Families.id.in_(family_ids)).order_by(Families.id).with_for_update().all()
+    return {f.id: f for f in rows}
+
+
+def _member_count(db: Session, family_id: int) -> int:
+    return db.query(Users.id).filter(Users.family_id == family_id).count()
+
+
+def _lock_user(db: Session, user: Users) -> None:
+    """Lock the person's own row and re-read it, so two requests from the same person cannot both move them."""
+    db.refresh(user, with_for_update=True)
+
+
 def join_family(db: Session, user: Users, code_hash: str, bring_data: bool) -> None:
     """Move `user` into the family the code belongs to. Everything happens in one database transaction.
 
     Either all of it is done (the code is used up, the person changes family, their data moves if asked) or
-    none of it is. The code is claimed while holding a lock on its row, so two people cannot use it at once.
-    """
-    old_family_id = user.family_id
-    try:
-        # Lock the family being left, so nobody joins it while we count its people
-        db.query(Families).filter(Families.id == old_family_id).with_for_update().one()
-        if db.query(Users.id).filter(Users.family_id == old_family_id).count() > 1:
-            raise HasOtherMembers()
+    none of it is. Locks are taken in a fixed order (the person, both families by id, the code), so the code
+    cannot be used twice at once and nobody can join a family while its only person is walking out of it.
 
-        invite = _active(db.query(FamilyInvites).filter(FamilyInvites.code_hash == code_hash).with_for_update()).first()
-        if invite is None:
+    The family left behind is marked abandoned. With `bring_data` false its data stays there and the person
+    can go back for ABANDONED_KEPT_FOR; with it true there is nothing to go back to.
+    """
+    try:
+        _lock_user(db, user)
+        old_family_id = user.family_id
+        peek = _active(db.query(FamilyInvites).filter(FamilyInvites.code_hash == code_hash)).first()
+        if peek is None:
             raise InvalidInvite()
+        families = _lock_families(db, old_family_id, peek.family_id)
+
+        if _member_count(db, old_family_id) > 1:
+            raise HasOtherMembers()
+        invite = _active(db.query(FamilyInvites).filter(FamilyInvites.code_hash == code_hash).with_for_update()).first()
+        if invite is None or _member_count(db, invite.family_id) == 0:
+            raise InvalidInvite()  # used, cancelled or expired meanwhile, or its family was just left by its only person
         if invite.family_id == old_family_id:
             raise SameFamily()
 
@@ -116,9 +158,82 @@ def join_family(db: Session, user: Users, code_hash: str, bring_data: bool) -> N
         db.query(FamilyInvites).filter(
             FamilyInvites.family_id == old_family_id, FamilyInvites.used_at.is_(None)
         ).delete(synchronize_session=False)
+        families[old_family_id].abandoned_at = func.now()
+        user.previous_family_id = None if bring_data else old_family_id
         user.family_id = invite.family_id
         user.role = "member"
         db.commit()
     except Exception:
         db.rollback()
         raise
+
+
+def return_deadline(db: Session, user: Users) -> datetime | None:
+    """Until when the person can go back to the family they left, or None if they cannot."""
+    if user.previous_family_id is None:
+        return None
+    abandoned_at = (
+        db.query(Families.abandoned_at)
+        .filter(Families.id == user.previous_family_id, Families.abandoned_at > func.now() - ABANDONED_KEPT_FOR)
+        .scalar()
+    )
+    return None if abandoned_at is None else abandoned_at + ABANDONED_KEPT_FOR
+
+
+def return_to_previous_family(db: Session, user: Users) -> None:
+    """Go back to the family left behind. What was entered in the family being left stays in it."""
+    try:
+        _lock_user(db, user)
+        previous_id, current_id = user.previous_family_id, user.family_id
+        if previous_id is None:
+            raise NothingToReturnTo()
+        families = _lock_families(db, previous_id, current_id)
+        if return_deadline(db, user) is None or _member_count(db, previous_id) > 0:
+            raise NothingToReturnTo()
+        if user.role == "owner" and _member_count(db, current_id) > 1:
+            raise OwnerCannotLeave()
+
+        user.family_id = previous_id
+        user.role = "owner"
+        user.previous_family_id = None
+        families[previous_id].abandoned_at = None
+        db.flush()
+        if _member_count(db, current_id) == 0:  # the family just left has nobody now: it is abandoned too
+            families[current_id].abandoned_at = func.now()
+            db.query(FamilyInvites).filter(
+                FamilyInvites.family_id == current_id, FamilyInvites.used_at.is_(None)
+            ).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def purge_abandoned_families(db: Session) -> None:
+    """Delete, for good, every family nobody has been in for ABANDONED_KEPT_FOR, with everything it holds.
+
+    Only families with no one in them are touched, whatever their date says.
+    """
+    ids = [
+        row.id
+        for row in db.query(Families.id).filter(
+            Families.abandoned_at < func.now() - ABANDONED_KEPT_FOR,
+            ~db.query(Users.id).filter(Users.family_id == Families.id).exists(),
+        )
+    ]
+    if not ids:
+        return
+    category_ids = db.query(Categories.id).filter(Categories.family_id.in_(ids))
+    # Nobody else's transaction may point at a category that is about to go
+    db.query(TransactionDB).filter(TransactionDB.category_id.in_(category_ids)).update(
+        {TransactionDB.category_id: None}, synchronize_session=False
+    )
+    db.query(TransactionDB).filter(TransactionDB.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(Categories).filter(Categories.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(ExportJobDB).filter(ExportJobDB.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(FamilyInvites).filter(FamilyInvites.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(Users).filter(Users.previous_family_id.in_(ids)).update(
+        {Users.previous_family_id: None}, synchronize_session=False
+    )
+    db.query(Families).filter(Families.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
