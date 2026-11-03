@@ -197,11 +197,13 @@ erDiagram
     FAMILIES {
         int id PK
         datetime created_at
+        datetime abandoned_at "when its last person left; deleted 30 days later"
     }
     USERS {
         int id PK
         int family_id FK
         string role "owner or member"
+        int previous_family_id FK "the family left behind, to go back to"
         string google_id
         string name
         string email
@@ -284,7 +286,7 @@ family's people and the caller's role. Only the owner can `POST /families/invite
 `DELETE /families/invites/{id}`; a member gets `403`. A code is 16 characters from an
 alphabet without look-alikes, shown only when created: the table keeps a SHA-256 hash and the last four
 characters (to tell codes apart in a list). It works once and expires after 7 days (database clock); an owner can
-have 3 active codes. `POST /families/join {code, bring_data}` moves the caller into the code's family
+have 3 active codes (counted under a lock on the family, so two requests cannot both take the last place). `POST /families/join {code, bring_data}` moves the caller into the code's family
 as a member; `bring_data` is required, so the choice is always explicit. A code that is wrong, used, expired
 or cancelled all answer the same `404`. Rules: someone who shares a family with other people cannot join
 another (`409`; leaving or handing over ownership comes later); a code for one's own family is refused (`409`) and
@@ -293,8 +295,22 @@ the code cannot be used twice at once and a failure changes nothing. With `bring
 caller's transactions move to the new family (`user_id` still the author) and each of their categories is
 merged into the new family's category with the same name (ignoring case and accents; its transactions are
 re-pointed, the duplicate deleted), otherwise it comes along as it is; default categories are never touched.
-With it false the old data stays in the old family, out of sight. Either way the old family
-is left empty, so its unused codes are deleted: they could otherwise let a stranger into the data left there.
+With it false the old data stays in the old family, out of sight.
+Either way the old family is left empty: it is marked abandoned (`families.abandoned_at`) and its unused
+codes are deleted, because they could otherwise let a stranger into the data left there. Joining also takes
+its locks in a fixed order (the person, both families by id, the code), so one person cannot join twice at
+once, and nobody can join a family while its only person is walking out of it (a family nobody is in cannot
+be joined).
+
+**Going back and cleanup.** A person who joined with `bring_data` false has `users.previous_family_id`, and
+`POST /families/rollback` takes them back to that family as its owner for 30 days after it was abandoned
+(`404` after that, when they brought their data, or when there is nothing to go back to; `409` for an owner of
+a family with other people). What they entered in the family they leave stays in it, and if that leaves it
+empty it is abandoned too. `GET /families/me` shows `previous_family.available_until` while going back is
+possible, and the Família page offers the button. After 30 days an abandoned family is deleted for good with
+everything it holds (transactions, its own categories, export files, codes). The deletion has no scheduler: it
+runs, like the export files cleanup, whenever someone joins a family. It only touches families nobody is in,
+whatever their date says, and a person whose previous family is deleted simply has nothing to go back to.
 
 **`transactions` columns**
 
@@ -319,7 +335,8 @@ renamed to `transactioned_at` with `created_at` back-filled from it (before the 
 `users.whatsapp_phone` (numbers are cleaned to digits first; when several users shared one, the
 oldest account keeps it), `0007` families (one per existing user; rows move from `user_id` to
 `family_id` (and `requested_by` on exports; transactions keep `user_id` as the author); transactions with no user, which nobody could read, are deleted; a transaction that pointed at another
-person's category becomes uncategorised), `0008` `users.role` (everyone is an owner) and `family_invites`.
+person's category becomes uncategorised), `0008` `users.role` (everyone is an owner) and `family_invites`, `0009` `families.abandoned_at` (families that
+are already empty start their 30 days) and `users.previous_family_id`.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
