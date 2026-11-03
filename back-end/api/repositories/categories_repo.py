@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from schemas.tables import Categories
+from schemas.tables import Categories, CategoryGroups
 
 
 def _visible(family_id: int):
@@ -10,7 +10,19 @@ def _visible(family_id: int):
 
 
 def get_all_categories(db: Session, family_id: int):
-    return db.query(Categories).filter(_visible(family_id)).all()
+    """The categories the family can use, each with the name of its group."""
+    return (
+        db.query(Categories, CategoryGroups.name)
+        .join(CategoryGroups, Categories.group_id == CategoryGroups.id)
+        .filter(_visible(family_id))
+        .order_by(Categories.id)
+        .all()
+    )
+
+
+def get_all_groups(db: Session):
+    """Every group, in the order they are shown. The same for everyone."""
+    return db.query(CategoryGroups).order_by(CategoryGroups.id).all()
 
 
 def get_category_by_name(db: Session, name: str, family_id: int):

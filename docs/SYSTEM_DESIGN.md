@@ -55,7 +55,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nfamilies / family_invites / users / categories / transactions / export_jobs")]
+    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / export_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -213,9 +213,14 @@ erDiagram
         datetime updated_at
         datetime last_login
     }
+    CATEGORY_GROUPS {
+        int id PK
+        string name "unique; a fixed set shipped with the app"
+    }
     CATEGORIES {
         int id PK
         int family_id FK "empty = default category, shared by all"
+        int group_id FK "required; every category has exactly one group"
         string name
     }
     TRANSACTIONS {
@@ -264,6 +269,7 @@ erDiagram
     FAMILIES ||--o{ FAMILY_INVITES : "hands out"
     USERS ||--o{ TRANSACTIONS : "created"
     USERS ||--o{ EXPORT_JOBS : "asked for"
+    CATEGORY_GROUPS ||--|{ CATEGORIES : "groups"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
 ```
 **Families.** Data belongs to a family (the people who share one budget), not to a
@@ -275,7 +281,8 @@ delete, export and chatbot action filters by the caller's family. A foreign id
 answers `404`, the same as a missing one. `transactions.user_id` records who
 entered a row (shown later in the UI, never used for permission). A category with no
 `family_id` is a default one, visible to everyone; `GET /categories` now requires
-login and returns the defaults plus the family's own. Export jobs read the family's
+login and returns the defaults plus the family's own, each with its group (`group_id`, `group_name`).
+`GET /categories/groups` lists the groups. Export jobs read the family's
 transactions, but only the person in `requested_by` can see or download the job, and a
 family can have one export queued or running at a time. The chatbot state carries both
 `user_id` (who spoke, saved on the transaction) and `family_id` (what it reads and writes).
@@ -336,7 +343,17 @@ renamed to `transactioned_at` with `created_at` back-filled from it (before the 
 oldest account keeps it), `0007` families (one per existing user; rows move from `user_id` to
 `family_id` (and `requested_by` on exports; transactions keep `user_id` as the author); transactions with no user, which nobody could read, are deleted; a transaction that pointed at another
 person's category becomes uncategorised), `0008` `users.role` (everyone is an owner) and `family_invites`, `0009` `families.abandoned_at` (families that
-are already empty start their 30 days) and `users.previous_family_id`.
+are already empty start their 30 days) and `users.previous_family_id`, `0010` `category_groups` and `categories.group_id`
+(default categories are grouped by name; every other category, such as a family's own, goes to "Outros"; the
+new default categories are created by the seed command).
+
+**Category groups.** Categories are listed under a group (Casa, Alimentação, Transporte, Saúde e bem-estar,
+Lazer, Educação, Compras e presentes, Finanças, Receitas, Transferências, Investimentos, Outros). The groups are a fixed set, the same for every family:
+nothing in the API creates, renames or deletes one. Each category has exactly one (`categories.group_id`, not
+null, a foreign key), and a category saved without one goes to "Outros". The grouping of the 39 default
+categories (26 for spending, plus income, transfer and investment ones such as "Salário", "Transferência entre contas" and "Renda fixa") lives in `db/seed.py` (`DEFAULT_GROUPS`) for new databases; migration `0010` keeps its own copy for
+existing ones. Showing groups in the screens (filters, totals per group) is not built yet. The assistant's own
+category list (`schemas/agents_schemas.py`) is separate and does not use groups.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
@@ -444,7 +461,7 @@ sequenceDiagram
   a failing revision leaves the database as it was. Downgrades exist for development and
   lose data that the older schema cannot hold (the credit/debit `type`, `created_at`,
   and the `category_id` links). Seeding the default categories is a separate command,
-  `python -m db.seed`, and a failed seed stops the start-up. Only the Docker Compose file
+  `python -m db.seed` (it creates the groups and default categories that are missing, so it is safe to run twice), and a failed seed stops the start-up. Only the Docker Compose file
   runs these commands: any other way of starting the API (the Dockerfile's plain
   `uvicorn`) must run `python -m db.upgrade` first. PostgreSQL is required (SQLite cannot
   run these revisions).
