@@ -3,9 +3,9 @@ import { Button, Drawer, Field, Input, NativeSelect, Portal, RadioGroup, Stack, 
 import { insertNewTransaction, updateTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { digitsToCents, maskAmount } from "../lib/money";
-import AmountInput from "./AmountInput";
 import { CURRENCIES, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
+import AmountInput from "./AmountInput";
 
 const MAX_LABEL = 25;
 
