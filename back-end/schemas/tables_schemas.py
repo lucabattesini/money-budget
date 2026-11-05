@@ -3,7 +3,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from schemas.family_settings import Currency, Language
+from schemas.family_settings import Currency, Language, Timezone
 
 # Which way the money went. `value` is always a positive amount in cents.
 TransactionType = Literal["credit", "debit"]
@@ -127,6 +127,7 @@ class FamilySettings(BaseModel):
 
     currency: Optional[Currency] = None
     language: Optional[Language] = None
+    timezone: Optional[Timezone] = None
 
 
 MONTH_PATTERN = r"^20\d\d-(0[1-9]|1[0-2])$"  # "2026-11"; the years 2000-2099, so every month is a valid date

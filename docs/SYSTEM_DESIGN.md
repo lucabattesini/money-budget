@@ -236,6 +236,7 @@ erDiagram
         datetime abandoned_at "when its last person left; deleted 30 days later"
         string currency "BRL, USD, CAD, EUR or GBP; how amounts are shown"
         string language "pt or en; number and date format and the assistant's language"
+        string timezone "an IANA name from a short list; the clock that 'now' is read on"
     }
     USERS {
         int id PK
@@ -387,10 +388,11 @@ budgets of the family being left are deleted, the family joined keeps its own); 
 days takes its budgets with it. Not built yet: budgets for a group or for income, rollover of unused
 money, a yearly view and alerts.
 
-**Currency and language** (family settings, TKT-25). `families.currency` (`BRL` default, also `USD`, `CAD`, `EUR`,
-`GBP`) and `families.language` (`pt` default, also `en`) belong to the family, so everyone in it sees the same and a
-person who joins another family gets that family's. `GET /families/me` returns both; `PATCH /families/me/settings
-{currency?, language?}` changes them (any member, not only the owner; a field left out keeps its value; a value that is
+**Currency, language and timezone** (family settings, TKT-25 and TKT-65). `families.currency` (`BRL` default, also `USD`, `CAD`, `EUR`,
+`GBP`), `families.language` (`pt` default, also `en`) and `families.timezone` (`America/Sao_Paulo` default, also a
+short list of zones: the Americas and Europe the currencies come from, and `UTC`) belong to the family, so everyone in
+it sees the same and a person who joins another family gets that family's. `GET /families/me` returns all three;
+`PATCH /families/me/settings {currency?, language?, timezone?}` changes them (any member, not only the owner; a field left out keeps its value; a value that is
 not offered answers `422`). The currency is only how an amount is shown: amounts stay integer cents and nothing is
 converted between currencies. The language decides the number separators and the order of day and month, and the
 language the WhatsApp assistant answers in. The page loads the settings once in the layout (`lib/locale.js`; until they
@@ -400,6 +402,15 @@ the secretary the currency), and what the code itself says (the "Registrado!" co
 names, the refusal of off-topic messages) comes from `graph/messages.py` and `api/utils/formatting.py`. Not covered
 yet: the text of the screens stays in Portuguese (TKT-57), and the export files keep their documented Brazilian
 format.
+
+*The timezone and "now"* (TKT-65). A transaction's `transactioned_at` is the wall-clock time of the family, stored
+without a timezone, and every cut by day or month (budgets, dashboard, filters, exports) reads those digits as they
+are. So "now" is never read from the clock of the server or of the device: the back-end asks `api/utils/clock.py`
+(`family_now(timezone)`, `family_today(timezone)`) and the page asks `familyNow()` in `lib/locale.js`, both on the
+family's timezone. This is what puts a purchase made at 22:30 on 31 March in March wherever the server runs. It is used
+when a transaction is created without a date (web and chatbot), to refuse future dates in the chatbot and in imports,
+and in the "today" the recorder and query agents are told. Dates a person types or a file brings are kept as written.
+Moving a family to another timezone does not rewrite the transactions it already has.
 
 **Inviting and joining** (`/families`, all require login). `GET /families/me` shows the
 family's people and the caller's role. Only the owner can `POST /families/invites`
@@ -439,7 +450,7 @@ whatever their date says, and a person whose previous family is deleted simply h
 |---|---|
 | `value` | Amount in integer cents. Always positive (the API rejects 0, negatives and values over the 32-bit limit on edit); the direction is in `type`, never in the sign. Converted to reais (`/100`) at the API/agent boundary. |
 | `type` | `debit` (money out, the default) or `credit` (money in). Not null. Spending totals (the summary at the top of the transactions page, `summed-by-category`) count debits only. |
-| `transactioned_at` | When the money moved. The user can change it (the edit form picks a day and keeps the time of day). Defaults to the moment of creation. Never in the future for entries made in the web app or by the chatbot. This column used to be called `date`. |
+| `transactioned_at` | When the money moved. The user can change it (the edit form picks a day and keeps the time of day). Defaults to the moment of creation on the family's clock. Never in the future for entries made in the web app or by the chatbot. This column used to be called `date`. |
 | `created_at` | When the row was first saved. Set by the database, never changed. |
 | `updated_at` | When the row was last edited through `PUT /transactions/{id}`. Empty until the first edit. |
 
@@ -461,8 +472,10 @@ whatever their date says, and a person whose previous family is deleted simply h
 | `amount` | Planned cents from that month on, until a later month changes it. `0` means "no plan from this month on". |
 
 `created_at` and `transactioned_at` are different on purpose: back-dating an
-entry changes only `transactioned_at`. All timestamps are naive (no time zone)
-and written by the server, so they follow the server clock.
+entry changes only `transactioned_at`. All timestamps are naive (no time zone).
+`transactioned_at` is the wall-clock time of the family, read on its timezone (see "The timezone and now" under
+Family settings); the bookkeeping ones (`created_at`, `updated_at`...) are written by the database or the server and
+follow the server clock.
 
 **Schema changes** are Alembic revisions in `back-end/migrations/versions/`, applied by
 `python -m db.upgrade` before the API starts (see 5). The history so far: `0001` the
@@ -481,7 +494,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table.
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are).
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de

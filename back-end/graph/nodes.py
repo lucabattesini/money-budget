@@ -11,6 +11,7 @@ from agents.recorder.run import run_recorder
 from agents.secretary.run import run_secretary
 from api.repositories.categories_repo import get_category_by_name
 from api.repositories.families_repo import get_family
+from api.utils.clock import family_now
 from api.repositories.transactions_repo import aggregate_transactions, create_transaction, list_transactions
 from api.utils.formatting import format_day_month, format_money
 from db.connection import session_scope
@@ -103,10 +104,10 @@ def node_orchestrator(state: AssistantState):
 def node_recorder(state: AssistantState):
     with session_scope() as db:
         family = get_family(db, state["family_id"])
-        currency, language = family.currency, family.language
-    response = run_recorder(state["user_message"], language=language)
+        currency, language, timezone = family.currency, family.language, family.timezone
+    response = run_recorder(state["user_message"], language=language, timezone=timezone)
     text = MESSAGES[language]
-    now = datetime.now()
+    now = family_now(timezone)
 
     registered = []
     with session_scope() as db:
@@ -115,7 +116,7 @@ def node_recorder(state: AssistantState):
                 db, "Sem categoria", state["family_id"]
             )
             # Keep the current time so same-day ordering still makes sense; never store future dates
-            expense_date = item.date if item.date and item.date <= date.today() else now.date()
+            expense_date = item.date if item.date and item.date <= now.date() else now.date()
 
             t = Transaction(
                 label=item.description,
@@ -141,7 +142,9 @@ def node_recorder(state: AssistantState):
 
 
 def node_query(state: AssistantState):
-    response = run_query(state["user_message"])
+    with session_scope() as db:
+        timezone = get_family(db, state["family_id"]).timezone
+    response = run_query(state["user_message"], timezone=timezone)
     return {"query_tool_calls": response.tool_calls}
 
 

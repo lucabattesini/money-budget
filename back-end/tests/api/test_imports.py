@@ -11,6 +11,7 @@ from openpyxl import Workbook
 
 from api.controllers import imports_controller
 from api.routers import imports_router
+from api.utils.clock import family_today
 from schemas.tables import Categories, Families, ImportJobDB, TransactionDB
 
 HEADER = "Data;Descrição;Categoria;Valor;Tipo"
@@ -147,15 +148,23 @@ def test_a_row_with_several_mistakes_lists_each_one(client, auth_headers):
 
 
 def test_a_date_in_the_future_is_a_problem(client, auth_headers):
-    tomorrow = (date.today() + timedelta(days=1)).strftime("%d/%m/%Y")
+    tomorrow = (family_today("America/Sao_Paulo") + timedelta(days=1)).strftime("%d/%m/%Y")
 
     response = _check(client, auth_headers, _csv(f"{tomorrow};Almoço;Aluguel;10,00;Débito"))
 
     assert _problems(response) == [(2, "A data não pode ser no futuro.")]
 
 
+def test_a_date_is_in_the_future_by_the_familys_calendar_not_the_servers(client, auth_headers, set_clock):
+    set_clock(datetime(2026, 4, 1, 1, 30))  # 1 April in UTC, but 31 March in Brasília
+
+    response = _check(client, auth_headers, _csv("01/04/2026;Almoço;Aluguel;10,00;Débito"))
+    assert _problems(response) == [(2, "A data não pode ser no futuro.")]
+    assert _check(client, auth_headers, _csv("31/03/2026;Almoço;Aluguel;10,00;Débito")).status_code == 200
+
+
 def test_today_is_fine(client, auth_headers):
-    today = date.today().strftime("%d/%m/%Y")
+    today = family_today("America/Sao_Paulo").strftime("%d/%m/%Y")
 
     assert _check(client, auth_headers, _csv(f"{today};Almoço;Aluguel;10,00;Débito")).status_code == 200
 

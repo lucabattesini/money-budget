@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0016"
+LATEST = "0017"
 
 
 def _version(engine):
@@ -182,6 +182,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         ("0014", "0014"),
         ("0015", "0015"),
         ("0016", "0016"),
+        ("0017", "0017"),
     ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
@@ -1061,3 +1062,29 @@ def test_undoing_the_import_revision_drops_only_its_table(url, engine):
     names = set(inspect(engine).get_table_names())
     assert "import_jobs" not in names
     assert {"export_jobs", "transactions", "budgets"} <= names
+
+
+# --- 0017: the timezone of a family (TKT-65) -----------------------------------------------------------------------------
+
+
+def test_existing_families_get_brasilia_time_and_keep_their_transactions(url, engine):
+    upgrade_database(url)
+    command.downgrade(alembic_config(url), "0016")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1), (2)"))
+
+    command.upgrade(alembic_config(url), "0017")
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT id, timezone FROM families ORDER BY id")).all()
+    assert rows == [(1, "America/Sao_Paulo"), (2, "America/Sao_Paulo")]
+
+
+def test_undoing_the_timezone_revision_drops_only_that_column(url, engine):
+    upgrade_database(url)
+
+    command.downgrade(alembic_config(url), "0016")
+
+    columns = {c["name"] for c in inspect(engine).get_columns("families")}
+    assert "timezone" not in columns
+    assert {"currency", "language"} <= columns

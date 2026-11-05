@@ -1,9 +1,9 @@
 import { Flex, Box, Text } from "@chakra-ui/react";
-import { formatMoney, useLocale } from "../lib/locale";
+import { familyNow, formatMoney, useLocale } from "../lib/locale";
 
 export default function TransactionSummary({ transactions }) {
     useLocale(); // show amounts in the family's currency
-    const now = new Date();
+    const now = familyNow();
     
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     

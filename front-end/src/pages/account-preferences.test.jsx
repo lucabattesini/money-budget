@@ -6,7 +6,7 @@ import { getLocale } from '../lib/locale'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
 import AccountPreferences from './account-preferences'
 
-const family = (settings = {}) => ({ data: { currency: 'BRL', language: 'pt', role: 'member', members: [], ...settings } })
+const family = (settings = {}) => ({ data: { currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo', role: 'member', members: [], ...settings } })
 
 beforeEach(() => saveToken('tok'))
 
@@ -79,5 +79,28 @@ describe('preferences', () => {
     renderApp(<AccountPreferences />)
 
     expect(await screen.findByText(/Não foi possível carregar as preferências/)).toBeInTheDocument()
+  })
+
+  it('shows and offers the timezones', async () => {
+    mockApi({ 'GET /families/me': family({ timezone: 'America/Toronto' }) })
+
+    renderApp(<AccountPreferences />)
+
+    expect(await screen.findByLabelText('Fuso horário')).toHaveValue('America/Toronto')
+    expect(screen.getByRole('option', { name: 'Brasília (São Paulo)' })).toBeInTheDocument()
+  })
+
+  it('saves a new timezone for the family, and only that', async () => {
+    const api = mockApi({
+      'GET /families/me': family(),
+      'PATCH /families/me/settings': family({ timezone: 'Europe/London' }),
+    })
+    renderApp(<AccountPreferences />)
+
+    await userEvent.selectOptions(await screen.findByLabelText('Fuso horário'), 'Europe/London')
+
+    await waitFor(() => expect(getLocale().timezone).toBe('Europe/London'))
+    const call = api.mock.calls.find(([, options]) => options?.method?.toUpperCase() === 'PATCH')
+    expect(JSON.parse(call[1].body)).toEqual({ timezone: 'Europe/London' })
   })
 })

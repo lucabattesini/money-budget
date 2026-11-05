@@ -17,7 +17,7 @@ from agents.recorder.prompt import RECORDER_SYSTEM_PROMPT
 from agents.recorder.tools import RECORD_EXPENSES, RECORDER_TOOLS
 from config import GEMINI_MODEL
 from schemas.agents_schemas import RecorderResponse, RecordExpensesArgs
-from schemas.family_settings import LANGUAGE_NAMES
+from schemas.family_settings import DEFAULT_TIMEZONE, LANGUAGE_NAMES
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -36,7 +36,7 @@ NUMBER_RULES = {
 }
 
 
-def run_recorder(user_input: str, language: str = "pt") -> RecorderResponse:
+def run_recorder(user_input: str, language: str = "pt", timezone: str = DEFAULT_TIMEZONE) -> RecorderResponse:
     model = genai.GenerativeModel(GEMINI_MODEL, tools=[RECORDER_TOOLS])
 
     generation_config = genai.GenerationConfig(temperature=0.0)
@@ -48,7 +48,7 @@ def run_recorder(user_input: str, language: str = "pt") -> RecorderResponse:
         user_message=user_input,
         language_name=LANGUAGE_NAMES[language],
         number_rule=NUMBER_RULES[language],
-        **today_context(),
+        **today_context(timezone),
     )
 
     response = model.generate_content(full_prompt, generation_config=generation_config, tool_config=tool_config)

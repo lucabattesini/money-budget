@@ -1,8 +1,12 @@
-// How this family sees amounts and dates: its currency and language (a setting of the family, loaded when the app
-// opens and kept here). Amounts are stored as integer cents and are never converted between currencies: the currency
+// How this family sees amounts and dates: its currency, language and timezone (a setting of the family, loaded when the
+// app opens and kept here). Amounts are stored as integer cents and are never converted between currencies: the currency
 // only decides the symbol. The language decides the separators and the order of day and month.
 //
-// Until the settings arrive (or when they cannot be loaded) the app looks as it always did: reais, Portuguese.
+// The timezone says which clock "now" is read from: a transaction's date and time are the wall-clock time of the
+// family (TKT-65), so "today" and "this month" must not depend on the clock of the device that opens the page.
+//
+// Until the settings arrive (or when they cannot be loaded) the app looks as it always did: reais, Portuguese,
+// Brasília time.
 import { useSyncExternalStore } from 'react'
 
 // `name` is what the amount is "in" ("Em reais (R$)"), `label` is how the setting offers it
@@ -19,7 +23,22 @@ export const LANGUAGES = [
   { code: 'en', label: 'English' },
 ]
 
-const DEFAULT = Object.freeze({ currency: 'BRL', language: 'pt' })
+export const TIMEZONES = [
+  { code: 'America/Sao_Paulo', label: 'Brasília (São Paulo)' },
+  { code: 'America/New_York', label: 'Nova York' },
+  { code: 'America/Chicago', label: 'Chicago' },
+  { code: 'America/Denver', label: 'Denver' },
+  { code: 'America/Los_Angeles', label: 'Los Angeles' },
+  { code: 'America/Toronto', label: 'Toronto' },
+  { code: 'America/Vancouver', label: 'Vancouver' },
+  { code: 'Europe/Lisbon', label: 'Lisboa' },
+  { code: 'Europe/London', label: 'Londres' },
+  { code: 'Europe/Paris', label: 'Paris' },
+  { code: 'Europe/Berlin', label: 'Berlim' },
+  { code: 'UTC', label: 'UTC' },
+]
+
+const DEFAULT = Object.freeze({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo' })
 const BCP47 = { pt: 'pt-BR', en: 'en-US' } // the language tag each language is formatted with
 
 let current = DEFAULT
@@ -28,12 +47,13 @@ const listeners = new Set()
 export const getLocale = () => current
 
 /** Use what the family chose. A value that is not offered is ignored, so a bad answer never breaks the page. */
-export function setLocale({ currency, language } = {}) {
+export function setLocale({ currency, language, timezone } = {}) {
   const next = {
     currency: CURRENCIES.some((c) => c.code === currency) ? currency : current.currency,
     language: LANGUAGES.some((l) => l.code === language) ? language : current.language,
+    timezone: TIMEZONES.some((z) => z.code === timezone) ? timezone : current.timezone,
   }
-  if (next.currency === current.currency && next.language === current.language) return
+  if (next.currency === current.currency && next.language === current.language && next.timezone === current.timezone) return
   current = Object.freeze(next)
   listeners.forEach((listener) => listener())
 }
@@ -48,7 +68,7 @@ const subscribe = (listener) => {
   return () => listeners.delete(listener)
 }
 
-/** The family's { currency, language }; the component shows the new format as soon as it changes. */
+/** The family's { currency, language, timezone }; the component shows the new format as soon as it changes. */
 export const useLocale = () => useSyncExternalStore(subscribe, getLocale)
 
 /** The language tag for Intl and toLocale...String: "pt-BR" or "en-US". */
@@ -68,3 +88,26 @@ export const formatMoney = (value, options = {}) => {
 
 /** A date as people write it: 05/03/2026 in Portuguese, 3/5/2026 in English. */
 export const formatDate = (value, options) => new Date(value).toLocaleDateString(languageTag(), options)
+
+/**
+ * What the clock on the family's wall says right now, as a Date whose local fields (getFullYear, getMonth, getDate,
+ * getHours...) are those of the family's timezone. Read it with the local getters, like every stored date, and never
+ * compare it with `Date.now()`. `new Date()` would be the clock of this device, which may be in another timezone.
+ */
+export const familyNow = () => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: current.timezone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    })
+      .formatToParts(new Date())
+      .map((part) => [part.type, Number(part.value)]),
+  )
+  return new Date(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second)
+}

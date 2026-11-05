@@ -26,6 +26,8 @@ class Families(Base):
     # How the family sees amounts and dates, and the language the assistant answers in (see schemas/family_settings.py)
     currency = Column(String(3), nullable=False, default="BRL", server_default="BRL")
     language = Column(String(2), nullable=False, default="pt", server_default="pt")
+    # Where the family lives: "now" is read on this clock, and a transaction's time is the wall-clock time there (TKT-65)
+    timezone = Column(String(40), nullable=False, default="America/Sao_Paulo", server_default="America/Sao_Paulo")
 
 
 class TransactionDB(Base):

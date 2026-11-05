@@ -17,11 +17,12 @@ from agents.query.prompt import QUERY_SYSTEM_PROMPT
 from agents.query.tools import QUERY_TOOLS
 from config import GEMINI_MODEL
 from schemas.agents_schemas import QueryResponse
+from schemas.family_settings import DEFAULT_TIMEZONE
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
-def run_query(user_question: str) -> QueryResponse:
+def run_query(user_question: str, timezone: str = DEFAULT_TIMEZONE) -> QueryResponse:
     model = genai.GenerativeModel(GEMINI_MODEL, tools=[QUERY_TOOLS])
 
     generation_config = genai.GenerationConfig(temperature=0.0)
@@ -29,7 +30,7 @@ def run_query(user_question: str) -> QueryResponse:
     # ANY forces at least one tool call: this agent only fetches data, it never replies
     tool_config = {"function_calling_config": {"mode": "ANY"}}
 
-    full_prompt = QUERY_SYSTEM_PROMPT.format(user_question=user_question, **today_context())
+    full_prompt = QUERY_SYSTEM_PROMPT.format(user_question=user_question, **today_context(timezone))
 
     response = model.generate_content(full_prompt, generation_config=generation_config, tool_config=tool_config)
 

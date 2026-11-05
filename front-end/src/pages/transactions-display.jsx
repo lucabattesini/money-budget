@@ -5,7 +5,7 @@ import { getTransactions, getAllCategories, deleteTransaction } from "../api/end
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
-import { formatDate, useLocale } from "../lib/locale";
+import { familyNow, formatDate, useLocale } from "../lib/locale";
 import { applyFilters, countActiveFilters, filtersFromLink, hasActiveFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
@@ -70,7 +70,7 @@ export default function TransactionsDisplay() {
     const thisMonth = [];
     const older = [];
 
-    const now = new Date();
+    const now = familyNow();
     // Start of today
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     

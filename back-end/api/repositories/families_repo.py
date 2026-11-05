@@ -48,13 +48,17 @@ def get_family(db: Session, family_id: int) -> Families:
     return db.query(Families).filter(Families.id == family_id).one()
 
 
-def update_settings(db: Session, family_id: int, currency: str | None, language: str | None) -> Families:
-    """Change the family's currency and/or language (a value left as None keeps its current one)."""
+def update_settings(
+    db: Session, family_id: int, currency: str | None, language: str | None, timezone: str | None = None
+) -> Families:
+    """Change the family's currency, language and/or timezone (a value left as None keeps its current one)."""
     family = db.query(Families).filter(Families.id == family_id).with_for_update().one()
     if currency is not None:
         family.currency = currency
     if language is not None:
         family.language = language
+    if timezone is not None:
+        family.timezone = timezone
     db.commit()
     return family
 

@@ -235,3 +235,19 @@ def category_ids(db):
 @pytest.fixture
 def category_id(db):
     return db.query(Categories).filter_by(name="Restaurantes e Bares").one().id
+
+
+@pytest.fixture
+def set_clock(monkeypatch):
+    """Set what time it is for the code under test, given in UTC: `set_clock(datetime(2026, 4, 1, 1, 30))`.
+
+    The server running the tests is in some timezone of its own; a family's "now" must not depend on it (TKT-65).
+    """
+    from datetime import timezone
+
+    import api.utils.clock as clock
+
+    def _set(utc_time):
+        monkeypatch.setattr(clock, "utc_now", lambda: utc_time.replace(tzinfo=timezone.utc))
+
+    return _set

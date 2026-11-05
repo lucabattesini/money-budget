@@ -33,7 +33,7 @@ describe('transaction sidebar', () => {
   beforeEach(() => {
     vi.mocked(customToaster).mockClear()
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date(2026, 2, 15, 12, 0, 0))
+    vi.setSystemTime(new Date('2026-03-15T15:00:00Z')) // noon in Brasília, the family's clock
   })
 
   it('shows nothing until it is opened', () => {
@@ -171,6 +171,19 @@ describe('transaction sidebar', () => {
     await userEvent.click(save())
 
     await waitFor(() => expect(created(api).transactioned_at).toBe('2026-03-01T12:00:00'))
+  })
+
+  it('starts on the family\'s today, not the device\'s: 22:30 on 31 March in Brasília is already April in UTC', async () => {
+    vi.setSystemTime(new Date('2026-04-01T01:30:00Z'))
+    const { api } = renderDrawer()
+    expect(screen.getByLabelText('Data')).toHaveValue('2026-03-31')
+    await userEvent.type(amount(), '100')
+    await userEvent.type(description(), 'x')
+    await userEvent.selectOptions(category(), 'Alimentação')
+
+    await userEvent.click(save())
+
+    await waitFor(() => expect(created(api).transactioned_at).toBe('2026-03-31T22:30:00'))
   })
 
   it.each([

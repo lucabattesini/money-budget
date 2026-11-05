@@ -6,7 +6,7 @@ import { getAllCategories, getTransactions, getMe, getBudgets } from "../api/end
 import { getToken } from "../lib/auth";
 import { monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { countsAsIncoming, countsAsSpending, spendingOfMonth, sumCents, transactionsOfMonth } from "../lib/dashboard";
-import { useLocale } from "../lib/locale";
+import { familyNow, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import BudgetRing from "../components/BudgetRing";
@@ -16,12 +16,13 @@ import RecentTransactions from "../components/RecentTransactions";
 import TopCategoriesBarList from "../components/TopCategoriesBarList";
 
 export default function Dashboard() {
-    useLocale(); // amounts and the month name follow the family's currency and language
+    const { timezone } = useLocale(); // amounts and the month name follow the family's currency and language; "today" its timezone
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [user, setUser] = useState(null);
-    const [now] = useState(() => new Date());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read again only when the family's timezone arrives or changes
+    const now = useMemo(() => familyNow(), [timezone]);
     const thisMonth = monthKey(now);
     // Every card shows this month. It lives in the address (?month=2026-03), so reloading or sharing the page keeps it;
     // this month is the default and needs no parameter. A month that is missing, invalid or still to come is this month.

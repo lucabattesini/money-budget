@@ -3,6 +3,8 @@ from datetime import date, datetime, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from api.repositories.families_repo import get_family
+from api.utils.clock import family_now
 from api.repositories.transactions_repo import (
     category_exists,
 )
@@ -50,7 +52,8 @@ def _parse_date(transaction: GetTransactionsParams):
 def create_transaction(db: Session, transaction: Transaction, family_id: int, user_id: int):
     if transaction.category_id is not None and not category_exists(db, transaction.category_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    transaction.transactioned_at = transaction.transactioned_at or datetime.now()
+    # No date given: "now" on the family's clock, not the server's (TKT-65)
+    transaction.transactioned_at = transaction.transactioned_at or family_now(get_family(db, family_id).timezone)
     return create_transaction_repo(db, transaction, family_id, user_id)
 
 

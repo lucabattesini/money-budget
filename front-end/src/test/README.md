@@ -28,13 +28,15 @@ Vitest + jsdom, React Testing Library, `@testing-library/user-event` and
   simulate the server being down on purpose, call `networkDown()`.
 - **The family's currency and language are global** (`src/lib/locale.js`, one value for the whole app), so
   `setup.js` resets them to reais and Portuguese before every test. A test that needs another one calls
-  `setLocale({ currency: 'USD', language: 'en' })` itself.
+  `setLocale({ currency: 'USD', language: 'en', timezone: 'Europe/London' })` itself.
 - **Fixed environment.** `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` are set in
   `vite.config.js`, so a developer's own `.env` cannot change results. To test a
   missing variable use `vi.stubEnv(...)` and `vi.resetModules()`.
 - **Fixed time.** For anything that depends on "today", use
   `vi.useFakeTimers({ toFake: ['Date'] })` and `vi.setSystemTime(...)` (only `Date`
-  is faked, so waiting helpers keep working).
+  is faked, so waiting helpers keep working). The app reads "now" on the family's clock (`familyNow()`, Brasília
+  time unless a test calls `setLocale({ timezone })`), so give the fake time in UTC and think of it three hours
+  earlier: `new Date('2026-03-15T15:00:00Z')` is noon on 15 March.
 - **Rendering.** `renderApp(ui, { route })` wraps a component in the Chakra
   provider and a router, and adds a `data-testid="location"` element with the
   current route.

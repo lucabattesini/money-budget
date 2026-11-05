@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pytest
 
+from api.utils.clock import family_now
 from schemas.tables import TransactionDB
 
 
@@ -220,13 +221,50 @@ def test_spending_totals_by_category_ignore_credits(client, user, auth_headers, 
 
 
 def test_a_new_transaction_happens_now_and_records_when_it_was_saved(client, db, auth_headers, category_ids):
-    before = datetime.now()
+    before = family_now("America/Sao_Paulo")
     _create(client, auth_headers, category_ids["Restaurantes e Bares"])
 
     row = db.query(TransactionDB).one()
     assert row.transactioned_at >= before
     assert row.created_at is not None
     assert row.updated_at is None  # never edited
+
+
+def test_without_a_date_the_transaction_gets_now_on_the_familys_clock_not_the_servers(
+    client, db, auth_headers, category_ids, set_clock
+):
+    """TKT-65: 01:30 UTC on 1 April is still 22:30 on 31 March in Brasília, so it belongs to March."""
+    set_clock(datetime(2026, 4, 1, 1, 30, 15))
+
+    _create(client, auth_headers, category_ids["Restaurantes e Bares"])
+
+    assert db.query(TransactionDB).one().transactioned_at == datetime(2026, 3, 31, 22, 30, 15)
+
+
+def test_the_familys_timezone_decides_which_day_now_is(client, db, auth_headers, category_ids, set_clock):
+    set_clock(datetime(2026, 4, 1, 1, 30))
+    client.patch("/families/me/settings", headers=auth_headers, json={"timezone": "Europe/Lisbon"})  # UTC+1 in April
+
+    _create(client, auth_headers, category_ids["Restaurantes e Bares"])
+
+    assert db.query(TransactionDB).one().transactioned_at == datetime(2026, 4, 1, 2, 30)
+
+
+def test_a_date_sent_by_the_person_is_kept_as_it_is(client, db, auth_headers, category_ids, set_clock):
+    set_clock(datetime(2026, 4, 1, 1, 30))
+
+    client.post(
+        "/transactions/create",
+        json={
+            "label": "Jantar",
+            "value": 100,
+            "category_id": category_ids["Restaurantes e Bares"],
+            "transactioned_at": "2026-03-31T23:30:00",
+        },
+        headers=auth_headers,
+    )
+
+    assert db.query(TransactionDB).one().transactioned_at == datetime(2026, 3, 31, 23, 30)
 
 
 def test_create_accepts_the_date_the_transaction_happened(client, db, auth_headers, category_ids):

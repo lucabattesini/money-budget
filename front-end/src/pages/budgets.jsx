@@ -6,7 +6,7 @@ import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { budgetStatus, FIRST_MONTH, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { compareCategories, plainName } from "../lib/categoryName";
-import { useLocale } from "../lib/locale";
+import { familyNow, useLocale } from "../lib/locale";
 import { digitsToCents, formatCents, maskAmount } from "../lib/money";
 import customToaster from "../utils/customToaster";
 
@@ -48,7 +48,7 @@ export default function Budgets() {
     useLocale(); // amounts and the month name follow the family's currency and language
     const [params] = useSearchParams();
     // Opens on the month the link asks for (the dashboard sends the month it shows), this month otherwise
-    const [month, setMonth] = useState(() => monthFromLink(params.get("month"), monthKey(new Date())));
+    const [month, setMonth] = useState(() => monthFromLink(params.get("month"), monthKey(familyNow())));
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
     const [drafts, setDrafts] = useState({}); // what is being typed, by category id, until it is saved
