@@ -66,6 +66,15 @@ def test_queueing_answers_accepted_and_the_job_waits_until_the_background_work_r
     assert (still_waiting["status"], still_waiting["filename"]) == ("queued", None)
 
 
+def test_the_file_is_named_after_the_familys_day_not_the_servers(client, user, auth_headers, queue, set_clock):
+    set_clock(datetime(2026, 4, 1, 1, 30))  # 1 April in UTC, still 31 March in Brasília
+
+    job_id = _run(client, queue, auth_headers)
+
+    job = client.get(f"/exports/{job_id}", headers=auth_headers).json()["data"]
+    assert job["filename"] == "transacoes-2026-03-31.csv"
+
+
 def test_the_job_is_done_once_the_background_work_has_run(client, user, auth_headers, queue):
     job_id = _run(client, queue, auth_headers)
 

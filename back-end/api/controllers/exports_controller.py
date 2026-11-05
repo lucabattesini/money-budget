@@ -1,9 +1,8 @@
 import logging
-from datetime import date
-
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from api.repositories.families_repo import get_family
 from api.repositories.exports_repo import (
     create_export_job,
     delete_old_export_jobs,
@@ -17,6 +16,7 @@ from api.repositories.exports_repo import (
 )
 from api.repositories.transactions_repo import list_all_transactions
 from api.services.export_service import export_transactions
+from api.utils.clock import family_today
 from db.connection import session_scope
 from schemas.tables import ExportJobDB
 
@@ -67,7 +67,7 @@ def run_export_job(job_id: int) -> None:
         try:
             mark_running(db, job)
             document = export_transactions(list_all_transactions(db, job.family_id), job.format)
-            filename = f"transacoes-{date.today().isoformat()}.{document.extension}"
+            filename = f"transacoes-{family_today(get_family(db, job.family_id).timezone).isoformat()}.{document.extension}"
             mark_done(db, job, filename, document.media_type, document.content)
         except Exception:
             logger.exception("Export job %s failed", job_id)
