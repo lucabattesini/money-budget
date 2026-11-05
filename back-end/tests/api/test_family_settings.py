@@ -92,3 +92,45 @@ def test_someone_who_joins_a_family_sees_its_settings(client, db, user, other_us
     db.commit()
 
     assert _settings(client, headers_for(other_user)) == ("USD", "en")
+
+
+# --- timezone (TKT-65) ---------------------------------------------------------------------------------------------
+
+
+def _timezone(client, headers):
+    return client.get("/families/me", headers=headers).json()["data"]["timezone"]
+
+
+def test_a_family_starts_on_brasilia_time(client, auth_headers):
+    assert _timezone(client, auth_headers) == "America/Sao_Paulo"
+
+
+def test_the_family_can_change_its_timezone_and_the_other_settings_stay(client, auth_headers):
+    _change(client, auth_headers, currency="USD")
+
+    response = _change(client, auth_headers, timezone="America/Toronto")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["timezone"] == "America/Toronto"
+    assert _settings(client, auth_headers) == ("USD", "pt")
+
+
+def test_changing_only_the_currency_keeps_the_timezone(client, auth_headers):
+    _change(client, auth_headers, timezone="Europe/London")
+
+    _change(client, auth_headers, currency="GBP")
+
+    assert _timezone(client, auth_headers) == "Europe/London"
+
+
+@pytest.mark.parametrize("zone", ["Mars/Olympus", "america/sao_paulo", "", "GMT+3"])
+def test_a_timezone_that_is_not_offered_is_refused_and_nothing_changes(client, auth_headers, zone):
+    assert _change(client, auth_headers, timezone=zone).status_code == 422
+
+    assert _timezone(client, auth_headers) == "America/Sao_Paulo"
+
+
+def test_one_family_never_changes_the_timezone_of_another(client, auth_headers, other_user, headers_for):
+    _change(client, auth_headers, timezone="UTC")
+
+    assert _timezone(client, headers_for(other_user)) == "America/Sao_Paulo"

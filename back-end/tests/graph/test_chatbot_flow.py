@@ -26,7 +26,7 @@ def agents(monkeypatch):
     def script(intent, recorder=None, query_calls=None, secretary_reply="ok"):
         monkeypatch.setattr(nodes, "run_orchestrator", lambda m: OrchestratorResponse(message=m, type=intent))
         monkeypatch.setattr(nodes, "run_recorder", lambda m, **kw: recorder or RecorderResponse(items=[]))
-        monkeypatch.setattr(nodes, "run_query", lambda m: QueryResponse(tool_calls=query_calls or []))
+        monkeypatch.setattr(nodes, "run_query", lambda m, **kw: QueryResponse(tool_calls=query_calls or []))
 
         def secretary(message, results, **settings):
             seen["secretary_settings"] = settings
@@ -141,7 +141,7 @@ def test_the_recorder_is_told_which_language_to_reply_in(db, user, monkeypatch, 
 
     result = ask(user)
 
-    assert seen == {"language": "en"}
+    assert seen == {"language": "en", "timezone": "America/Sao_Paulo"}
     assert result["final_response"].startswith("I couldn't find any expense")
 
 

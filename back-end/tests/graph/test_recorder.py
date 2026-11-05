@@ -1,11 +1,11 @@
-from datetime import date, timedelta
+from datetime import date, datetime
 
 import pytest
 
 import graph.nodes as nodes
 from graph.nodes import node_recorder
 from schemas.agents_schemas import ExpenseItem, RecorderResponse
-from schemas.tables import TransactionDB
+from schemas.tables import Families, TransactionDB
 
 
 def item(amount=10.0, category="Restaurantes e Bares", description="Almoço", when=None):
@@ -79,20 +79,38 @@ def test_a_past_date_is_kept(db, user, recorder):
     assert rows(db)[0].transactioned_at.date() == date(2026, 1, 15)
 
 
-def test_a_missing_date_means_today(db, user, recorder):
+def test_a_missing_date_means_today_on_the_familys_clock(db, user, recorder, set_clock):
+    set_clock(datetime(2026, 4, 1, 1, 30))  # already April on the server's clock, still 31 March in Brasília
     recorder([item(when=None)])
 
     run(user)
 
-    assert rows(db)[0].transactioned_at.date() == date.today()
+    assert rows(db)[0].transactioned_at == datetime(2026, 3, 31, 22, 30)
 
 
-def test_a_future_date_is_clamped_to_today(db, user, recorder):
-    recorder([item(when=date.today() + timedelta(days=30))])
+def test_a_future_date_is_clamped_to_today_on_the_familys_clock(db, user, recorder, set_clock):
+    set_clock(datetime(2026, 4, 1, 1, 30))
+    recorder([item(when=date(2026, 4, 1)), item(when=date(2026, 3, 31)), item(when=date(2026, 5, 1))])
 
     run(user)
 
-    assert rows(db)[0].transactioned_at.date() == date.today()
+    assert [r.transactioned_at.date() for r in rows(db)] == [date(2026, 3, 31)] * 3
+
+
+def test_the_recorder_is_told_the_familys_timezone(db, user, monkeypatch):
+    seen = {}
+
+    def fake(message, **kw):
+        seen.update(kw)
+        return RecorderResponse(items=[])
+
+    monkeypatch.setattr(nodes, "run_recorder", fake)
+    db.query(Families).filter_by(id=user.family_id).update({"timezone": "Europe/Paris"})
+    db.commit()
+
+    run(user)
+
+    assert seen["timezone"] == "Europe/Paris"
 
 
 def test_a_valid_category_missing_from_the_database_falls_back_to_sem_categoria(db, user, recorder, category_ids):

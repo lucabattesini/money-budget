@@ -29,7 +29,7 @@ describe('layout', () => {
 
     removeToken()
 
-    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt' })
+    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo' })
   })
 
   it('loads the currency and language of the family and every page shows them', async () => {

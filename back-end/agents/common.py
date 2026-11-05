@@ -1,14 +1,15 @@
 from collections.abc import Mapping, Sequence
-from datetime import date
 
+from api.utils.clock import family_today
 from schemas.agents_schemas import ToolCall
+from schemas.family_settings import DEFAULT_TIMEZONE
 
 WEEKDAY_NAMES = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
 
 
-def today_context() -> dict:
-    """Today's date and weekday, for prompts that need to resolve relative dates."""
-    today = date.today()
+def today_context(timezone: str = DEFAULT_TIMEZONE) -> dict:
+    """Today's date and weekday on the family's clock, for prompts that need to resolve relative dates."""
+    today = family_today(timezone)
     return {"today": today.isoformat(), "weekday": WEEKDAY_NAMES[today.weekday()]}
 
 

@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { Field, Heading, NativeSelect, Spinner, Stack, Text } from "@chakra-ui/react";
 import { getFamily, updateFamilySettings } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { CURRENCIES, LANGUAGES, setLocale, useLocale } from "../lib/locale";
+import { CURRENCIES, LANGUAGES, TIMEZONES, setLocale, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
-// The currency and the language of the family. They apply to everyone in it, and any member can change them.
+// The currency, the language and the timezone of the family. They apply to everyone in it, and any member can change them.
 export default function AccountPreferences() {
-    const { currency, language } = useLocale();
+    const { currency, language, timezone } = useLocale();
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -27,7 +27,7 @@ export default function AccountPreferences() {
 
     // Saved as soon as it is chosen; the page shows the new format straight away and goes back if the save fails
     const change = async (field, value) => {
-        const before = { currency, language };
+        const before = { currency, language, timezone };
         setLocale({ [field]: value });
         setSaving(true);
         const result = await updateFamilySettings({ [field]: value }, getToken());
@@ -79,6 +79,21 @@ export default function AccountPreferences() {
                 </NativeSelect.Root>
                 <Field.HelperText>
                     Define o formato de números e datas e o idioma das respostas do assistente. O texto das telas continua em português por enquanto.
+                </Field.HelperText>
+            </Field.Root>
+
+            <Field.Root maxW="sm" disabled={saving}>
+                <Field.Label>Fuso horário</Field.Label>
+                <NativeSelect.Root>
+                    <NativeSelect.Field value={timezone} onChange={(e) => change("timezone", e.target.value)}>
+                        {TIMEZONES.map((option) => (
+                            <option key={option.code} value={option.code}>{option.label}</option>
+                        ))}
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                </NativeSelect.Root>
+                <Field.HelperText>
+                    Decide qual é o dia e o mês de "agora": uma compra feita à noite fica no dia certo, mesmo em outro fuso.
                 </Field.HelperText>
             </Field.Root>
         </Stack>

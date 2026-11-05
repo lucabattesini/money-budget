@@ -58,6 +58,7 @@ def get_my_family(db: Session, user: Users) -> dict:
         "role": user.role,
         "currency": family.currency,
         "language": family.language,
+        "timezone": family.timezone,
         # Set while the person can still go back to the family they left (they started empty when joining)
         "previous_family": None if deadline is None else {"available_until": deadline},
         "members": [
@@ -67,8 +68,8 @@ def get_my_family(db: Session, user: Users) -> dict:
 
 
 def change_family_settings(db: Session, user: Users, settings: FamilySettings) -> dict:
-    """Any member may change the family's currency and language; everyone in the family then sees the change."""
-    update_settings(db, user.family_id, settings.currency, settings.language)
+    """Any member may change the family's currency, language and timezone; everyone in the family then sees the change."""
+    update_settings(db, user.family_id, settings.currency, settings.language, settings.timezone)
     return get_my_family(db, user)
 
 

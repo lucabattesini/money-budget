@@ -58,7 +58,9 @@ tests/
 `make_user(name, family=None, ...)` (each user gets a family of their own unless `family=` is given, so
 `user` and `other_user` are in different families), `make_transaction(user, category_id, label, value, when)`
 (saved for the user's family, `user_id` the user),
-`headers_for(user)`. `category_ids` maps names to ids. Six categories are
+`headers_for(user)`. `category_ids` maps names to ids. `set_clock(utc_datetime)` sets what time it is for the code
+under test (a family's "now" is read on its timezone, never the server's: TKT-65); code that needs today's date should
+use `family_now(...)` / `family_today(...)` from `api/utils/clock.py`, not `datetime.now()` / `date.today()`. Six categories are
 seeded once per run (`Restaurantes e Bares`, `Transporte público`, `Supermercado`, `Aluguel`, `Educação`,
 `Sem categoria`), each in its group, and all fourteen category groups exist, in order (`position`); `Pets` is deliberately missing, to test names that are valid for the
 agents but absent from the database. `sent_messages` captures outgoing WhatsApp

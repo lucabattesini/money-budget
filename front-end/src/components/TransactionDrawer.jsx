@@ -4,7 +4,7 @@ import { insertNewTransaction, updateTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { digitsToCents, maskAmount } from "../lib/money";
 import AmountInput from "./AmountInput";
-import { CURRENCIES, useLocale } from "../lib/locale";
+import { CURRENCIES, familyNow, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
 const MAX_LABEL = 25;
@@ -18,11 +18,11 @@ function RequiredLabel({ children }) {
 
 const two = (n) => String(n).padStart(2, "0");
 const todayISO = () => {
-    const now = new Date();
+    const now = familyNow();
     return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
 };
 const nowTime = () => {
-    const now = new Date();
+    const now = familyNow();
     return `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
 };
 

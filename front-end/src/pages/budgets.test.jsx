@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toaster } from '../components/ui/toaster'
@@ -420,6 +420,21 @@ describe('budgets page: slow and failing answers', () => {
 
     expect(await screen.findByText(/Nada planejado/)).toBeInTheDocument()
     expect(screen.queryByText(/Não foi possível carregar o orçamento/)).not.toBeInTheDocument()
+  })
+
+  it('opens on this month of the family, also when its timezone arrives after the first paint', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-12-01T03:30:00Z')) // 00:30 on 1 December in Berlin, still 30 November in Brasília
+    mockApi({
+      'GET /budgets?month=2026-11': { data: { ...EMPTY, month: '2026-11' } },
+      'GET /budgets?month=2026-12': { data: { ...EMPTY, month: '2026-12' } },
+    })
+    renderApp(<Budgets />)
+    await screen.findByText(/Nada planejado/)
+
+    act(() => setLocale({ timezone: 'Europe/Berlin' }))
+
+    expect(await screen.findByText(/dezembro/i)).toBeInTheDocument()
   })
 
   it.each([
