@@ -741,7 +741,7 @@ describe('transactions page', () => {
     })
 
     it('does not make up a person for one who is no longer in the family', async () => {
-      mockApi({
+      const api = mockApi({
         'GET /families/me': FAMILY,
         'GET /categories': CATEGORIES,
         'POST /transactions': { data: [{ ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 77 }] },
@@ -754,6 +754,10 @@ describe('transactions page', () => {
       await userEvent.click(rowOf('Almoço'))
       const form = await drawer()
       expect(form.getByLabelText('Quem')).toHaveValue('')
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+      // Nothing is sent for the person, so the server keeps the one it has
+      await waitFor(() => expect(api.mock.calls.some(([url]) => url.endsWith('/transactions/1'))).toBe(true))
+      expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/transactions/1'))[1].body)).not.toHaveProperty('user_id')
     })
 
     it('narrows to one person in the filters', async () => {

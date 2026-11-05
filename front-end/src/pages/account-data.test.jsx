@@ -25,6 +25,7 @@ describe('import and export page', () => {
       ['Categoria', 'Sim'],
       ['Valor', 'Sim'],
       ['Tipo', 'Não'],
+      ['Pessoa', 'Não'],
     ])
     expect(rows[0][3]).toBe('15/03/2026') // an example for each column
     expect(rows[3][3]).toBe('1.234,56')

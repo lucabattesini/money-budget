@@ -222,13 +222,13 @@ def test_uploading_only_reads_the_file_so_even_a_file_full_of_mistakes_gets_to_t
 def test_the_columns_named_like_the_fields_are_suggested_even_with_other_case_or_no_accents(client, auth_headers):
     job = _upload(client, auth_headers, _csv("1;2;3;4;5", header="valor;DESCRICAO;Banco;data;categoria")).json()["data"]
 
-    assert job["suggested_map"] == {"Data": 3, "Descrição": 1, "Categoria": 4, "Valor": 0, "Tipo": None}
+    assert job["suggested_map"] == {"Data": 3, "Descrição": 1, "Categoria": 4, "Valor": 0, "Tipo": None, "Pessoa": None}
 
 
 def test_a_file_from_the_export_has_every_column_suggested(client, auth_headers):
     job = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
 
-    assert job["suggested_map"] == {"Data": 0, "Descrição": 1, "Categoria": 2, "Valor": 3, "Tipo": 4}
+    assert job["suggested_map"] == {"Data": 0, "Descrição": 1, "Categoria": 2, "Valor": 3, "Tipo": 4, "Pessoa": None}
 
 
 def test_a_column_is_suggested_for_one_field_only(client, auth_headers):
@@ -266,6 +266,7 @@ def test_the_person_can_say_which_column_is_which_when_the_names_do_not_match(cl
         "Categoria": None,
         "Valor": None,
         "Tipo": None,
+        "Pessoa": None,
     }
 
     response = _match(client, auth_headers, uploaded["id"], OTHER_MAPPING)
@@ -1367,3 +1368,60 @@ def test_a_job_confirmed_just_now_does_not_expire_because_it_was_uploaded_long_a
     assert db.query(ImportJobDB).filter_by(id=job["id"]).count() == 1
     queue.run()
     assert client.get(f"/imports/{job['id']}", headers=auth_headers).json()["data"]["status"] == "done"
+
+
+# --- the person (TKT-73) ---------------------------------------------------------------------------------------------
+
+PERSON_HEADER = "Data;Descrição;Categoria;Valor;Tipo;Pessoa"
+
+
+def _partner(db, user, make_user, name="Bia Souza"):
+    return make_user(name, family=db.get(Families, user.family_id))
+
+
+def test_the_person_column_is_suggested_and_each_row_goes_to_the_person_it_names(
+    client, db, user, auth_headers, make_user, queue
+):
+    partner = _partner(db, user, make_user)
+    job = _upload(
+        client,
+        auth_headers,
+        _csv(
+            "15/03/2026;Mercado;Aluguel;10,00;Débito;  bia souza ",
+            "16/03/2026;Padaria;Aluguel;5,00;Débito;",
+            header=PERSON_HEADER,
+        ),
+    ).json()["data"]
+    assert job["suggested_map"]["Pessoa"] == 5
+
+    assert _match(client, auth_headers, job["id"], job["suggested_map"]).status_code == 200
+    assert _start(client, auth_headers, job["id"]).status_code == 202
+    queue.run()
+
+    assert {t.label: t.user_id for t in _saved(db, user)} == {"Mercado": partner.id, "Padaria": user.id}
+
+
+def test_a_person_that_is_not_in_the_family_stops_the_import(client, db, user, other_user, auth_headers):
+    uploaded = _upload(
+        client,
+        auth_headers,
+        _csv(f"15/03/2026;Mercado;Aluguel;10,00;Débito;{other_user.name}", header=PERSON_HEADER),
+    ).json()["data"]
+
+    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"])
+
+    assert response.status_code == 422
+    assert [m for _row, m in _problems(response)] == [f'A pessoa "{other_user.name}" não é da família.']
+    assert _saved(db, user) == []
+
+
+def test_two_people_with_the_same_name_are_refused_instead_of_guessed(client, db, user, auth_headers, make_user):
+    _partner(db, user, make_user, name=user.name)
+    uploaded = _upload(
+        client, auth_headers, _csv(f"15/03/2026;Mercado;Aluguel;10,00;Débito;{user.name}", header=PERSON_HEADER)
+    ).json()["data"]
+
+    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"])
+
+    assert response.status_code == 422
+    assert "mais de uma pessoa" in _problems(response)[0][1]

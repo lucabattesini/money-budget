@@ -141,8 +141,8 @@ flowchart TB
   checked yet); 2) **formats**: how the file writes dates (DD/MM/AAAA, MM/DD/AAAA, AAAA-MM-DD, or automatic) and amounts
   (`1.234,56`, `1,234.56` or automatic), and what the sign of the amount means (always positive with the type in a
   column, negative is debit, or negative is credit), with the first rows of the file to judge by; 3) **columns**: which
-  column of the file is Data, Descrição, Categoria, Valor and Tipo (those named like the fields come already chosen;
-  Tipo is left out when the sign says the direction); 4) **check**: leaving step 3 sends the choices and checks every
+  column of the file is Data, Descrição, Categoria, Valor, Tipo and Pessoa (those named like the fields come already chosen;
+  Tipo is left out when the sign says the direction; Pessoa is optional); 4) **check**: leaving step 3 sends the choices and checks every
   row the way steps 2 and 3 said, by itself; it shows "tudo certo" or lists all the problems with their row (nothing
   is imported, and the person can go back to change columns or formats); 5) for each category in the file the family does not
   have, pick an existing one or create it (name and group) without leaving the dialog, skipped when nothing is
@@ -160,7 +160,7 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   function takes the database session as its first argument.
 - `services/` — logic that is not a request or a query: `whatsapp_service.py`
   (outbound calls to the Meta Cloud API), `export_service.py` (turns a user's
-  transactions into a table of Data / Descrição / Categoria / Valor / Tipo and
+  transactions into a table of Data / Descrição / Categoria / Valor / Tipo / Pessoa and
   asks a document gateway for the file) and `import_service.py` (the reverse: checks every row of a table read
   from a file and collects all the problems, with the row number as the spreadsheet shows it).
 - `gateways/documents/` — the **document gateway**: the only place that knows
@@ -351,7 +351,9 @@ owner (`users.role`, `owner` or `member`); people who join with an invite are me
 delete, export and chatbot action filters by the caller's family. A foreign id
 answers `404`, the same as a missing one. `transactions.user_id` is the person a
 row belongs to (who paid): the person adding it unless another member of the same family is chosen, shown as a picture on
-each row, and never used for permission. Choosing someone outside the family answers `404`. A category with no
+each row, and never used for permission. Choosing someone outside the family answers `404`. Known limit: rows entered in a family
+by a person who later returns to the family they left keep that person, who is no longer a member there; they show no
+picture and keep that owner until someone picks another member in the edit form. A category with no
 `family_id` is a default one, visible to everyone; `GET /categories` now requires
 login and returns the defaults plus the family's own, each with its group (`group_id`, `group_name`).
 `GET /categories/groups` lists the groups. Export jobs read the family's
@@ -600,7 +602,9 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    Uploading again throws away the person's previous staged job.
 2. `PUT /imports/{id}/columns {mapping, date_order, amount_style, sign}` says which column holds each field and how the
    file writes things, then checks **every** row before anything is kept. `mapping` is the position of each of Data,
-   Descrição, Categoria, Valor and Tipo (only Tipo may be null; a column serves one field only). `date_order` is
+   Descrição, Categoria, Valor, Tipo and Pessoa (only Tipo and Pessoa may be null; a column serves one field only). Pessoa is
+   the name of a member of the family (case and accents ignored); an empty cell means the person importing, a name that is
+   not a member (or that two members share) is a problem of that row, and the export writes the same column. `date_order` is
    `auto`, `day_first` (15/03/2026), `month_first` (03/15/2026) or `iso` (2026-10-13); separators `/ - .` are accepted,
    and a real Excel date is accepted in any case. `auto` reads the file: a number above 12 in the first place proves
    day first, in the second place month first, and if no date proves it, it is day first, the order of the file the app

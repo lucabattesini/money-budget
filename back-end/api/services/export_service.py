@@ -11,7 +11,7 @@ from api.gateways.documents import Document, Table, get_document_gateway
 from api.utils.formatting import type_label
 from schemas.tables_schemas import TransactionOut
 
-EXPORT_COLUMNS = ["Data", "Descrição", "Categoria", "Valor", "Tipo"]
+EXPORT_COLUMNS = ["Data", "Descrição", "Categoria", "Valor", "Tipo", "Pessoa"]
 
 
 def build_transactions_table(transactions: list[TransactionOut]) -> Table:
@@ -25,6 +25,7 @@ def build_transactions_table(transactions: list[TransactionOut]) -> Table:
                 t.category_name or "",
                 Decimal(t.value) / 100,
                 type_label(t.type),
+                t.user_name or "",
             ]
             for t in transactions
         ],

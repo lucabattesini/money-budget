@@ -18,13 +18,14 @@ const STEPS = [
 const FALLBACK_GROUP = "Outros";
 const NEW_CATEGORY = "new"; // the value of the "create it" choice in a category's list
 
-// The fields of a transaction, as the page's table of columns names them; the last one may be left out.
+// The fields of a transaction, as the page's table of columns names them; the last two may be left out.
 const FIELDS = [
     { name: "Data", required: true },
     { name: "Descrição", required: true },
     { name: "Categoria", required: true },
     { name: "Valor", required: true },
     { name: "Tipo", required: false },
+    { name: "Pessoa", required: false },
 ];
 
 // How the file writes dates and amounts, and what the sign of the amount means. "Automático" looks at the file.
@@ -264,7 +265,7 @@ function ColumnsStep({ job, choice, setChoice, formats }) {
             </Section>
 
             {fields.some((field) => !field.required) && (
-                <Section title="Campo opcional" hint="Se o arquivo não diz se é débito ou crédito, tudo entra como débito.">
+                <Section title="Campos opcionais" hint="Sem Tipo, tudo entra como débito. Sem Pessoa, as transações ficam com quem está importando.">
                     <Box {...grid}>{fields.filter((field) => !field.required).map(fieldSelect)}</Box>
                 </Section>
             )}

@@ -63,6 +63,7 @@ class TransactionOut(BaseModel):
     category_id: Optional[int] = None
     category_name: Optional[str] = None
     user_id: Optional[int] = None  # id of the family member it belongs to
+    user_name: Optional[str] = None  # and their name, for the export
 
 
 class TransactionAggregate(BaseModel):

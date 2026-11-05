@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from api.gateways.documents import MAX_FILE_BYTES, UnreadableDocument, get_document_gateway
 from api.repositories.categories_repo import get_all_categories as get_all_categories_repo
 from api.repositories.categories_repo import lock_family
-from api.repositories.families_repo import get_family
+from api.repositories.families_repo import get_family, list_members
 from api.repositories.imports_repo import (
     add_transactions,
     create_import_job,
@@ -35,6 +35,7 @@ from api.services.import_service import (
     encode_cell,
     mapping_problem,
     resolve_date_order,
+    simple_name,
     suggest_mapping,
     suggest_sign,
 )
@@ -67,6 +68,16 @@ def _unprocessable(message: str) -> HTTPException:
 
 
 # --- categories ----------------------------------------------------------------------------------------------------
+
+
+def _member_names(db: Session, family_id: int) -> dict[str, int | None]:
+    """(name of each person of the family, as simple_name writes it -> their id). Two people with the same name map to
+    None, so a file naming them is refused instead of guessed."""
+    names: dict[str, int | None] = {}
+    for member in list_members(db, family_id):
+        key = simple_name(member.name)
+        names[key] = None if key in names else member.id
+    return names
 
 
 def _category_lookup(db: Session, family_id: int) -> tuple[dict[str, int], set[int]]:
@@ -242,6 +253,7 @@ def match_columns(
         amount_style,
         sign,
         strict_dates=date_order != "auto",
+        members=_member_names(db, family_id),
     )
     if problems:
         shown = [{"row": p.row, "message": p.message} for p in problems[:MAX_PROBLEMS_SHOWN]]
@@ -315,6 +327,10 @@ def run_import_job(job_id: int) -> None:
                 return
             duplicates = _duplicates(db, job, resolved)
             skipped_rows = {row["row"] for row in duplicates}
+            people = {member.id for member in list_members(db, job.family_id)}
+            if any(row.get("user_id") not in (None, *people) for row in job.rows):  # someone left after the check
+                mark_failed(db, job, "Uma pessoa do arquivo deixou de ser da família. Comece de novo.")
+                return
             add_transactions(
                 db,
                 job.family_id,

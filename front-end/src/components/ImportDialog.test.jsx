@@ -22,7 +22,7 @@ const GROUPS = {
 }
 const skipped = (row) => ({ row, date: '2026-03-15', label: `Almoço ${row}`, value: 123456, type: 'debit', category: 'Aluguel' })
 const COLUMNS = ['Data', 'Descrição', 'Categoria', 'Valor', 'Tipo']
-const SUGGESTED = { Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: 4 }
+const SUGGESTED = { Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: 4, Pessoa: null }
 const SAMPLE = [['15/03/2026', 'Almoço', 'Aluguel', '12,00', 'Débito']]
 // What the server answers to the upload: the file is read, nothing is checked yet
 const uploaded = (extra = {}) => ({ id: 5, status: 'staged', filename: 'transacoes.csv', columns: COLUMNS, suggested_map: SUGGESTED, sample: SAMPLE, ...extra })
@@ -169,7 +169,7 @@ describe('import dialog', () => {
 
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByLabelText('Coluna para Data')
-      expect(headings()).toEqual(['Campos obrigatórios', 'Campo opcional', 'Primeiras linhas do arquivo'])
+      expect(headings()).toEqual(['Campos obrigatórios', 'Campos opcionais', 'Primeiras linhas do arquivo'])
 
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       expect(await screen.findByText(/Tudo certo/)).toBeInTheDocument()
@@ -190,7 +190,7 @@ describe('import dialog', () => {
       expect(headings()).toEqual(['Resumo', 'Já existem e serão ignoradas'])
     })
 
-    it('has no section for duplicates when there are none, and none for the optional field when the sign says the direction', async () => {
+    it('has no section for duplicates when there are none, and no Tipo field when the sign says the direction', async () => {
       mockApi(imports())
       open()
       await toFormats()
@@ -198,7 +198,7 @@ describe('import dialog', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByLabelText('Coluna para Data')
 
-      expect(headings()).toEqual(['Campos obrigatórios', 'Primeiras linhas do arquivo'])
+      expect(headings()).toEqual(['Campos obrigatórios', 'Campos opcionais', 'Primeiras linhas do arquivo']) // Pessoa is still optional
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await passCheck()
       await screen.findByText(/3 transações serão importadas/)
@@ -364,7 +364,7 @@ describe('import dialog', () => {
     // A file whose columns are named differently: nothing is suggested
     const OTHER = uploaded({
       columns: ['Quando', 'O que', 'Tipo de gasto', 'Quanto', ''],
-      suggested_map: { Data: null, Descrição: null, Categoria: null, Valor: null, Tipo: null },
+      suggested_map: { Data: null, Descrição: null, Categoria: null, Valor: null, Tipo: null, Pessoa: null },
       sample: [['15/03/2026', 'Almoço', 'Aluguel', '12,00', 'x']],
     })
 
@@ -382,6 +382,19 @@ describe('import dialog', () => {
       expect(sample.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(COLUMNS)
       expect(sample.getAllByRole('row')[1]).toHaveTextContent('15/03/2026')
       expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled()
+    })
+
+    it('sends the Pessoa column when the file has one', async () => {
+      const api = mockApi({
+        ...imports(),
+        'POST /imports': [{ data: uploaded({ columns: [...COLUMNS, 'Pessoa'], suggested_map: { ...SUGGESTED, Pessoa: 5 } }) }, 201],
+      })
+      open()
+
+      await check()
+
+      await screen.findByText('3 transações serão importadas')
+      expect(putBody(api).mapping).toEqual({ ...SUGGESTED, Pessoa: 5 })
     })
 
     it('sends the columns and the default formats when the user just continues', async () => {
@@ -417,7 +430,7 @@ describe('import dialog', () => {
       await passCheck()
 
       await screen.findByText('3 transações serão importadas')
-      expect(putBody(api).mapping).toEqual({ Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: null }) // Tipo: not used
+      expect(putBody(api).mapping).toEqual({ Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: null, Pessoa: null }) // Tipo: not used
     })
 
     it('does not let one column serve two fields', async () => {

@@ -5,7 +5,7 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from api.repositories.categories_repo import category_visible_to_family
-from schemas.tables import Categories, TransactionDB
+from schemas.tables import Categories, TransactionDB, Users
 from schemas.tables_schemas import (
     Transaction,
     TransactionAggregate,
@@ -33,7 +33,8 @@ GroupBy = Literal["category", "day", "month", "year", "weekday"]
 def create_transaction(db: Session, t: Transaction, family_id: int, user_id: int):
     try:
         data = t.model_dump()
-        data["user_id"] = data["user_id"] or user_id  # belongs to whoever adds it unless said otherwise
+        if data["user_id"] is None:
+            data["user_id"] = user_id  # belongs to whoever adds it unless said otherwise
         transaction = TransactionDB(**data, family_id=family_id)
         db.add(transaction)
         db.commit()
@@ -109,7 +110,7 @@ def list_transactions(
     order_column = ORDER_COLUMNS[order_by]
     order_column = order_column.asc() if order_dir == "asc" else order_column.desc()
 
-    query = db.query(TransactionDB, Categories.name).outerjoin(Categories, TransactionDB.category_id == Categories.id)
+    query = _with_names(db.query(TransactionDB, Categories.name, Users.name))
     rows = (
         _apply_filters(query, family_id, filters)
         .order_by(order_column, TransactionDB.id.desc())
@@ -123,13 +124,20 @@ def list_transactions(
 
 def list_all_transactions(db: Session, family_id: int) -> list[TransactionOut]:
     """Every transaction of the family, newest first. No page limit: meant for exports."""
-    query = db.query(TransactionDB, Categories.name).outerjoin(Categories, TransactionDB.category_id == Categories.id)
+    query = _with_names(db.query(TransactionDB, Categories.name, Users.name))
     rows = (
         query.filter(TransactionDB.family_id == family_id)
         .order_by(TransactionDB.transactioned_at.desc(), TransactionDB.id.desc())
         .all()
     )
     return _to_out(rows)
+
+
+def _with_names(query):
+    """Add the category's and the person's name to a query of transactions."""
+    return query.outerjoin(Categories, TransactionDB.category_id == Categories.id).outerjoin(
+        Users, TransactionDB.user_id == Users.id
+    )
 
 
 def _to_out(rows) -> list[TransactionOut]:
@@ -145,8 +153,9 @@ def _to_out(rows) -> list[TransactionOut]:
             category_id=t.category_id,
             category_name=category_name,
             user_id=t.user_id,
+            user_name=user_name,
         )
-        for t, category_name in rows
+        for t, category_name, user_name in rows
     ]
 
 
