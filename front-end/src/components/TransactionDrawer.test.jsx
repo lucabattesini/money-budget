@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
+import { setLocale } from '../lib/locale'
 import { jsonResponse, mockApi, renderApp } from '../test/helpers'
 import TransactionDrawer from './TransactionDrawer'
 import customToaster from '../utils/customToaster'
@@ -58,6 +59,17 @@ describe('transaction sidebar', () => {
 
     expect(await screen.findByRole('option', { name: 'Alimentação' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Transporte' })).toBeInTheDocument()
+  })
+
+  it('shows the currency of the family before the amount', async () => {
+    setLocale({ currency: 'CAD', language: 'en' })
+    renderDrawer()
+
+    await userEvent.type(amount(), '2550')
+
+    expect(screen.getByText('CA$')).toBeInTheDocument()
+    expect(amount()).toHaveValue('25.50')
+    expect(screen.getByRole('textbox', { name: 'Valor em dólares canadenses (CA$)' })).toBe(amount())
   })
 
   it('masks the amount while typing: always two decimals, comma, dot between thousands', async () => {
