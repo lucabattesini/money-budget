@@ -12,6 +12,7 @@ from schemas.tables import (
     Families,
     FamilyInvites,
     ImportJobDB,
+    Merchants,
     TransactionDB,
     Users,
 )
@@ -49,9 +50,14 @@ def get_family(db: Session, family_id: int) -> Families:
 
 
 def update_settings(
-    db: Session, family_id: int, currency: str | None, language: str | None, timezone: str | None = None
+    db: Session,
+    family_id: int,
+    currency: str | None,
+    language: str | None,
+    timezone: str | None = None,
+    merchants_enabled: bool | None = None,
 ) -> Families:
-    """Change the family's currency, language and/or timezone (a value left as None keeps its current one)."""
+    """Change the family's currency, language, timezone and/or merchants switch (None keeps the current value)."""
     family = db.query(Families).filter(Families.id == family_id).with_for_update().one()
     if currency is not None:
         family.currency = currency
@@ -59,6 +65,8 @@ def update_settings(
         family.language = language
     if timezone is not None:
         family.timezone = timezone
+    if merchants_enabled is not None:
+        family.merchants_enabled = merchants_enabled
     db.commit()
     return family
 
@@ -134,6 +142,7 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
     db.query(TransactionDB).filter(TransactionDB.family_id == old_family_id).update(
         {TransactionDB.family_id: new_family_id}, synchronize_session=False
     )
+    _bring_merchants(db, old_family_id, new_family_id)
     for category in db.query(Categories).filter(Categories.family_id == old_family_id).order_by(Categories.id):
         target = kept.get(_fold(category.name))
         if target is None:
@@ -144,6 +153,23 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
                 {TransactionDB.category_id: target.id}, synchronize_session=False
             )
             db.delete(category)
+
+
+def _bring_merchants(db: Session, old_family_id: int, new_family_id: int) -> None:
+    """Move the merchants of the family being left to the new one, merging those the new family already has (same
+    words) the way categories are merged. Their transactions have already been moved, so none may be left pointing
+    at a merchant of the old family."""
+    kept = {_fold(m.name): m for m in db.query(Merchants).filter(Merchants.family_id == new_family_id)}
+    for merchant in db.query(Merchants).filter(Merchants.family_id == old_family_id).order_by(Merchants.id):
+        target = kept.get(_fold(merchant.name))
+        if target is None:
+            merchant.family_id = new_family_id
+            kept[_fold(merchant.name)] = merchant
+        else:
+            db.query(TransactionDB).filter(TransactionDB.merchant_id == merchant.id).update(
+                {TransactionDB.merchant_id: target.id}, synchronize_session=False
+            )
+            db.delete(merchant)
 
 
 def _lock_families(db: Session, *family_ids: int) -> dict[int, Families]:
@@ -267,6 +293,7 @@ def purge_abandoned_families(db: Session) -> None:
     )
     db.query(TransactionDB).filter(TransactionDB.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(Budgets).filter(Budgets.family_id.in_(ids)).delete(synchronize_session=False)
+    db.query(Merchants).filter(Merchants.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(Categories).filter(Categories.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(ExportJobDB).filter(ExportJobDB.family_id.in_(ids)).delete(synchronize_session=False)
     db.query(ImportJobDB).filter(ImportJobDB.family_id.in_(ids)).delete(synchronize_session=False)

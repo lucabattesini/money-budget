@@ -60,7 +60,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / transactions / budgets / export_jobs / import_jobs")]
+    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / merchants / transactions / budgets / export_jobs / import_jobs")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -132,6 +132,8 @@ flowchart TB
   `/account/categories` the family's categories under their groups (every group is shown, even an empty one, with an
   "Adicionar" button that opens the side panel already set to that group; rename, change group and delete for its own
   ones; the default ones are marked "Padrão" and cannot be changed; the emoji grid is a keyboard-friendly radio group),
+  `/account/merchants` (only while the family has merchants on: rename and delete, with the server's message when a
+  merchant is still used; new ones are created by typing a name in a transaction),
   `/account/family` the family (people, invite codes for the owner, joining with a code, going back to the family left behind for 30 days) and
   `/account/data` import/export: the export queues a job (`POST /exports`), shows a
   toast, follows the job and downloads the file when it is done, with a second
@@ -217,8 +219,8 @@ A LangGraph `StateGraph` (`graph/graph.py`) over `AssistantState`
 | Node | Role |
 |---|---|
 | **orchestrator** | Classifies the message as `check`, `registry`, or `off-topic`. |
-| **recorder** | On `registry`: extracts one or more expense items (amount, description, category, date) and writes `Transaction` rows (always `debit`; the item's date becomes `transactioned_at`, never in the future) via the repositories. |
-| **query** | On `check`: turns the question into one or more structured tool calls (`list_transactions`, `summarize_transactions`) with filters (date range, category, search text, min/max amount, weekday). |
+| **recorder** | On `registry`: extracts one or more expense items (amount, description, category, date, and the merchant only while the family has merchants on) and writes `Transaction` rows (always `debit`; the item's date becomes `transactioned_at`, never in the future) via the repositories. |
+| **query** | On `check`: turns the question into one or more structured tool calls (`list_transactions`, `summarize_transactions`) with filters (date range, category, search text, min/max amount, weekday, and merchant and a per-merchant total only while the family has merchants on). |
 | **db_execute** | Executes the query agent's tool calls against the repositories, converting cents to reais. |
 | **secretary** | Formats the DB results plus the original question into a natural-language reply, in the family's language and currency. |
 | **off_topic** | Static decline reply for anything non-financial. |
@@ -237,6 +239,7 @@ erDiagram
         string currency "BRL, USD, CAD, EUR or GBP; how amounts are shown"
         string language "pt or en; number and date format and the assistant's language"
         string timezone "an IANA name from a short list; the clock that 'now' is read on"
+        bool merchants_enabled "off by default; turns merchants on for the whole family"
     }
     USERS {
         int id PK
@@ -274,6 +277,12 @@ erDiagram
         datetime created_at "when first saved"
         datetime updated_at "when last edited"
         int category_id FK
+        int merchant_id FK "optional: the place or company the money went to"
+    }
+    MERCHANTS {
+        int id PK
+        int family_id FK
+        string name "unique inside the family, compared by its words"
     }
 
     FAMILY_INVITES {
@@ -332,6 +341,7 @@ erDiagram
     FAMILIES ||--|{ USERS : "has"
     FAMILIES ||--o{ TRANSACTIONS : "owns"
     FAMILIES ||--o{ CATEGORIES : "owns"
+    FAMILIES ||--o{ MERCHANTS : "owns"
     FAMILIES ||--o{ EXPORT_JOBS : "owns"
     FAMILIES ||--o{ IMPORT_JOBS : "owns"
     FAMILIES ||--o{ BUDGETS : "plans"
@@ -341,6 +351,7 @@ erDiagram
     USERS ||--o{ IMPORT_JOBS : "uploaded"
     CATEGORY_GROUPS ||--|{ CATEGORIES : "groups"
     CATEGORIES ||--o{ TRANSACTIONS : "classifies"
+    MERCHANTS ||--o{ TRANSACTIONS : "was paid"
     CATEGORIES ||--o{ BUDGETS : "has"
 ```
 **Families.** Data belongs to a family (the people who share one budget), not to a
@@ -498,7 +509,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are).
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are), `0018` the `merchants` table, `transactions.merchant_id` (empty for every existing transaction) and `families.merchants_enabled` (off for every existing family).
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de
@@ -537,6 +548,27 @@ in that list and never moves one that already exists; nothing in the API changes
 | 14 | Transferências |
 
 (The Orçamentos page leaves out Receitas and Transferências, which have no budget, and keeps the rest in this order.)
+
+**Merchants** (`/merchants`, TKT-58, all require login and only see the caller's family). A merchant is the place or
+company the money went to (Uber, iFood). It is an optional setting: `families.merchants_enabled` is off by default and
+any member turns it on or off with `PATCH /families/me/settings {merchants_enabled}` (`GET /families/me` returns it, and
+the front-end keeps it in `lib/locale.js` next to the other settings). Off hides merchants everywhere (the form field,
+the list, the filter, the totals, the Estabelecimentos page, and the WhatsApp assistant stops asking for or offering
+them) but deletes nothing: turning them on again brings everything back. `merchants` has `family_id` and `name`;
+`transactions.merchant_id` is optional, so a transaction without one stays valid and existing data is untouched
+(migration `0018`). `GET /merchants` lists the family's with how many transactions use each, `POST /merchants {name}`
+adds one (`201`), `PATCH /merchants/{id} {name}` renames and `DELETE /merchants/{id}` removes. As with categories, names
+are trimmed, need words and at most 100 characters (`422`), cannot repeat inside the family, ignoring case and emoji
+(`api/utils/category_names.py`, `409`), a missing or another family's id answers `404`, and deleting one that
+transactions use is refused (`409`, the message says how many). A transaction names its merchant with `merchant` (a
+name) on `POST /transactions/create` and `PUT /transactions/{id}`: an existing merchant with the same words is reused,
+otherwise a new one is created; on `PUT` leaving it out keeps the merchant and `""` takes it off; naming one while
+merchants are off answers `409`. The list endpoints return `merchant_id`; the transactions page loads the merchant
+names from `/merchants` only while the setting is on, shows the name under the description, filters by merchant and
+totals the spending per merchant for what is on screen. Joining another family with the data brings its merchants and
+merges those with the same words into the new family's; a family that is deleted after 30 days takes its merchants
+with it. Not built: merchant logos, merging merchants, default categories per merchant, guessing the merchant from the
+description, a merchant column in the import.
 
 **Managing categories** (`/categories`, all require login). A family manages only its own categories; the default
 ones (no `family_id`, `is_default` true in the list) are shown but cannot be changed. `POST /categories {name,

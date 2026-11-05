@@ -4,7 +4,7 @@ import { formatCents, maskAmount } from './money'
 
 describe('the family\'s currency and language', () => {
   it('start as reais and Portuguese, as the app always looked', () => {
-    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo' })
+    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo', merchantsEnabled: false })
     expect(formatCents(123450)).toBe('R$ 1.234,50')
   })
 
@@ -46,14 +46,27 @@ describe('the family\'s currency and language', () => {
     setLocale({ currency: 'EUR' })
     setLocale({ language: 'en' })
 
-    expect(getLocale()).toEqual({ currency: 'EUR', language: 'en', timezone: 'America/Sao_Paulo' })
+    expect(getLocale()).toEqual({ currency: 'EUR', language: 'en', timezone: 'America/Sao_Paulo', merchantsEnabled: false })
   })
 
   it('ignores a value that is not offered, so a bad answer never breaks the page', () => {
     setLocale({ currency: 'JPY', language: 'fr' })
 
-    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo' })
+    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo', merchantsEnabled: false })
     expect(formatCents(100)).toBe('R$ 1,00')
+  })
+
+  it('starts with merchants off, and the family can turn them on and off, ignoring anything that is not a boolean', () => {
+    expect(getLocale().merchantsEnabled).toBe(false)
+
+    setLocale({ merchants_enabled: true })
+    expect(getLocale().merchantsEnabled).toBe(true)
+    setLocale({ merchants_enabled: 'yes' })
+    expect(getLocale().merchantsEnabled).toBe(true)
+    setLocale({ currency: 'EUR' }) // another setting leaves it alone
+    expect(getLocale().merchantsEnabled).toBe(true)
+    setLocale({ merchants_enabled: false })
+    expect(getLocale().merchantsEnabled).toBe(false)
   })
 })
 

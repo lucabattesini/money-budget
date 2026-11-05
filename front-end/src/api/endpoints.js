@@ -10,6 +10,7 @@ export const endpoints = {
     imports: `${URL_BASE}/imports`,
     families: `${URL_BASE}/families`,
     budgets: `${URL_BASE}/budgets`,
+    merchants: `${URL_BASE}/merchants`,
     user: `${URL_BASE}/user`,
     auth: `${URL_BASE}/auth`,
 };
@@ -266,6 +267,12 @@ export const getCategoryGroups = (token) => jsonCall(endpoints.categories + "/gr
 export const createCategory = (payload, token) => jsonCall(endpoints.categories, "post", token, payload);
 export const updateCategory = (id, payload, token) => jsonCall(endpoints.categories + `/${id}`, "patch", token, payload);
 export const deleteCategory = (id, token) => jsonCall(endpoints.categories + `/${id}`, "delete", token);
+
+// ─── Merchants (an optional setting of the family) ────────────────────────────
+
+export const getMerchants = (token) => jsonCall(endpoints.merchants, "get", token);
+export const renameMerchant = (id, name, token) => jsonCall(endpoints.merchants + `/${id}`, "patch", token, { name });
+export const deleteMerchant = (id, token) => jsonCall(endpoints.merchants + `/${id}`, "delete", token);
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────
 

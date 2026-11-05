@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from api.controllers.merchants_controller import merchant_for_transaction
 from api.repositories.families_repo import get_family, is_member
 from api.repositories.transactions_repo import (
     category_exists,
@@ -61,7 +62,8 @@ def create_transaction(db: Session, transaction: Transaction, family_id: int, us
     _check_person(db, transaction.user_id, family_id)
     # No date given: "now" on the family's clock, not the server's (TKT-65)
     transaction.transactioned_at = transaction.transactioned_at or family_now(get_family(db, family_id).timezone)
-    return create_transaction_repo(db, transaction, family_id, user_id)
+    merchant_id = merchant_for_transaction(db, family_id, transaction.merchant)
+    return create_transaction_repo(db, transaction, family_id, user_id, merchant_id)
 
 
 def get_transactions(db: Session, transaction: GetTransactionsParams, family_id: int):
@@ -87,7 +89,8 @@ def update_transaction(db: Session, id: int, changes: TransactionUpdate, family_
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
     _check_person(db, changes.user_id, family_id)
     # Same answer for "missing" and "another family's", so other families' ids are not revealed
-    transaction = update_transaction_repo(db, id, family_id, changes)
+    merchant_id = merchant_for_transaction(db, family_id, changes.merchant)
+    transaction = update_transaction_repo(db, id, family_id, changes, merchant_id)
     if transaction is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return {
@@ -100,4 +103,5 @@ def update_transaction(db: Session, id: int, changes: TransactionUpdate, family_
         "updated_at": transaction.updated_at,
         "category_id": transaction.category_id,
         "user_id": transaction.user_id,
+        "merchant_id": transaction.merchant_id,
     }

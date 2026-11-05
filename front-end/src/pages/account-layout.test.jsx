@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
+import { setLocale } from '../lib/locale'
 import { renderApp } from '../test/helpers'
 import AccountLayout from './account-layout'
 import AccountData from './account-data'
@@ -61,5 +62,25 @@ describe('account area', () => {
 
     expect(screen.getByRole('heading', { name: 'Importar e exportar' })).toBeInTheDocument()
     expect(currentEntry()).toEqual(['Importar e exportar']) // Perfil is not highlighted just because the path starts with /account
+  })
+
+  it('has the Estabelecimentos entry only while the family has merchants on', () => {
+    renderAccount()
+    expect(menu().queryByRole('link', { name: 'Estabelecimentos' })).not.toBeInTheDocument()
+  })
+
+  it('shows the Estabelecimentos entry, after Categorias, when the family has them on', () => {
+    setLocale({ merchants_enabled: true })
+
+    renderAccount()
+
+    expect(menu().getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Perfil',
+      'Família',
+      'Categorias',
+      'Estabelecimentos',
+      'Preferências',
+      'Importar e exportar',
+    ])
   })
 })

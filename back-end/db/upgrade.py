@@ -67,7 +67,9 @@ def detect_revision(inspector) -> str | None:
         return "0015"
     if "timezone" not in {c["name"] for c in inspector.get_columns("families")}:
         return "0016"
-    return "0017"
+    if not inspector.has_table("merchants"):
+        return "0017"
+    return "0018"
 
 
 def upgrade_database(url: str = DATABASE_URL) -> None:

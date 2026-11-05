@@ -103,4 +103,30 @@ describe('preferences', () => {
     const call = api.mock.calls.find(([, options]) => options?.method?.toUpperCase() === 'PATCH')
     expect(JSON.parse(call[1].body)).toEqual({ timezone: 'Europe/London' })
   })
+
+  it('has merchants off by default, and turning them on is saved for the whole family', async () => {
+    const api = mockApi({
+      'GET /families/me': family(),
+      'PATCH /families/me/settings': family({ merchants_enabled: true }),
+    })
+    renderApp(<AccountPreferences />)
+
+    const toggle = await screen.findByRole('checkbox', { name: 'Estabelecimentos' })
+    expect(toggle).not.toBeChecked()
+    await userEvent.click(toggle)
+
+    await waitFor(() => expect(getLocale().merchantsEnabled).toBe(true))
+    const call = api.mock.calls.find(([, options]) => options?.method?.toUpperCase() === 'PATCH')
+    expect(JSON.parse(call[1].body)).toEqual({ merchants_enabled: true })
+  })
+
+  it('goes back to off when the save fails', async () => {
+    mockApi({ 'GET /families/me': family(), 'PATCH /families/me/settings': [{ detail: 'boom' }, 500] })
+    renderApp(<AccountPreferences />)
+
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Estabelecimentos' }))
+
+    expect(await screen.findByText('boom')).toBeInTheDocument()
+    expect(getLocale().merchantsEnabled).toBe(false)
+  })
 })

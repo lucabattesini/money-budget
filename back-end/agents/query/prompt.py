@@ -22,6 +22,6 @@ Important Instructions:
 5. Weekdays use 0 = Sunday, 1 = Monday ... 6 = Saturday ("fim de semana" -> [0, 6]).
 6. If the question needs more than one piece of data (e.g. "quanto gastei este mês e qual foi o maior gasto?"), call several tools in the same turn.
 7. Always call at least one tool.
-
+{merchant_rule}
 User question: "{user_question}"
 """

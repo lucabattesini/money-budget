@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Field, Heading, NativeSelect, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Field, Heading, NativeSelect, Spinner, Stack, Switch, Text } from "@chakra-ui/react";
 import { getFamily, updateFamilySettings } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { CURRENCIES, LANGUAGES, TIMEZONES, setLocale, useLocale } from "../lib/locale";
@@ -7,7 +7,7 @@ import customToaster from "../utils/customToaster";
 
 // The currency, the language and the timezone of the family. They apply to everyone in it, and any member can change them.
 export default function AccountPreferences() {
-    const { currency, language, timezone } = useLocale();
+    const { currency, language, timezone, merchantsEnabled } = useLocale();
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -27,7 +27,7 @@ export default function AccountPreferences() {
 
     // Saved as soon as it is chosen; the page shows the new format straight away and goes back if the save fails
     const change = async (field, value) => {
-        const before = { currency, language, timezone };
+        const before = { currency, language, timezone, merchants_enabled: merchantsEnabled };
         setLocale({ [field]: value });
         setSaving(true);
         const result = await updateFamilySettings({ [field]: value }, getToken());
@@ -94,6 +94,20 @@ export default function AccountPreferences() {
                 </NativeSelect.Root>
                 <Field.HelperText>
                     Decide qual é o dia e o mês de "agora": uma compra feita à noite fica no dia certo, mesmo em outro fuso.
+                </Field.HelperText>
+            </Field.Root>
+
+            <Field.Root maxW="sm" disabled={saving}>
+                <Switch.Root checked={merchantsEnabled} onCheckedChange={(e) => change("merchants_enabled", e.checked)}>
+                    <Switch.HiddenInput />
+                    <Switch.Control>
+                        <Switch.Thumb />
+                    </Switch.Control>
+                    <Switch.Label>Estabelecimentos</Switch.Label>
+                </Switch.Root>
+                <Field.HelperText>
+                    Liga um campo "Estabelecimento" nas transações (Uber, iFood, Netflix...), para ver quanto vai para cada
+                    um. Desligar só esconde: nada é apagado.
                 </Field.HelperText>
             </Field.Root>
         </Stack>

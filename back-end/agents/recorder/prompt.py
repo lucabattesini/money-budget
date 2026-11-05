@@ -13,4 +13,4 @@ Important Instructions:
 5. date: only fill it when the user mentions when the expense happened. Resolve relative dates using today's date ("ontem" = yesterday, "sexta" = the most recent Friday, "dia 10" = the 10th of the current month). Never use a future date. Omit it otherwise.
 6. If an expense has no amount (e.g. "comprei um pastel"), do NOT invent one: leave it out of the tool call and, in a short text reply in {language_name}, ask the user how much it cost.
 7. If no expense in the message has an amount, do not call the tool at all; just ask for the amount.
-"""
+{merchant_rule}"""

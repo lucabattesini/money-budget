@@ -1,3 +1,4 @@
+import copy
 from typing import get_args
 
 from schemas.agents_schemas import CategoryType
@@ -89,3 +90,24 @@ QUERY_TOOLS = {
         },
     ]
 }
+
+
+MERCHANT_FILTER = {
+    "type": "array",
+    "items": {"type": "string"},
+    "description": 'Only include transactions at these merchants (places or companies), e.g. ["Uber"].',
+}
+
+
+def query_tools(merchants_enabled: bool = False) -> dict:
+    """The query tools. Merchants (a filter, a way to group, a field in the listing) only exist while the family has
+    them on, so the model cannot ask for what the family does not use."""
+    if not merchants_enabled:
+        return QUERY_TOOLS
+    tools = copy.deepcopy(QUERY_TOOLS)
+    for declaration in tools["function_declarations"]:
+        properties = declaration["parameters"]["properties"]
+        properties["merchants"] = MERCHANT_FILTER
+        if "group_by" in properties:
+            properties["group_by"]["enum"].insert(1, "merchant")
+    return tools

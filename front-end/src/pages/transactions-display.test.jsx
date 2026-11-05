@@ -770,6 +770,114 @@ describe('transactions page', () => {
     })
   })
 
+  describe('merchants (an optional setting of the family)', () => {
+    const MERCHANTS = { data: [{ id: 5, name: 'Uber', transactions: 2 }, { id: 6, name: 'iFood', transactions: 1 }] }
+    const FAMILY_ON = { data: { ...FAMILY.data, merchants_enabled: true } }
+    const WITH = {
+      data: [
+        { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), merchant_id: 6 },
+        { ...t(2, 'Corrida', 1800, '2026-03-10T18:00:00', 2), merchant_id: 5 },
+        { ...t(3, 'Volta', 700, '2026-03-11T18:00:00', 2), merchant_id: 5 },
+        { ...t(4, 'Salário', 99900, '2026-03-02T10:00:00', 1, ), merchant_id: 5, type: 'credit' },
+        t(5, 'Sem lugar', 1000, '2026-03-03T10:00:00'),
+      ],
+    }
+    const setup = async (extra = {}) => {
+      const api = mockApi({
+        'GET /families/me': FAMILY_ON,
+        'GET /categories': CATEGORIES,
+        'GET /merchants': MERCHANTS,
+        'POST /transactions': WITH,
+        'POST /transactions/create': [{ data: {} }, 201],
+        'PUT /transactions/2': [{ data: {} }, 200],
+        ...extra,
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await screen.findByRole('region', { name: 'Por estabelecimento' }) // the merchants arrived
+      return api
+    }
+    const bodyOf = (api, suffix) => JSON.parse(api.mock.calls.find(([url]) => url.endsWith(suffix))[1].body)
+
+    it('changes nothing while they are off: no request, no field, no totals', async () => {
+      const api = mockApi(routes())
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      expect(requestsMade(api)).not.toContain('GET /merchants')
+      expect(screen.queryByRole('region', { name: 'Por estabelecimento' })).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
+      expect((await drawer()).queryByLabelText('Estabelecimento')).not.toBeInTheDocument()
+    })
+
+    it('shows the merchant under the description of each row', async () => {
+      await setup()
+
+      expect(within(rowOf('Corrida')).getByText('Uber')).toBeInTheDocument()
+      expect(within(rowOf('Almoço')).getByText('iFood')).toBeInTheDocument()
+      expect(within(rowOf('Sem lugar')).queryByText(/Uber|iFood/)).not.toBeInTheDocument()
+    })
+
+    it('totals what was spent at each merchant, biggest first, without credits or transactions without one', async () => {
+      await setup()
+
+      const items = within(screen.getByRole('region', { name: 'Por estabelecimento' })).getAllByRole('listitem')
+      expect(items.map((item) => item.textContent.replace(/\s/g, ' '))).toEqual(['iFoodR$ 25,50', 'UberR$ 25,00'])
+    })
+
+    it('lets the user pick an existing merchant or type a new name, and sends the name', async () => {
+      const api = await setup()
+
+      await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
+      const form = await drawer()
+      const field = form.getByLabelText('Estabelecimento')
+      expect([...document.querySelectorAll('#merchant-options option')].map((o) => o.value)).toEqual(['Uber', 'iFood'])
+      await userEvent.type(form.getByLabelText('Valor'), '500')
+      await userEvent.type(form.getByLabelText('Descrição'), 'Série')
+      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await userEvent.type(field, '  Netflix ')
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(() => expect(bodyOf(api, '/create').merchant).toBe('Netflix'))
+    })
+
+    it('opens an edit with its merchant, and an empty field takes it off', async () => {
+      const api = await setup()
+
+      await userEvent.click(rowOf('Corrida'))
+      const form = await drawer()
+      expect(form.getByLabelText('Estabelecimento')).toHaveValue('Uber')
+      await userEvent.clear(form.getByLabelText('Estabelecimento'))
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(() => expect(bodyOf(api, '/transactions/2').merchant).toBe(''))
+    })
+
+    it('narrows to one merchant in the filters', async () => {
+      await setup()
+      await openFilters()
+
+      await userEvent.selectOptions(screen.getByLabelText('Estabelecimento'), 'Uber')
+
+      expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['CorridaUber', 'VoltaUber', 'SalárioUber'])
+    })
+
+    it('still lists the transactions when the merchants cannot be loaded', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      mockApi({
+        'GET /families/me': FAMILY_ON,
+        'GET /categories': CATEGORIES,
+        'GET /merchants': [{ detail: 'boom' }, 500],
+        'POST /transactions': WITH,
+      })
+      renderApp(<TransactionsDisplay />)
+
+      expect(await screen.findByText('Almoço')).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Por estabelecimento' })).not.toBeInTheDocument()
+    })
+  })
+
   it('tells the user when the transactions could not be loaded', async () => {
     mockApi({ 'GET /families/me': FAMILY, 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500] })
     vi.spyOn(console, 'error').mockImplementation(() => {})

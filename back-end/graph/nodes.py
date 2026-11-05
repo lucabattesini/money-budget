@@ -9,8 +9,10 @@ from agents.query.run import run_query
 from agents.query.tools import LIST_TRANSACTIONS, SUMMARIZE_TRANSACTIONS
 from agents.recorder.run import run_recorder
 from agents.secretary.run import run_secretary
+from api.controllers.merchants_controller import merchant_for_transaction
 from api.repositories.categories_repo import get_category_by_name
 from api.repositories.families_repo import get_family
+from api.repositories.merchants_repo import find_by_name
 from api.repositories.transactions_repo import aggregate_transactions, create_transaction, list_transactions
 from api.utils.clock import family_now
 from api.utils.formatting import format_day_month, format_money
@@ -32,7 +34,14 @@ def _category_ids(db: Session, family_id: int, names: list[str] | None) -> list[
     return [cat.id if (cat := get_category_by_name(db, name, family_id)) else -1 for name in names]
 
 
-def _to_filters(db: Session, family_id: int, args: QueryFiltersArgs) -> TransactionFilters:
+def _merchant_ids(db: Session, family_id: int, names: list[str] | None) -> list[int] | None:
+    if not names:
+        return None
+    # An unknown name maps to -1 so it matches nothing instead of silently widening the filter
+    return [merchant.id if (merchant := find_by_name(db, family_id, name)) else -1 for name in names]
+
+
+def _to_filters(db: Session, family_id: int, args: QueryFiltersArgs, merchants_enabled: bool) -> TransactionFilters:
     return TransactionFilters(
         start_date=args.start_date,
         end_date=args.end_date,
@@ -42,10 +51,13 @@ def _to_filters(db: Session, family_id: int, args: QueryFiltersArgs) -> Transact
         min_value=_to_cents(args.min_amount),
         max_value=_to_cents(args.max_amount),
         weekdays=args.weekdays,
+        merchant_ids=_merchant_ids(db, family_id, args.merchants) if merchants_enabled else None,
     )
 
 
-def _run_query_tool(db: Session, call: ToolCall, family_id: int, language: str = "pt") -> dict:
+def _run_query_tool(
+    db: Session, call: ToolCall, family_id: int, language: str = "pt", merchants_enabled: bool = False
+) -> dict:
     """Execute one query tool call for the family and return its result with amounts in the family's currency
     (whole units, not cents)."""
     try:
@@ -54,7 +66,7 @@ def _run_query_tool(db: Session, call: ToolCall, family_id: int, language: str =
             rows = list_transactions(
                 db,
                 family_id,
-                _to_filters(db, family_id, args),
+                _to_filters(db, family_id, args, merchants_enabled),
                 order_by="value" if args.order_by == "amount" else "date",
                 order_dir=args.order_dir,
                 limit=args.limit,
@@ -65,17 +77,22 @@ def _run_query_tool(db: Session, call: ToolCall, family_id: int, language: str =
                     "amount": t.value / 100,
                     "date": t.transactioned_at.date().isoformat() if t.transactioned_at else None,
                     "category": t.category_name,
+                    **({"merchant": t.merchant_name} if merchants_enabled else {}),
                 }
                 for t in rows
             ]
         elif call.name == SUMMARIZE_TRANSACTIONS:
             args = SummarizeTransactionsArgs(**call.args)
-            rows = aggregate_transactions(db, family_id, _to_filters(db, family_id, args), args.group_by)
+            rows = aggregate_transactions(
+                db, family_id, _to_filters(db, family_id, args, merchants_enabled), args.group_by
+            )
             result = []
             for row in rows:
                 item = {}
                 if args.group_by == "category":
                     item["category"] = row.category_name
+                elif args.group_by == "merchant" and merchants_enabled:
+                    item["merchant"] = row.merchant_name
                 elif args.group_by == "weekday":
                     item["weekday"] = WEEKDAY_NAMES[language][row.weekday]
                 elif args.group_by:
@@ -105,7 +122,8 @@ def node_recorder(state: AssistantState):
     with session_scope() as db:
         family = get_family(db, state["family_id"])
         currency, language, timezone = family.currency, family.language, family.timezone
-    response = run_recorder(state["user_message"], language=language, timezone=timezone)
+        merchants = family.merchants_enabled
+    response = run_recorder(state["user_message"], language=language, timezone=timezone, merchants_enabled=merchants)
     text = MESSAGES[language]
     now = family_now(timezone)
 
@@ -124,7 +142,8 @@ def node_recorder(state: AssistantState):
                 category_id=cat_obj.id,
                 transactioned_at=datetime.combine(expense_date, now.time()),
             )
-            create_transaction(db, t, state["family_id"], state["user_id"])
+            merchant_id = merchant_for_transaction(db, state["family_id"], item.merchant) if merchants else None
+            create_transaction(db, t, state["family_id"], state["user_id"], merchant_id)
             registered.append(
                 f"• {format_money(item.amount, currency, language)} {text['in_category']} {cat_obj.name} "
                 f"({item.description}, {format_day_month(expense_date, language)})"
@@ -143,15 +162,19 @@ def node_recorder(state: AssistantState):
 
 def node_query(state: AssistantState):
     with session_scope() as db:
-        timezone = get_family(db, state["family_id"]).timezone
-    response = run_query(state["user_message"], timezone=timezone)
+        family = get_family(db, state["family_id"])
+        timezone, merchants = family.timezone, family.merchants_enabled
+    response = run_query(state["user_message"], timezone=timezone, merchants_enabled=merchants)
     return {"query_tool_calls": response.tool_calls}
 
 
 def node_db_execute(state: AssistantState):
     with session_scope() as db:
-        language = get_family(db, state["family_id"]).language
-        db_results = [_run_query_tool(db, call, state["family_id"], language) for call in state["query_tool_calls"]]
+        family = get_family(db, state["family_id"])
+        language, merchants = family.language, family.merchants_enabled
+        db_results = [
+            _run_query_tool(db, call, state["family_id"], language, merchants) for call in state["query_tool_calls"]
+        ]
     return {"db_results": db_results}
 
 

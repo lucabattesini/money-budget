@@ -67,6 +67,7 @@ class ExpenseItem(BaseModel):
     category: CategoryType
     description: str = Field(min_length=1, max_length=100)
     date: Optional[Date] = None  # defaults to today
+    merchant: Optional[str] = Field(None, max_length=100)  # only asked for while the family has merchants on
 
 
 class RecordExpensesArgs(BaseModel):
@@ -90,6 +91,7 @@ class QueryFiltersArgs(BaseModel):
     min_amount: Optional[float] = Field(None, ge=0)  # reais
     max_amount: Optional[float] = Field(None, ge=0)  # reais
     weekdays: Optional[List[int]] = None  # 0 = Sunday ... 6 = Saturday
+    merchants: Optional[List[str]] = None  # names of merchants; only offered while the family has them on
 
 
 class ListTransactionsArgs(QueryFiltersArgs):
@@ -99,7 +101,7 @@ class ListTransactionsArgs(QueryFiltersArgs):
 
 
 class SummarizeTransactionsArgs(QueryFiltersArgs):
-    group_by: Optional[Literal["category", "day", "month", "year", "weekday"]] = None
+    group_by: Optional[Literal["category", "merchant", "day", "month", "year", "weekday"]] = None
 
 
 class ToolCall(BaseModel):
