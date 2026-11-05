@@ -341,7 +341,7 @@ describe('import dialog', () => {
       expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Arquivo')
     })
 
-    it('numbers the steps in order: file, formats, columns, check, categories, confirm', async () => {
+    it('numbers the steps in order: file, formats, columns, check, categories, people, confirm', async () => {
       mockApi(imports())
       open()
 
@@ -353,7 +353,8 @@ describe('import dialog', () => {
         '3Colunas',
         '4Conferência',
         '5Categorias',
-        '6Confirmar',
+        '6Pessoas',
+        '7Confirmar',
       ])
     })
   })
@@ -773,6 +774,90 @@ describe('import dialog', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Voltar' }))
 
       expect(screen.getByLabelText('Categoria para "Pets"')).toHaveValue('1')
+    })
+  })
+
+  describe('the people of the file', () => {
+    const MEMBERS = [{ id: 1, name: 'Clara' }, { id: 2, name: 'Bia Souza' }]
+    const BIA = { name: 'Bia', rows: 2 }
+    const withPeople = (unknown_people, extra = {}) => ({
+      ...imports({ unknown_people, members: MEMBERS }),
+      ...extra,
+    })
+    const putPeople = (api) => JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/people'))[1].body)
+
+    it('says what an empty Pessoa means, and does not say Débito for it', async () => {
+      mockApi(imports())
+      open()
+
+      await toColumns()
+
+      expect(screen.getByText('Pessoa (opcional, se vazio é quem está importando)')).toBeInTheDocument()
+      expect(screen.getByText('Tipo (opcional, se vazio é Débito)')).toBeInTheDocument()
+    })
+
+    it('goes straight to confirming when every name matched a member', async () => {
+      mockApi(withPeople([]))
+      open()
+
+      await check()
+
+      expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
+      expect(screen.queryByText('Pessoas do arquivo')).not.toBeInTheDocument()
+    })
+
+    it('asks, for each name that matched nobody, which member it stands for, and cannot go on until all are chosen', async () => {
+      const api = mockApi(
+        withPeople([BIA], { 'PUT /imports/5/people': [{ data: job({ unknown_people: [], members: MEMBERS }) }, 200] }),
+      )
+      open()
+
+      await check()
+
+      expect(await screen.findByText('Pessoas do arquivo')).toBeInTheDocument()
+      expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Pessoas')
+      expect(screen.getByText(/“Bia” \(2 linhas\)/)).toBeInTheDocument()
+      const select = screen.getByLabelText('Pessoa para Bia')
+      expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Escolha...', 'Clara', 'Bia Souza'])
+      expect(screen.getByRole('button', { name: 'Próximo' })).toBeDisabled()
+
+      await userEvent.selectOptions(select, 'Bia Souza')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+
+      expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
+      expect(putPeople(api)).toEqual({ mapping: { Bia: 2 } })
+    })
+
+    it('shows the message of the server when the choice is refused and stays on the step', async () => {
+      mockApi(withPeople([BIA], { 'PUT /imports/5/people': [{ detail: 'Essa pessoa não é da sua família.' }, 422] }))
+      open()
+      await check()
+
+      await userEvent.selectOptions(await screen.findByLabelText('Pessoa para Bia'), 'Clara')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Essa pessoa não é da sua família.')
+      expect(screen.getByText('Pessoas do arquivo')).toBeInTheDocument()
+    })
+
+    it('comes after the categories when the file also has unknown ones, and going back returns to them', async () => {
+      mockApi({
+        ...withPeople([BIA], {
+          'PUT /imports/5/categories': [{ data: job({ unknown_people: [BIA], members: MEMBERS }) }, 200],
+        }),
+        'PUT /imports/5/columns': [{ data: job({ unknown_categories: [PETS], unknown_people: [BIA], members: MEMBERS }) }, 200],
+        'GET /categories': CATEGORIES,
+        'GET /categories/groups': GROUPS,
+      })
+      open()
+      await check()
+
+      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      expect(await screen.findByText('Pessoas do arquivo')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar' }))
+      expect(await screen.findByLabelText('Categoria para "Pets"')).toBeInTheDocument()
     })
   })
 

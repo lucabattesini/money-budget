@@ -1401,27 +1401,88 @@ def test_the_person_column_is_suggested_and_each_row_goes_to_the_person_it_names
     assert {t.label: t.user_id for t in _saved(db, user)} == {"Mercado": partner.id, "Padaria": user.id}
 
 
-def test_a_person_that_is_not_in_the_family_stops_the_import(client, db, user, other_user, auth_headers):
-    uploaded = _upload(
+def _stage_people(client, headers, *lines):
+    """Upload a file with a Pessoa column and match the columns the way the page suggests."""
+    uploaded = _upload(client, headers, _csv(*lines, header=PERSON_HEADER)).json()["data"]
+    response = _match(client, headers, uploaded["id"], uploaded["suggested_map"])
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
+def _choose_people(client, headers, job_id, mapping):
+    return client.put(f"/imports/{job_id}/people", json={"mapping": mapping}, headers=headers)
+
+
+def test_a_name_that_matches_nobody_waits_for_the_person_to_choose_who_it_stands_for(
+    client, db, user, auth_headers, make_user, queue
+):
+    partner = _partner(db, user, make_user)
+    job = _stage_people(
         client,
         auth_headers,
-        _csv(f"15/03/2026;Mercado;Aluguel;10,00;Débito;{other_user.name}", header=PERSON_HEADER),
-    ).json()["data"]
+        "15/03/2026;Mercado;Aluguel;10,00;Débito;Bia Souza",
+        "16/03/2026;Padaria;Aluguel;5,00;Débito;Bia",
+        "17/03/2026;Feira;Aluguel;3,00;Débito;bia",
+        "18/03/2026;Café;Aluguel;2,00;Débito;",
+    )
 
-    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"])
+    assert job["unknown_people"] == [{"name": "Bia", "rows": 2}]  # "bia" is the same name: asked once
+    assert {m["id"] for m in job["members"]} == {user.id, partner.id}
+    assert _start(client, auth_headers, job["id"]).status_code == 409  # not before it is settled
+    assert _saved(db, user) == []
 
-    assert response.status_code == 422
-    assert [m for _row, m in _problems(response)] == [f'A pessoa "{other_user.name}" não é da família.']
+    chosen = _choose_people(client, auth_headers, job["id"], {"bia": partner.id})
+
+    assert chosen.status_code == 200
+    assert chosen.json()["data"]["unknown_people"] == []
+    assert _start(client, auth_headers, job["id"]).status_code == 202
+    queue.run()
+    assert {t.label: t.user_id for t in _saved(db, user)} == {
+        "Mercado": partner.id,  # matched by itself
+        "Padaria": partner.id,  # chosen
+        "Feira": partner.id,  # chosen (the same name)
+        "Café": user.id,  # empty: whoever imports
+    }
+
+
+def test_the_person_can_choose_themselves_for_a_name(client, db, user, auth_headers, queue):
+    job = _stage_people(client, auth_headers, "15/03/2026;Mercado;Aluguel;10,00;Débito;Meu apelido")
+
+    assert _choose_people(client, auth_headers, job["id"], {"Meu apelido": user.id}).status_code == 200
+    _start(client, auth_headers, job["id"])
+    queue.run()
+
+    assert [t.user_id for t in _saved(db, user)] == [user.id]
+
+
+def test_a_person_of_another_family_cannot_be_chosen(client, db, user, other_user, auth_headers):
+    job = _stage_people(client, auth_headers, f"15/03/2026;Mercado;Aluguel;10,00;Débito;{other_user.name}")
+    assert job["unknown_people"] == [{"name": other_user.name, "rows": 1}]  # not matched: not in this family
+
+    refused = _choose_people(client, auth_headers, job["id"], {other_user.name: other_user.id})
+
+    assert refused.status_code == 422
+    assert _start(client, auth_headers, job["id"]).status_code == 409
     assert _saved(db, user) == []
 
 
-def test_two_people_with_the_same_name_are_refused_instead_of_guessed(client, db, user, auth_headers, make_user):
+def test_a_name_that_is_not_in_the_file_cannot_be_chosen(client, auth_headers, user):
+    job = _stage_people(client, auth_headers, "15/03/2026;Mercado;Aluguel;10,00;Débito;Bia")
+
+    assert _choose_people(client, auth_headers, job["id"], {"Outra": user.id}).status_code == 422
+
+
+def test_two_people_with_the_same_name_are_not_guessed_but_asked(client, db, user, auth_headers, make_user):
     _partner(db, user, make_user, name=user.name)
-    uploaded = _upload(
-        client, auth_headers, _csv(f"15/03/2026;Mercado;Aluguel;10,00;Débito;{user.name}", header=PERSON_HEADER)
-    ).json()["data"]
 
-    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"])
+    job = _stage_people(client, auth_headers, f"15/03/2026;Mercado;Aluguel;10,00;Débito;{user.name}")
 
-    assert response.status_code == 422
-    assert "mais de uma pessoa" in _problems(response)[0][1]
+    assert job["unknown_people"] == [{"name": user.name, "rows": 1}]
+
+
+def test_a_file_without_unknown_people_asks_nothing(client, auth_headers):
+    job = _stage_people(
+        client, auth_headers, "15/03/2026;Mercado;Aluguel;10,00;Débito;", "16/03/2026;Pão;Aluguel;1,00;Débito;"
+    )
+
+    assert job["unknown_people"] == []

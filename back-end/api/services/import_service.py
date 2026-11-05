@@ -198,7 +198,8 @@ def check_table(
     `amount_style` ("auto", "br" or "us") how amounts are written and `sign` how the sign of the amount is read
     (TYPE_COLUMN: always positive, Tipo says the direction; otherwise the sign says it and Tipo is not used).
     `members` maps the name of each person of the family (see simple_name) to their id, or to None when two people have
-    that name: the Pessoa column is read with it, and an empty cell means the person importing.
+    that name: a Pessoa that is exactly one member's name is matched by itself, and an empty cell means the person
+    importing.
     Rows that are empty all over are skipped. A category is only checked to be filled in; whether it exists is settled
     in a later step.
     """
@@ -250,12 +251,9 @@ def check_table(
             cents = abs(cents)
 
         person = _text(cell("Pessoa"))
-        person_id = None
-        if person:
-            if simple_name(person) not in (members or {}):
-                found.append(f'a pessoa "{person}" não é da família.')
-            elif (person_id := members[simple_name(person)]) is None:
-                found.append(f'há mais de uma pessoa chamada "{person}" na família.')
+        # Who the name stands for is settled after the check (see imports_controller), like the categories: a name
+        # of exactly one member is matched by itself, any other is for the person to choose
+        person_id = members.get(simple_name(person)) if person and members else None
 
         if found:
             problems.extend(Problem(number, message[0].upper() + message[1:]) for message in found)
@@ -268,7 +266,8 @@ def check_table(
                     "value": cents,
                     "type": kind,
                     "category": category,
-                    "user_id": person_id,  # None: the person importing
+                    "person": person,  # the name as the file wrote it ("" when the cell was empty)
+                    "user_id": person_id,  # the member it stands for; None while unsettled (or when the cell was empty)
                 }
             )
     return rows, problems

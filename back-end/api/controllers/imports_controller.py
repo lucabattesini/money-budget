@@ -25,6 +25,7 @@ from api.repositories.imports_repo import (
     mark_running,
     set_category_map,
     set_checked_rows,
+    set_rows,
 )
 from api.services.import_service import (
     DATE_ORDERS,
@@ -78,6 +79,17 @@ def _member_names(db: Session, family_id: int) -> dict[str, int | None]:
         key = simple_name(member.name)
         names[key] = None if key in names else member.id
     return names
+
+
+def _unknown_people(job: ImportJobDB) -> dict[str, dict]:
+    """(name of the file as simple_name writes it -> {name, rows}) for each person of the file that no member was
+    matched to: the person chooses who they stand for. An empty cell is not unknown: it means whoever imports."""
+    unknown: dict[str, dict] = {}
+    for row in job.rows or []:
+        if row.get("person") and row.get("user_id") is None:
+            entry = unknown.setdefault(simple_name(row["person"]), {"name": row["person"], "rows": 0})
+            entry["rows"] += 1
+    return unknown
 
 
 def _category_lookup(db: Session, family_id: int) -> tuple[dict[str, int], set[int]]:
@@ -165,6 +177,8 @@ def describe_job(db: Session, job: ImportJobDB) -> dict:
             columns=job.columns,
             column_map=job.column_map,
             unknown_categories=list(unknown.values()),
+            unknown_people=list(_unknown_people(job).values()),
+            members=[{"id": m.id, "name": m.name} for m in list_members(db, job.family_id)],
             skipped_count=len(duplicates),
             skipped=duplicates[:MAX_SKIPPED_SHOWN],
             to_import=job.total_rows - len(duplicates),
@@ -280,6 +294,31 @@ def choose_categories(db: Session, job_id: int, family_id: int, user_id: int, ma
     return job
 
 
+def choose_people(db: Session, job_id: int, family_id: int, user_id: int, mapping: dict[str, int]) -> ImportJobDB:
+    """Step 3b: say which member of the family each name of the Pessoa column that no member was matched to stands for."""
+    job = _checked(_staged(db, job_id, family_id, user_id))
+    people = {member.id for member in list_members(db, family_id)}
+    chosen: dict[str, int] = {}
+    in_file = _unknown_people(job)
+    for name, person_id in mapping.items():
+        if simple_name(name) not in in_file:
+            raise _unprocessable(f'A pessoa "{name}" não está no arquivo.')
+        if person_id not in people:
+            raise _unprocessable("Essa pessoa não é da sua família.")
+        chosen[simple_name(name)] = person_id
+    set_rows(
+        db,
+        job,
+        [
+            {**row, "user_id": chosen[simple_name(row["person"])]}
+            if row.get("person") and row.get("user_id") is None and simple_name(row["person"]) in chosen
+            else row
+            for row in job.rows
+        ],
+    )
+    return job
+
+
 def cancel_import(db: Session, job_id: int, family_id: int, user_id: int) -> None:
     delete_job(db, _staged(db, job_id, family_id, user_id))
 
@@ -305,6 +344,12 @@ def start_import(db: Session, job_id: int, family_id: int, user_id: int) -> Impo
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Ainda há categorias do arquivo sem uma categoria escolhida."
         )
+    if _unknown_people(job):
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ainda há pessoas do arquivo sem uma pessoa da família escolhida.",
+        )
     mark_queued(db, job)
     return job
 
@@ -328,7 +373,9 @@ def run_import_job(job_id: int) -> None:
             duplicates = _duplicates(db, job, resolved)
             skipped_rows = {row["row"] for row in duplicates}
             people = {member.id for member in list_members(db, job.family_id)}
-            if any(row.get("user_id") not in (None, *people) for row in job.rows):  # someone left after the check
+            if any(row.get("user_id") not in (None, *people) for row in job.rows) or _unknown_people(
+                job
+            ):  # someone left
                 mark_failed(db, job, "Uma pessoa do arquivo deixou de ser da família. Comece de novo.")
                 return
             add_transactions(

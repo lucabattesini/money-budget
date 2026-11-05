@@ -190,6 +190,12 @@ class ImportCategoriesChoice(BaseModel):
     mapping: dict[str, int] = Field(max_length=500)
 
 
+class ImportPeopleChoice(BaseModel):
+    """Which member of the family each person name in the file stands for: {"Bia": 7}."""
+
+    mapping: dict[str, int] = Field(max_length=500)
+
+
 class ExportJobOut(BaseModel):
     id: int
     format: ExportFormat
