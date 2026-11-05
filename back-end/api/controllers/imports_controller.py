@@ -235,7 +235,13 @@ def match_columns(
         raise _unprocessable("Com o sinal do valor dizendo se é débito ou crédito, não escolha uma coluna para o Tipo.")
     order = resolve_date_order(job.raw_rows, mapping["Data"], date_order)
     rows, problems = check_table(
-        job.raw_rows, mapping, family_today(get_family(db, family_id).timezone), order, amount_style, sign, strict_dates=date_order != "auto"
+        job.raw_rows,
+        mapping,
+        family_today(get_family(db, family_id).timezone),
+        order,
+        amount_style,
+        sign,
+        strict_dates=date_order != "auto",
     )
     if problems:
         shown = [{"row": p.row, "message": p.message} for p in problems[:MAX_PROBLEMS_SHOWN]]

@@ -4,7 +4,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from api.repositories.families_repo import get_family
-from api.utils.clock import family_now
 from api.repositories.transactions_repo import (
     category_exists,
 )
@@ -23,6 +22,7 @@ from api.repositories.transactions_repo import (
 from api.repositories.transactions_repo import (
     update_transaction as update_transaction_repo,
 )
+from api.utils.clock import family_now
 from schemas.tables_schemas import GetTransactionsParams, Transaction, TransactionUpdate
 
 

@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -11,8 +11,8 @@ from agents.recorder.run import run_recorder
 from agents.secretary.run import run_secretary
 from api.repositories.categories_repo import get_category_by_name
 from api.repositories.families_repo import get_family
-from api.utils.clock import family_now
 from api.repositories.transactions_repo import aggregate_transactions, create_transaction, list_transactions
+from api.utils.clock import family_now
 from api.utils.formatting import format_day_month, format_money
 from db.connection import session_scope
 from graph.messages import MESSAGES, WEEKDAY_NAMES
