@@ -8,6 +8,7 @@ from api.controllers.imports_controller import (
     ImportRejected,
     cancel_import,
     choose_categories,
+    choose_people,
     describe_job,
     get_import,
     match_columns,
@@ -17,7 +18,7 @@ from api.controllers.imports_controller import (
 )
 from api.gateways.documents import MAX_FILE_BYTES
 from db.connection import get_db
-from schemas.tables_schemas import ImportCategoriesChoice, ImportColumnsChoice
+from schemas.tables_schemas import ImportCategoriesChoice, ImportColumnsChoice, ImportPeopleChoice
 
 router = APIRouter(prefix="/imports", tags=["imports"], responses={404: {"description": "Not found"}})
 
@@ -84,6 +85,19 @@ async def choose_import_categories_router(
 ):
     """Step 3: which category of the family each unknown name in the file stands for."""
     job = choose_categories(db, job_id, family_id, user_id, choice.mapping)
+    return JSONResponse(content=_data(db, job), status_code=status.HTTP_200_OK)
+
+
+@router.put("/{job_id}/people")
+async def choose_import_people_router(
+    job_id: int,
+    choice: ImportPeopleChoice,
+    user_id: int = Depends(get_current_user_id),
+    family_id: int = Depends(get_current_family_id),
+    db: Session = Depends(get_db),
+):
+    """Step 3: which member of the family each name of the Pessoa column that matched nobody stands for."""
+    job = choose_people(db, job_id, family_id, user_id, choice.mapping)
     return JSONResponse(content=_data(db, job), status_code=status.HTTP_200_OK)
 
 

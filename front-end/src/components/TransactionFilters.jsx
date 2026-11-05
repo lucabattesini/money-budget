@@ -34,9 +34,9 @@ export default function TransactionFilters({ filters, onChange, categories, memb
                 </NativeSelect.Root>
             </Field.Root>
 
-            {members.length > 1 && (
+            {members.length > 0 && (
                 <Field.Root width="full">
-                    <Field.Label>Pessoa</Field.Label>
+                    <Field.Label>Quem</Field.Label>
                     <NativeSelect.Root size="sm">
                         <NativeSelect.Field value={filters.person} onChange={(e) => set("person")(e.target.value)}>
                             <option value="">Todas</option>

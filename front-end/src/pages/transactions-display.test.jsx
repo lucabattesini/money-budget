@@ -760,11 +760,24 @@ describe('transactions page', () => {
       expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/transactions/1'))[1].body)).not.toHaveProperty('user_id')
     })
 
+    it('offers the Quem filter even when the family has only one person', async () => {
+      mockApi({
+        'GET /families/me': { data: { me: 1, members: [FAMILY.data.members[0]] } },
+        'GET /categories': CATEGORIES,
+        'POST /transactions': OWNED,
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await openFilters()
+
+      expect(screen.getByLabelText('Quem')).toBeInTheDocument()
+    })
+
     it('narrows to one person in the filters', async () => {
       await setup()
       await openFilters()
 
-      await userEvent.selectOptions(screen.getByLabelText('Pessoa'), 'Bia Souza')
+      await userEvent.selectOptions(screen.getByLabelText('Quem'), 'Bia Souza')
 
       expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['Uber', 'Mercado'])
     })

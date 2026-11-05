@@ -80,6 +80,11 @@ def set_checked_rows(db: Session, job: ImportJobDB, column_map: dict, rows: list
     db.commit()
 
 
+def set_rows(db: Session, job: ImportJobDB, rows: list[dict]) -> None:
+    job.rows = rows  # a new list, so the change is noticed
+    db.commit()
+
+
 def set_category_map(db: Session, job: ImportJobDB, category_map: dict) -> None:
     job.category_map = category_map  # a new dict, so the change is noticed
     db.commit()
