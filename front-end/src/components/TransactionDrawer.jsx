@@ -3,6 +3,7 @@ import { Button, Drawer, Field, Input, NativeSelect, Portal, RadioGroup, Stack, 
 import { insertNewTransaction, updateTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { digitsToCents, maskAmount } from "../lib/money";
+import AmountInput from "./AmountInput";
 import { CURRENCIES, familyNow, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
@@ -124,8 +125,8 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
 
                                 <Field.Root required invalid={!!errors.amount}>
                                     <RequiredLabel>Valor</RequiredLabel>
-                                    <Input
-                                        inputMode="numeric"
+                                    <AmountInput
+                                        label="Valor"
                                         placeholder={maskAmount("0")}
                                         value={amount}
                                         onChange={(e) => setAmount(maskAmount(e.target.value))}

@@ -14,6 +14,16 @@ describe('the amount fields of the filters', () => {
     expect(screen.getAllByPlaceholderText('0,00')).toHaveLength(2)
   })
 
+  it('show the currency of the family in front of the number, and name it for a screen reader', () => {
+    setLocale({ currency: 'USD', language: 'en' })
+
+    renderFilters()
+
+    expect(screen.getAllByText('US$')).toHaveLength(2)
+    expect(screen.getByRole('textbox', { name: 'Valor mínimo em dólares (US$)' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Valor máximo em dólares (US$)' })).toBeInTheDocument()
+  })
+
   it('and with a dot in English', () => {
     setLocale({ language: 'en' })
 
