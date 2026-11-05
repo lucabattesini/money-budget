@@ -259,6 +259,22 @@ def test_the_assistant_records_the_merchant_only_while_the_family_has_merchants_
     assert db.query(TransactionDB).order_by(TransactionDB.id.desc()).first().merchant_id == db.query(Merchants).one().id
 
 
+def test_a_merchant_that_cannot_be_one_does_not_lose_the_expense(client, db, user, auth_headers, on, monkeypatch):
+    items = [
+        ExpenseItem(amount=20, category="Sem categoria", description="Pizza", merchant="🍕"),
+        ExpenseItem(amount=5, category="Sem categoria", description="Café", merchant="Padaria"),
+    ]
+
+    reply = _record(user, items, monkeypatch)
+
+    assert "Registrado" in reply["final_response"]
+    assert sorted((t.label, t.merchant_id is not None) for t in db.query(TransactionDB)) == [
+        ("Café", True),
+        ("Pizza", False),
+    ]
+    assert [m.name for m in db.query(Merchants)] == ["Padaria"]
+
+
 def test_the_assistant_is_only_given_merchants_while_they_are_on():
     def merchant_in_recorder(tools):
         return (

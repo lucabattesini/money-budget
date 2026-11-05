@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 
+from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,16 @@ from graph.messages import MESSAGES, WEEKDAY_NAMES
 from graph.state import AssistantState
 from schemas.agents_schemas import ListTransactionsArgs, QueryFiltersArgs, SummarizeTransactionsArgs, ToolCall
 from schemas.tables_schemas import Transaction, TransactionFilters
+
+
+def _merchant_of(db: Session, family_id: int, name: str | None) -> int | None:
+    """The merchant the user named, or None when the name cannot be one (only an emoji, say). The expense is still
+    recorded: a bad merchant must not lose it."""
+    try:
+        return merchant_for_transaction(db, family_id, name)
+    except HTTPException:
+        db.rollback()
+        return None
 
 
 def _to_cents(amount: float | None) -> int | None:
@@ -142,7 +153,7 @@ def node_recorder(state: AssistantState):
                 category_id=cat_obj.id,
                 transactioned_at=datetime.combine(expense_date, now.time()),
             )
-            merchant_id = merchant_for_transaction(db, state["family_id"], item.merchant) if merchants else None
+            merchant_id = _merchant_of(db, state["family_id"], item.merchant) if merchants else None
             create_transaction(db, t, state["family_id"], state["user_id"], merchant_id)
             registered.append(
                 f"• {format_money(item.amount, currency, language)} {text['in_category']} {cat_obj.name} "

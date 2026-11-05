@@ -862,6 +862,26 @@ describe('transactions page', () => {
       expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['CorridaUber', 'VoltaUber', 'SalárioUber'])
     })
 
+    it('does not touch the merchant of an edited transaction when the merchants could not be loaded', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const api = mockApi({
+        'GET /families/me': FAMILY_ON,
+        'GET /categories': CATEGORIES,
+        'GET /merchants': [{ detail: 'boom' }, 500],
+        'POST /transactions': WITH,
+        'PUT /transactions/2': [{ data: {} }, 200],
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await userEvent.click(rowOf('Corrida'))
+      const form = await drawer()
+      expect(form.queryByLabelText('Estabelecimento')).not.toBeInTheDocument()
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(() => expect(bodyOf(api, '/transactions/2')).not.toHaveProperty('merchant')) // the server keeps it
+    })
+
     it('still lists the transactions when the merchants cannot be loaded', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
 

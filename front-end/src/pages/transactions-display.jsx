@@ -21,7 +21,7 @@ const PAGE_SIZE = 10;
 
 export default function TransactionsDisplay() {
     const { merchantsEnabled } = useLocale(); // amounts and dates follow the family's currency and language
-    const [merchants, setMerchants] = useState([]); // only loaded while the family has merchants on
+    const [merchants, setMerchants] = useState(null); // null: off, or the list could not be loaded (an edit must not touch merchants then)
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
@@ -51,9 +51,9 @@ export default function TransactionsDisplay() {
             if (familyResult?.ok) setLocale(familyResult.data); // the merchants switch
             if (familyResult?.ok && familyResult.data.merchants_enabled) {
                 const merchantsResult = await getMerchants(token);
-                if (merchantsResult.ok) setMerchants(merchantsResult.data);
+                setMerchants(merchantsResult.ok ? merchantsResult.data : null);
             } else {
-                setMerchants([]);
+                setMerchants(null);
             }
             if (familyResult?.ok) setFamily({ members: familyResult.data.members ?? [], me: familyResult.data.me ?? null });
             setLoading(false);
@@ -121,7 +121,7 @@ export default function TransactionsDisplay() {
     const categoryName = (transaction) =>
         categories?.find((category) => category.id === transaction.category_id)?.name ?? "Categoria não encontrada";
 
-    const merchantName = (transaction) => merchants.find((merchant) => merchant.id === transaction.merchant_id)?.name;
+    const merchantName = (transaction) => merchants?.find((merchant) => merchant.id === transaction.merchant_id)?.name;
 
     const renderRow = (transaction) => (
         <Table.Row key={transaction.id} cursor="pointer" _hover={{ bg: "bg.muted" }} onClick={() => setEditing(transaction)}>
@@ -178,7 +178,7 @@ export default function TransactionsDisplay() {
             <Stack minHeight="100vh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={10} px={4}>
                 <TransactionSummary transactions={transactions} />
 
-                {merchantsEnabled && <MerchantTotals transactions={filtered} merchants={merchants} />}
+                {merchantsEnabled && merchants && <MerchantTotals transactions={filtered} merchants={merchants} />}
 
                 <Flex w="full" justify="space-between" align="center">
                     <Text fontSize="lg" fontWeight="bold">Transações</Text>
@@ -198,7 +198,7 @@ export default function TransactionsDisplay() {
                                                 onChange={changeFilters}
                                                 categories={sortedCategories}
                                                 members={family.members}
-                                                merchants={merchantsEnabled ? merchants : []}
+                                                merchants={merchants ?? []}
                                             />
                                         </Popover.Body>
                                     </Popover.Content>
