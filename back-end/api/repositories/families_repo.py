@@ -67,6 +67,11 @@ def list_members(db: Session, family_id: int) -> list[Users]:
     return db.query(Users).filter(Users.family_id == family_id).order_by(Users.id).all()
 
 
+def is_member(db: Session, user_id: int, family_id: int) -> bool:
+    """True if the person is in the family."""
+    return db.query(Users.id).filter(Users.id == user_id, Users.family_id == family_id).first() is not None
+
+
 def count_active_invites(db: Session, family_id: int) -> int:
     return _active(db.query(FamilyInvites).filter(FamilyInvites.family_id == family_id)).count()
 

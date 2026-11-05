@@ -1,6 +1,6 @@
 import { digitsToCents } from "./money";
 
-export const EMPTY_FILTERS = { search: "", category: "", type: "", from: "", to: "", min: "", max: "" };
+export const EMPTY_FILTERS = { search: "", category: "", type: "", person: "", from: "", to: "", min: "", max: "" };
 
 const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
 
@@ -41,6 +41,7 @@ export function applyFilters(transactions, filters) {
         const date = new Date(transaction.transactioned_at);
         if (search && !(transaction.label ?? "").toLowerCase().includes(search)) return false;
         if (filters.category && String(transaction.category_id) !== filters.category) return false;
+        if (filters.person && String(transaction.user_id) !== filters.person) return false;
         if (filters.type && (transaction.type ?? "debit") !== filters.type) return false;
         if (from && date < from) return false;
         if (to && date >= to) return false;

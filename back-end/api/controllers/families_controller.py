@@ -61,6 +61,7 @@ def get_my_family(db: Session, user: Users) -> dict:
         "timezone": family.timezone,
         # Set while the person can still go back to the family they left (they started empty when joining)
         "previous_family": None if deadline is None else {"available_until": deadline},
+        "me": user.id,  # the logged-in person, so pages can tell which member is them
         "members": [
             {"id": m.id, "name": m.name, "picture": m.picture, "role": m.role} for m in list_members(db, user.family_id)
         ],

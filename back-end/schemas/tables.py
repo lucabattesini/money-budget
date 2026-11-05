@@ -35,7 +35,9 @@ class TransactionDB(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # who entered it; information, not a permission
+    user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )  # who it belongs to (who paid): a member of the family, whoever added it unless changed; not a permission
     label = Column(String(100))
     value = Column(Integer)  # always positive, in cents; `type` says which way the money went
     type = Column(String(6), nullable=False, default="debit", server_default="debit")  # "debit" | "credit"

@@ -246,3 +246,11 @@ def test_the_assistant_cannot_file_an_expense_under_another_familys_category(
 
     [row] = db.query(TransactionDB).all()
     assert row.category_id == category_ids["Sem categoria"]  # unknown to this family, so it falls back
+
+
+def test_the_family_tells_who_is_asking(client, user, partner, headers_for):
+    mine = client.get("/families/me", headers=headers_for(user)).json()["data"]
+    theirs = client.get("/families/me", headers=headers_for(partner)).json()["data"]
+
+    assert (mine["me"], theirs["me"]) == (user.id, partner.id)
+    assert {m["id"] for m in mine["members"]} == {user.id, partner.id}

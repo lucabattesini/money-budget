@@ -32,7 +32,9 @@ GroupBy = Literal["category", "day", "month", "year", "weekday"]
 
 def create_transaction(db: Session, t: Transaction, family_id: int, user_id: int):
     try:
-        transaction = TransactionDB(**t.dict(), family_id=family_id, user_id=user_id)
+        data = t.model_dump()
+        data["user_id"] = data["user_id"] or user_id  # belongs to whoever adds it unless said otherwise
+        transaction = TransactionDB(**data, family_id=family_id)
         db.add(transaction)
         db.commit()
         return t
@@ -142,6 +144,7 @@ def _to_out(rows) -> list[TransactionOut]:
             updated_at=t.updated_at,
             category_id=t.category_id,
             category_name=category_name,
+            user_id=t.user_id,
         )
         for t, category_name in rows
     ]
@@ -214,6 +217,8 @@ def update_transaction(db: Session, id: int, family_id: int, changes: Transactio
         transaction.type = changes.type
     if changes.transactioned_at is not None:
         transaction.transactioned_at = changes.transactioned_at
+    if changes.user_id is not None:
+        transaction.user_id = changes.user_id
     transaction.updated_at = datetime.now()
     db.commit()
     return transaction

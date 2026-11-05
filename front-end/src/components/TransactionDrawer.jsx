@@ -28,7 +28,7 @@ const nowTime = () => {
 
 // Side panel with the form for a transaction: a new one, or `transaction` to edit it.
 // Calls onSaved() after the API accepted it.
-export default function TransactionDrawer({ open, onClose, categories, onSaved, transaction = null }) {
+export default function TransactionDrawer({ open, onClose, categories, members = [], me = null, onSaved, transaction = null }) {
     const { currency } = useLocale(); // the amount is typed in the family's currency
     const unit = CURRENCIES.find((c) => c.code === currency);
     const editing = transaction !== null;
@@ -37,6 +37,7 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
     const [date, setDate] = useState(todayISO());
     const [description, setDescription] = useState("");
     const [categoryId, setCategoryId] = useState("");
+    const [personId, setPersonId] = useState(""); // who it belongs to
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
 
@@ -49,6 +50,9 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
             setDescription(editing ? transaction.label ?? "" : "");
             const known = editing && categories.some((category) => category.id === transaction.category_id);
             setCategoryId(known ? String(transaction.category_id) : "");
+            // A new one belongs to the logged-in person; an edited one to its person (empty if they left the family)
+            const person = editing ? transaction.user_id : me;
+            setPersonId(members.some((member) => member.id === person) ? String(person) : "");
             setErrors({});
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,6 +82,8 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
             category_id: Number(categoryId),
             type,
             transactioned_at: `${date}T${time}`,
+            // Left out when unknown: the server then keeps the person (edit) or uses the logged-in one (new)
+            ...(personId ? { user_id: Number(personId) } : {}),
         };
         const result = editing
             ? await updateTransaction(transaction.id, payload, getToken())
@@ -166,6 +172,19 @@ export default function TransactionDrawer({ open, onClose, categories, onSaved, 
                                         <NativeSelect.Indicator />
                                     </NativeSelect.Root>
                                     <Field.ErrorText>{errors.category}</Field.ErrorText>
+                                </Field.Root>
+
+                                <Field.Root>
+                                    <Field.Label>Quem</Field.Label>
+                                    <NativeSelect.Root>
+                                        <NativeSelect.Field value={personId} onChange={(e) => setPersonId(e.target.value)}>
+                                            {personId === "" && <option value="">Selecione</option>}
+                                            {members.map((member) => (
+                                                <option key={member.id} value={member.id}>{member.name}</option>
+                                            ))}
+                                        </NativeSelect.Field>
+                                        <NativeSelect.Indicator />
+                                    </NativeSelect.Root>
                                 </Field.Root>
                             </Stack>
                         </Drawer.Body>

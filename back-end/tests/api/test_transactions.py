@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 
 from api.utils.clock import family_now
-from schemas.tables import TransactionDB
+from schemas.tables import Families, TransactionDB
 
 
 def _create(client, headers, category_id, label="Almoço", value=2500):
@@ -465,3 +465,109 @@ def test_grouping_without_a_date_is_a_client_error(client, auth_headers, path):
     response = client.post(path, json={"organized_by": "day"}, headers=auth_headers)
 
     assert response.status_code == 422
+
+
+# --- who a transaction belongs to (TKT-73) -----------------------------------------------------------------------------
+
+
+def _put(client, headers, transaction_id, category_id, **fields):
+    body = {"label": "Almoço", "value": 2500, "category_id": category_id, **fields}
+    return client.put(f"/transactions/{transaction_id}", json=body, headers=headers)
+
+
+def test_a_new_transaction_belongs_to_the_person_adding_it_by_default(client, db, user, auth_headers, category_ids):
+    _create(client, auth_headers, category_ids["Sem categoria"])
+
+    row = db.query(TransactionDB).one()
+    assert row.user_id == user.id
+
+
+def test_a_new_transaction_can_belong_to_another_member_of_the_family(
+    client, db, user, make_user, auth_headers, category_ids
+):
+    partner = make_user("Partner", family=db.get(Families, user.family_id))
+
+    response = client.post(
+        "/transactions/create",
+        json={"label": "Mercado", "value": 100, "category_id": category_ids["Sem categoria"], "user_id": partner.id},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    row = db.query(TransactionDB).one()
+    assert row.user_id == partner.id
+
+
+def test_a_transaction_cannot_be_given_to_someone_in_another_family(client, db, other_user, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={"label": "x", "value": 100, "category_id": category_ids["Sem categoria"], "user_id": other_user.id},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert db.query(TransactionDB).count() == 0
+
+
+def test_a_transaction_cannot_be_given_to_a_person_that_does_not_exist(client, db, auth_headers, category_ids):
+    response = client.post(
+        "/transactions/create",
+        json={"label": "x", "value": 100, "category_id": category_ids["Sem categoria"], "user_id": 999999},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert db.query(TransactionDB).count() == 0
+
+
+def test_the_list_says_who_each_transaction_belongs_to(
+    client, db, user, make_user, auth_headers, make_transaction, category_ids
+):
+    partner = make_user("Partner", family=db.get(Families, user.family_id))
+    mine = make_transaction(user, category_ids["Sem categoria"], label="Mine")
+    theirs = make_transaction(user, category_ids["Sem categoria"], label="Theirs")
+    theirs.user_id = partner.id
+    db.commit()
+
+    listed = {t["label"]: t["user_id"] for t in _list(client, auth_headers)}
+
+    assert listed == {mine.label: user.id, "Theirs": partner.id}
+
+
+def test_update_can_change_the_person(client, db, user, make_user, auth_headers, make_transaction, category_ids):
+    partner = make_user("Partner", family=db.get(Families, user.family_id))
+    row = make_transaction(user, category_ids["Sem categoria"])
+
+    response = _put(client, auth_headers, row.id, category_ids["Sem categoria"], user_id=partner.id)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["user_id"] == partner.id
+    db.refresh(row)
+    assert row.user_id == partner.id
+
+
+def test_update_keeps_the_person_when_none_is_sent(
+    client, db, user, make_user, auth_headers, make_transaction, category_ids
+):
+    partner = make_user("Partner", family=db.get(Families, user.family_id))
+    row = make_transaction(user, category_ids["Sem categoria"])
+    row.user_id = partner.id
+    db.commit()
+
+    response = _put(client, auth_headers, row.id, category_ids["Sem categoria"], label="Novo")
+
+    assert response.status_code == 200
+    db.refresh(row)
+    assert (row.label, row.user_id) == ("Novo", partner.id)
+
+
+def test_update_refuses_a_person_from_another_family_and_changes_nothing(
+    client, db, user, other_user, auth_headers, make_transaction, category_ids
+):
+    row = make_transaction(user, category_ids["Sem categoria"], label="Original")
+
+    response = _put(client, auth_headers, row.id, category_ids["Sem categoria"], label="Changed", user_id=other_user.id)
+
+    assert response.status_code == 404
+    db.refresh(row)
+    assert (row.label, row.user_id) == ("Original", user.id)

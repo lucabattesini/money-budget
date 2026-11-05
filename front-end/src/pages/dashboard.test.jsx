@@ -6,6 +6,11 @@ import { jsonResponse, mockApi, networkDown, renderApp, requestsMade } from '../
 import Dashboard from './dashboard'
 import customToaster from '../utils/customToaster'
 
+// The family the pages ask for, to show whose each transaction is
+const FAMILY = {
+  data: { me: 1, members: [{ id: 1, name: 'Clara Battesini', picture: null }, { id: 2, name: 'Bia Souza', picture: null }] },
+}
+
 vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
 
 // Sunday 15 March 2026, noon.
@@ -21,7 +26,7 @@ const FEBRUARY = 'GET /budgets?month=2026-02'
 
 const ROUTES = {
   [MARCH]: { data: budgetOf('2026-03', 100000, 62000, 5000) }, // 620,00 spent of 1.000,00
-  'GET /categories': { data: [{ id: 1, name: '🛒 Alimentação' }, { id: 2, name: '🚌 Transporte' }] },
+  'GET /families/me': FAMILY, 'GET /categories': { data: [{ id: 1, name: '🛒 Alimentação' }, { id: 2, name: '🚌 Transporte' }] },
   'GET /user/me': { data: { name: 'Clara Battesini', email: 'c@example.com' } },
   'POST /transactions': {
     data: [
@@ -52,7 +57,7 @@ describe('dashboard', () => {
     renderApp(<Dashboard />)
     await screen.findByText(/Olá, /)
 
-    expect(requestsMade(api).sort()).toEqual([MARCH, 'GET /categories', 'GET /user/me', 'POST /transactions'])
+    expect(requestsMade(api).sort()).toEqual([MARCH, 'GET /categories', 'GET /families/me', 'GET /user/me', 'POST /transactions'])
     expect(api.mock.calls.every(([, o]) => o.headers.Authorization === 'Bearer tok')).toBe(true)
   })
 
@@ -106,7 +111,7 @@ describe('dashboard', () => {
 
   it('survives an expired session instead of showing a blank page', async () => {
     mockApi({
-      'GET /categories': [{ detail: 'Token expired' }, 401],
+      'GET /families/me': FAMILY, 'GET /categories': [{ detail: 'Token expired' }, 401],
       'POST /transactions': [{ detail: 'Token expired' }, 401],
       'GET /user/me': [{ detail: 'Token expired' }, 401],
       [MARCH]: [{ detail: 'Token expired' }, 401],
@@ -122,7 +127,7 @@ describe('dashboard', () => {
   })
 
   it('tells the user when the data could not be loaded', async () => {
-    mockApi({ 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500], 'GET /user/me': ROUTES['GET /user/me'], [MARCH]: ROUTES[MARCH] })
+    mockApi({ 'GET /families/me': FAMILY, 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500], 'GET /user/me': ROUTES['GET /user/me'], [MARCH]: ROUTES[MARCH] })
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
     renderApp(<Dashboard />)
@@ -211,6 +216,17 @@ describe('dashboard', () => {
     expect(items[1]).toHaveTextContent('🛒')
   })
 
+  it('shows the picture or initials of the person on each recent transaction, with the name', async () => {
+    const owned = [{ ...t(1, 100, '2026-03-05T10:00:00'), user_id: 2 }, { ...t(2, 200, '2026-03-06T10:00:00'), user_id: 1 }]
+    mockApi({ ...ROUTES, 'POST /transactions': { data: owned } })
+
+    renderApp(<Dashboard />)
+
+    const items = within(await screen.findByRole('list', { name: 'Últimas transações' })).getAllByRole('listitem')
+    expect(within(items[0]).getByRole('img', { name: 'Clara Battesini' })).toBeInTheDocument()
+    expect(within(items[1]).getByRole('img', { name: 'Bia Souza' })).toHaveAttribute('title', 'Bia Souza')
+  })
+
   it('lists at most six transactions', async () => {
     const many = [1, 2, 3, 4, 5, 6, 7, 8].map((id) => t(id, 100, `2026-03-0${id}T10:00:00`))
     mockApi({ ...ROUTES, 'POST /transactions': { data: many } })
@@ -246,7 +262,7 @@ describe('dashboard', () => {
   describe('transfers and income are not spending', () => {
     const GROUPED = {
       ...ROUTES,
-      'GET /categories': {
+      'GET /families/me': FAMILY, 'GET /categories': {
         data: [
           { id: 1, name: '🛒 Alimentação', group_name: 'Alimentação' },
           { id: 2, name: '🚌 Transporte', group_name: 'Auto e Transporte' },
@@ -311,7 +327,7 @@ describe('dashboard', () => {
     const text = (label) => plain(screen.getByLabelText(label).textContent)
     const FLOW = {
       ...ROUTES,
-      'GET /categories': {
+      'GET /families/me': FAMILY, 'GET /categories': {
         data: [
           { id: 1, name: '🛒 Alimentação', group_name: 'Alimentação' },
           { id: 3, name: '💳 Fatura', group_name: 'Transferências' },
