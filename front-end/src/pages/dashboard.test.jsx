@@ -134,6 +134,7 @@ describe('dashboard', () => {
 
     await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Error', 'error', expect.any(String)))
     expect(monthTotal()).toBe('R$ 0,00') // the page still shows, with zero spending
+    expect(customToaster).toHaveBeenCalledTimes(1) // one message, although two of the calls failed
   })
 
   it('shows how much is left of the month\'s plan', async () => {

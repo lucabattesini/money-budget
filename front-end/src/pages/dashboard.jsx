@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Box, Center, Grid, Heading, HStack, IconButton, Stack } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
@@ -33,8 +33,13 @@ export default function Dashboard() {
     const month = requested > thisMonth ? thisMonth : requested;
     const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key }, { replace: true });
     // After an expired login the token is gone and the user is on the login page: no message there
+    // (One message, however many of the calls failed)
+    const toldLoadFailed = useRef(false);
     const tellLoadFailed = () => {
-        if (getToken()) customToaster("Error", "error", "Não foi possível carregar seus dados. Tente novamente mais tarde.");
+        if (getToken() && !toldLoadFailed.current) {
+            toldLoadFailed.current = true;
+            customToaster("Error", "error", "Não foi possível carregar seus dados. Tente novamente mais tarde.");
+        }
     };
     const [budget, setBudget] = useState(undefined); // the plan of the month: undefined while loading, null when it failed
 
