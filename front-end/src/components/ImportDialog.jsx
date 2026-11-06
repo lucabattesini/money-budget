@@ -357,7 +357,20 @@ function CheckStep({ job, running, error }) {
     );
 }
 
-// One category of the file that the family does not have: use one it has, or create it.
+// How the category shown for a name of the file came to be there, so the person knows what to look at.
+function MatchBadge({ item, value }) {
+    if (!isChosen(value)) return <Badge colorPalette="orange" variant="subtle" flexShrink={0}>Falta escolher</Badge>;
+    if (value !== String(item.category_id ?? "") || item.match === "chosen") {
+        return <Badge colorPalette="gray" variant="subtle" flexShrink={0}>Sua escolha</Badge>;
+    }
+    if (item.match === "alias") {
+        return <Badge colorPalette="blue" variant="subtle" flexShrink={0}>Reconhecida por um nome parecido: confira</Badge>;
+    }
+    if (item.match === "name") return <Badge colorPalette="green" variant="subtle" flexShrink={0}>Já existe com esse nome</Badge>;
+    return null;
+}
+
+// One category of the file: the one it matched (or a choice to make), which the person can always change or create.
 function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState("");
@@ -392,7 +405,7 @@ function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
                     <Text as="span" fontWeight="semibold">{item.name}</Text>
                     <Text as="span" color="fg.muted"> · {item.rows === 1 ? "1 linha" : `${item.rows} linhas`}</Text>
                 </Text>
-                {!isChosen(row.value) && <Badge colorPalette="orange" variant="subtle" flexShrink={0}>Falta escolher</Badge>}
+                <MatchBadge item={item} value={row.value} />
             </HStack>
             <Field.Root>
                 <Field.Label>{`Categoria para "${item.name}"`}</Field.Label>
@@ -440,7 +453,7 @@ function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
     );
 }
 
-// Step 4: for each category of the file the family does not have yet, use an existing one or create it.
+// Step 5: every category of the file with the category it stands for, for the person to review and change.
 function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCategories, error }) {
     const update = (name, changes) => setRows((current) => ({ ...current, [name]: { ...current[name], ...changes } }));
     const created = async (name, id) => {
@@ -451,10 +464,10 @@ function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCate
     return (
         <Stack gap={5}>
             <Section
-                title="Categorias novas"
-                hint={`${unknown.length === 1 ? "1 categoria do arquivo não existe" : `${unknown.length} categorias do arquivo não existem`}. Escolha uma existente ou crie uma nova.`}
+                title="Categorias do arquivo"
+                hint="Confira a categoria de cada nome do arquivo. As que o app reconheceu já vêm escolhidas, e qualquer uma pode ser trocada. Para as que faltam, escolha uma existente ou crie uma nova."
             >
-                <Stack as="ul" gap={4} m={0} p={0} aria-label="Categorias do arquivo que não existem">
+                <Stack as="ul" gap={4} m={0} p={0} aria-label="Categorias do arquivo">
                     {unknown.map((item) => (
                         <CategoryRow
                             key={item.name}
@@ -666,7 +679,8 @@ export default function ImportDialog({ open, onClose }) {
         setJob(checked);
         // Every category of the file the family does not have, with the choice already made (the server keeps it, also
         // when the person comes back and the columns are matched again)
-        const toSettle = checked.new_categories ?? checked.unknown_categories;
+        // Every category of the file, the ones matched by themselves too: the person reviews all of them
+        const toSettle = checked.file_categories ?? checked.new_categories ?? checked.unknown_categories;
         if (toSettle.length === 0) {
             setUnknown([]);
             toPeopleOrConfirm(checked);

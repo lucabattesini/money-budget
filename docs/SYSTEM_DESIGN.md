@@ -689,7 +689,11 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    mean two categories, like "Transporte", is left out, so the person is asked); a name a category really has always wins
    over such an alias, and an alias only points at a default category that exists. The check also
    lists `new_categories`: every category of the file the family has no category of that name for, with the one chosen
-   (`category_id`, null while none), so the dialog can show and change the choices. Matching the columns again keeps
+   (`category_id`, null while none), and `file_categories`: **every** category name of the file, in file order, with the
+   category it stands for now and `match` (`chosen` by the person, `name` the family has it, `alias` found by another name,
+   null still to choose). The dialog always shows all of `file_categories`, matched ones already selected and labelled, so
+   the person reviews the matching and can change any of it; what the person chose wins over what was matched by itself.
+   Only names with no category (`unknown_categories`) block the start. Matching the columns again keeps
    the choices: if the checked rows come out the same (same columns and formats) nothing at all is touched, and if they
    change the choices about names still in the file (and who the person chose for a name of the Pessoa column) are kept.
    Both calls answer `409` before the columns are matched.

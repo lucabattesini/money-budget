@@ -1749,3 +1749,57 @@ def test_a_word_that_could_mean_two_categories_is_not_matched(client, auth_heade
     job = _stage(client, auth_headers, "15/03/2026;Salário;Income;10,00;Crédito", "15/03/2026;Algo;Other;5,00;Débito")
 
     assert sorted(item["name"] for item in job["unknown_categories"]) == ["Income", "Other"]
+
+
+# --- the person reviews every category of the file, matched by itself or not ---------------------------------------------
+
+
+def _by_name(job):
+    return {item["name"]: item for item in job["file_categories"]}
+
+
+def test_every_category_of_the_file_is_listed_with_how_it_was_matched(client, auth_headers, category_ids):
+    job = _stage(
+        client,
+        auth_headers,
+        "15/03/2026;A;Aluguel;10,00;Débito",  # the family has it
+        "15/03/2026;B;Groceries;20,00;Débito",  # found by another name
+        "15/03/2026;C;Groceries;5,00;Débito",
+        "15/03/2026;D;Bicho;5,00;Débito",  # nothing found
+    )
+
+    found = _by_name(job)
+    assert list(found) == ["Aluguel", "Groceries", "Bicho"]  # the order of the file
+    assert (found["Aluguel"]["category_id"], found["Aluguel"]["match"]) == (str(category_ids["Aluguel"]), "name")
+    assert (found["Groceries"]["category_id"], found["Groceries"]["match"], found["Groceries"]["rows"]) == (
+        str(category_ids["Supermercado"]),
+        "alias",
+        2,
+    )
+    assert (found["Bicho"]["category_id"], found["Bicho"]["match"]) == (None, None)
+    assert [item["name"] for item in job["unknown_categories"]] == ["Bicho"]  # only this one blocks the import
+
+
+def test_a_file_whose_categories_are_all_known_still_lists_them_for_review(client, auth_headers):
+    job = _stage(client, auth_headers, GOOD_ROW)
+
+    assert job["unknown_categories"] == []
+    assert [(item["name"], item["match"]) for item in job["file_categories"]] == [("Restaurantes e Bares", "name")]
+
+
+def test_what_the_person_chose_for_a_matched_name_wins_and_is_what_gets_imported(
+    client, db, user, auth_headers, queue, category_ids
+):
+    job = _stage(client, auth_headers, "15/03/2026;Shop;Groceries;10,00;Débito")
+    assert _by_name(job)["Groceries"]["match"] == "alias"  # matched to Supermercado by itself
+
+    assert _choose(client, auth_headers, job["id"], {"Groceries": category_ids["Aluguel"]}).status_code == 200
+    again = client.get(f"/imports/{job['id']}", headers=auth_headers).json()["data"]
+    assert (_by_name(again)["Groceries"]["category_id"], _by_name(again)["Groceries"]["match"]) == (
+        str(category_ids["Aluguel"]),
+        "chosen",
+    )
+    assert _start(client, auth_headers, job["id"]).status_code == 202
+    queue.run()
+
+    assert [t.category_id for t in _saved(db, user)] == [category_ids["Aluguel"]]
