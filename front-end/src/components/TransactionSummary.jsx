@@ -16,8 +16,8 @@ export default function TransactionSummary({ transactions }) {
     let weekSum = 0;
     let monthSum = 0;
 
-    // Credits are money coming in; these totals are what was spent
-    transactions.filter(transaction => transaction.type !== "credit").forEach(transaction => {
+    // Credits are money coming in, and what the person left out of the totals does not count; these totals are what was spent
+    transactions.filter(transaction => transaction.type !== "credit" && !transaction.excluded).forEach(transaction => {
         const tDate = new Date(transaction.transactioned_at);
         const value = transaction.value / 100;
 
