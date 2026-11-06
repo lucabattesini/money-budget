@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getToken, saveToken } from '../lib/auth'
 import customToaster from '../utils/customToaster'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
@@ -11,6 +11,25 @@ vi.mock('../utils/customToaster', () => ({ default: vi.fn() }))
 const ME = { data: { name: 'Clara Batt', email: 'clara@example.com', picture: null, whatsapp_phone: '5511999990000' } }
 
 describe('account page', () => {
+  // The WhatsApp settings are hidden unless the web app is built with VITE_WHATSAPP_ENABLED=true (see account.jsx)
+  beforeEach(() => vi.stubEnv('VITE_WHATSAPP_ENABLED', 'true'))
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('hides the WhatsApp settings while WhatsApp is not switched on', async () => {
+    vi.stubEnv('VITE_WHATSAPP_ENABLED', '')
+    saveToken('tok')
+    mockApi({ 'GET /user/me': ME })
+
+    renderApp(<Account />)
+
+    expect(await screen.findByText('Clara Batt')).toBeInTheDocument() // the profile is still there
+    expect(screen.queryByText('Integração com WhatsApp')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('+55 51 99999-9999')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Salvar número' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument() // the rest of the page stays
+    expect(screen.queryByText(/integrações/)).not.toBeInTheDocument()
+  })
+
   it('shows the profile and the saved WhatsApp number', async () => {
     saveToken('tok')
     mockApi({ 'GET /user/me': ME })

@@ -12,6 +12,9 @@ COPY front-end/ ./
 # talks to the address it is served from.
 ARG VITE_GOOGLE_CLIENT_ID=""
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+# "true" shows the WhatsApp settings on the account page (hidden until WhatsApp is switched on)
+ARG VITE_WHATSAPP_ENABLED=""
+ENV VITE_WHATSAPP_ENABLED=$VITE_WHATSAPP_ENABLED
 RUN npm run build
 
 # --- 2. The API --------------------------------------------------------------------------------------------------

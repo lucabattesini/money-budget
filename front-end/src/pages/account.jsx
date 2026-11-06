@@ -19,7 +19,12 @@ import { getMe, updatePhone } from "../api/endpoints";
 import { getToken, removeToken } from "../lib/auth";
 import customToaster from "../utils/customToaster";
 
+// WhatsApp is not switched on yet (the server refuses its messages), so its settings are hidden. Set VITE_WHATSAPP_ENABLED=true
+// when building the web app to show them again.
+const showWhatsapp = () => import.meta.env.VITE_WHATSAPP_ENABLED === "true";
+
 export default function Account() {
+    const whatsapp = showWhatsapp();
     const [user, setUser] = useState(null);
     const [whatsappPhone, setWhatsappPhone] = useState("");
     const [saved, setSaved] = useState(false);
@@ -68,7 +73,7 @@ export default function Account() {
                 {/* Header */}
                 <Stack gap={1}>
                     <Heading size="2xl">Minha Conta</Heading>
-                    <Text color="fg.muted">Gerencie seu perfil e integrações</Text>
+                    <Text color="fg.muted">{whatsapp ? "Gerencie seu perfil e integrações" : "Gerencie seu perfil"}</Text>
                 </Stack>
 
                 {/* Profile card */}
@@ -106,41 +111,45 @@ export default function Account() {
                     </Stack>
                 ) : null}
 
-                <Separator />
+                {whatsapp && (
+                    <>
+                        <Separator />
 
-                {/* WhatsApp integration */}
-                <Stack gap={4}>
-                    <Stack gap={1}>
-                        <Stack direction="row" align="center" gap={2}>
-                            <MdOutlineWhatsapp size={20} color="#25D366" />
-                            <Heading size="md">Integração com WhatsApp</Heading>
+                        {/* WhatsApp integration */}
+                        <Stack gap={4}>
+                            <Stack gap={1}>
+                                <Stack direction="row" align="center" gap={2}>
+                                    <MdOutlineWhatsapp size={20} color="#25D366" />
+                                    <Heading size="md">Integração com WhatsApp</Heading>
+                                </Stack>
+                                <Text fontSize="sm" color="fg.muted">
+                                    Vincule seu número para registrar despesas enviando uma mensagem.
+                                </Text>
+                            </Stack>
+
+                            <Field.Root>
+                                <Field.Label>Número de telefone</Field.Label>
+                                <Input
+                                    id="whatsapp-phone-input"
+                                    placeholder="+55 51 99999-9999"
+                                    value={whatsappPhone}
+                                    onChange={(e) => setWhatsappPhone(e.target.value)}
+                                />
+                                <Field.HelperText>Inclua o código do país (ex: +55)</Field.HelperText>
+                            </Field.Root>
+
+                            <Button
+                                id="save-whatsapp-btn"
+                                onClick={handleSavePhone}
+                                colorPalette={saved ? "green" : "gray"}
+                                variant="outline"
+                                w="full"
+                            >
+                                {saved ? "Salvo!" : "Salvar número"}
+                            </Button>
                         </Stack>
-                        <Text fontSize="sm" color="fg.muted">
-                            Vincule seu número para registrar despesas enviando uma mensagem.
-                        </Text>
-                    </Stack>
-
-                    <Field.Root>
-                        <Field.Label>Número de telefone</Field.Label>
-                        <Input
-                            id="whatsapp-phone-input"
-                            placeholder="+55 51 99999-9999"
-                            value={whatsappPhone}
-                            onChange={(e) => setWhatsappPhone(e.target.value)}
-                        />
-                        <Field.HelperText>Inclua o código do país (ex: +55)</Field.HelperText>
-                    </Field.Root>
-
-                    <Button
-                        id="save-whatsapp-btn"
-                        onClick={handleSavePhone}
-                        colorPalette={saved ? "green" : "gray"}
-                        variant="outline"
-                        w="full"
-                    >
-                        {saved ? "Salvo!" : "Salvar número"}
-                    </Button>
-                </Stack>
+                    </>
+                )}
 
                 <Separator />
 

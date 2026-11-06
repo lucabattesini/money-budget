@@ -41,6 +41,7 @@ from api.services.import_service import (
     suggest_mapping,
     suggest_sign,
 )
+from api.utils.category_aliases import alias_keys
 from api.utils.category_names import name_key
 from api.utils.clock import family_today
 from api.utils.formatting import AMOUNT_STYLES
@@ -124,14 +125,24 @@ def _merchant_ids(db: Session, family_id: UUID, names: set[str]) -> dict[str, UU
     return lookup
 
 
-def _category_lookup(db: Session, family_id: UUID) -> tuple[dict[str, str], set[str]]:
-    """(words of the name -> category id, every id the family may use). The family's own category wins over a default
-    one with the same name. Ids are text here because they are kept in the job's JSON columns next to the rows."""
+def _category_lookup(db: Session, family_id: UUID) -> tuple[dict[str, str], set[str], set[str]]:
+    """(words of the name -> category id, every id the family may use, the names that found their category only through
+    an alias). The family's own category wins over a default one with the same name. Ids are text here because they
+    are kept in the job's JSON columns next to the rows."""
     categories = [category for category, _group in get_all_categories_repo(db, family_id)]
     lookup: dict[str, str] = {}
     for category in sorted(categories, key=lambda c: c.family_id is not None):  # defaults first, then overwritten
         lookup[name_key(category.name)] = str(category.id)
-    return lookup, {str(category.id) for category in categories}
+    # Other names of a default category (English, or Portuguese without accents) find the category the name of that
+    # default finds (so a family's own "Supermercado" also answers to "Groceries"), but never take the place of a name a
+    # category really has
+    by_alias: set[str] = set()
+    for spelling, canonical in alias_keys().items():
+        target = lookup.get(name_key(canonical))
+        if spelling not in lookup and target is not None:
+            lookup[spelling] = target
+            by_alias.add(spelling)
+    return lookup, {str(category.id) for category in categories}, by_alias
 
 
 def _resolve(job: ImportJobDB, lookup: dict[str, str], visible: set[str]) -> tuple[dict[str, str], dict[str, dict]]:
@@ -144,7 +155,8 @@ def _resolve(job: ImportJobDB, lookup: dict[str, str], visible: set[str]) -> tup
         key = name_key(row["category"])
         if key in resolved:
             continue
-        category_id = lookup.get(key) or (chosen.get(key) if chosen.get(key) in visible else None)
+        # What the person chose wins over what was matched by itself, as long as that category is still there
+        category_id = (chosen.get(key) if chosen.get(key) in visible else None) or lookup.get(key)
         if category_id is not None:
             resolved[key] = category_id
         else:
@@ -174,6 +186,27 @@ def _new_categories(job: ImportJobDB, lookup: dict[str, str], visible: set[str])
             },
         )
         entry["rows"] += 1
+    return list(found.values())
+
+
+def _file_categories(job: ImportJobDB, lookup: dict[str, str], visible: set[str], by_alias: set[str]) -> list[dict]:
+    """Every category name of the file, in the order it first appears, with the category it stands for now and how that
+    was settled: `chosen` (the person said so), `name` (the family has a category of that name), `alias` (found by another
+    name, in English or without accents: the person should look at it) or None (still to be chosen). The step shows
+    all of them so the person reviews the matching, also what was matched by itself."""
+    chosen = job.category_map or {}
+    found: dict[str, dict] = {}
+    for row in job.rows or []:
+        key = name_key(row["category"])
+        if key not in found:
+            if chosen.get(key) in visible:
+                category_id, how = chosen[key], "chosen"
+            elif key in lookup:
+                category_id, how = lookup[key], "alias" if key in by_alias else "name"
+            else:
+                category_id, how = None, None
+            found[key] = {"name": row["category"], "rows": 0, "category_id": category_id, "match": how}
+        found[key]["rows"] += 1
     return list(found.values())
 
 
@@ -223,7 +256,7 @@ def describe_job(db: Session, job: ImportJobDB) -> dict:
             sample=[[display_cell(cell) for cell in row] for row in sample],
         )
     elif job.status == "staged":
-        lookup, visible = _category_lookup(db, job.family_id)
+        lookup, visible, by_alias = _category_lookup(db, job.family_id)
         resolved, unknown = _resolve(job, lookup, visible)
         duplicates = _duplicates(db, job, resolved)
         out.update(
@@ -231,6 +264,7 @@ def describe_job(db: Session, job: ImportJobDB) -> dict:
             column_map=job.column_map,
             unknown_categories=list(unknown.values()),
             new_categories=_new_categories(job, lookup, visible),
+            file_categories=_file_categories(job, lookup, visible, by_alias),
             people=list(_file_people(job).values()),
             unknown_people=list(_unknown_people(job).values()),
             members=[{"id": m.id, "name": m.name} for m in list_members(db, job.family_id)],
@@ -354,7 +388,7 @@ def choose_categories(
 ) -> ImportJobDB:
     """Step 3: say which category of the family each unknown name in the file stands for."""
     job = _checked(_staged(db, job_id, family_id, user_id))
-    _lookup, visible = _category_lookup(db, family_id)
+    _lookup, visible, _by_alias = _category_lookup(db, family_id)
     in_file = {name_key(row["category"]) for row in job.rows}
     chosen = dict(job.category_map or {})
     for name, category_id in mapping.items():
@@ -411,7 +445,7 @@ def start_import(db: Session, job_id: UUID, family_id: UUID, user_id: UUID) -> I
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Já existe uma importação em andamento na sua família."
         )
-    lookup, visible = _category_lookup(db, family_id)
+    lookup, visible, _by_alias = _category_lookup(db, family_id)
     _resolved, unknown = _resolve(job, lookup, visible)
     if unknown:
         db.rollback()
@@ -439,7 +473,7 @@ def run_import_job(job_id: UUID) -> None:
             return
         try:
             mark_running(db, job)
-            lookup, visible = _category_lookup(db, job.family_id)
+            lookup, visible, _by_alias = _category_lookup(db, job.family_id)
             resolved, unknown = _resolve(job, lookup, visible)
             if unknown:  # a category was deleted after the person chose
                 mark_failed(db, job, "Uma categoria do arquivo deixou de existir. Comece de novo.")

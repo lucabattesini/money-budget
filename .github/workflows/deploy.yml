@@ -60,7 +60,8 @@ jobs:
 
       - name: Build and push the image
         run: |
-          docker build -t "$IMAGE" --build-arg VITE_GOOGLE_CLIENT_ID="${{ vars.GOOGLE_CLIENT_ID }}" .
+          docker build -t "$IMAGE" --build-arg VITE_GOOGLE_CLIENT_ID="${{ vars.GOOGLE_CLIENT_ID }}" \
+            --build-arg VITE_WHATSAPP_ENABLED="${{ vars.WHATSAPP_ENABLED }}" .
           docker push "$IMAGE"
 
       # The same image and settings as the service. It runs to the end before the service gets the new version, and a
