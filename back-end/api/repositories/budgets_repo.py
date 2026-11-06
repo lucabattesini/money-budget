@@ -29,7 +29,7 @@ def budgetable_categories(db: Session, family_id: UUID):
     )
 
 
-def effective_budgets(db: Session, family_id: UUID, month: date) -> dict[int, tuple[int, date]]:
+def effective_budgets(db: Session, family_id: UUID, month: date) -> dict[UUID, tuple[int, date]]:
     """What the family has planned for the month, by category: category id -> (cents, the month the amount was set).
 
     A plan stays in force until it is changed: a month with no row of its own uses the most recent earlier one.
@@ -41,7 +41,7 @@ def effective_budgets(db: Session, family_id: UUID, month: date) -> dict[int, tu
         .order_by(Budgets.month)
         .all()
     )
-    latest: dict[int, tuple[int, date]] = {}
+    latest: dict[UUID, tuple[int, date]] = {}
     for category_id, set_in, amount in rows:  # oldest first, so the last one for a category wins
         latest[category_id] = (amount, set_in)
     return {category_id: found for category_id, found in latest.items() if found[0] > 0}

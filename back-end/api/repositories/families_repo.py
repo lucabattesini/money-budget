@@ -182,7 +182,7 @@ def _bring_merchants(db: Session, old_family_id: UUID, new_family_id: UUID) -> N
             db.delete(merchant)
 
 
-def _lock_families(db: Session, *family_ids: int) -> dict[int, Families]:
+def _lock_families(db: Session, *family_ids: UUID) -> dict[UUID, Families]:
     """Lock families in id order, always, so two people moving at once cannot wait on each other forever."""
     rows = db.query(Families).filter(Families.id.in_(family_ids)).order_by(Families.id).with_for_update().all()
     return {f.id: f for f in rows}
