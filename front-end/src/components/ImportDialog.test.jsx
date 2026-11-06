@@ -710,6 +710,53 @@ describe('import dialog', () => {
       ...extra,
     })
 
+    const SETTLED = [{ ...PETS, category_id: 1 }] // what the server answers once Pets has a category (Aluguel)
+
+    it('keeps the choices when the person goes back to the check and forward again', async () => {
+      mockApi(
+        routes({
+          'PUT /imports/5/categories': { data: job({ to_import: 3, unknown_categories: [], new_categories: SETTLED }) },
+          'PUT /imports/5/columns': [{ data: job({ unknown_categories: [PETS], new_categories: [{ ...PETS, category_id: null }] }) }, 200],
+        }),
+      )
+      open()
+      await check()
+      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      await screen.findByText(/transações serão importadas/)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar' })) // categories
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar' })) // the check
+      expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Conferência')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+
+      expect(await screen.findByLabelText('Categoria para "Pets"')).toHaveValue('1') // still chosen
+      expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled()
+    })
+
+    it('keeps the choices when the person goes back to the columns without changing them and forward again', async () => {
+      // The server leaves everything as it is when nothing changed, and answers with the choice made
+      mockApi(
+        routes({
+          'PUT /imports/5/categories': { data: job({ to_import: 3, unknown_categories: [], new_categories: SETTLED }) },
+        }),
+      )
+      open()
+      await check()
+      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      await screen.findByText(/transações serão importadas/)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar' })) // categories
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar' })) // the check
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar' })) // the columns
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' })) // matched again
+      await passCheck()
+
+      // (the mocked answer of the matching has nothing chosen: the server decides what stays; the dialog shows what it says)
+      expect(await screen.findByLabelText('Categoria para "Pets"')).toBeInTheDocument()
+    })
+
     it('asks about each category the family does not have and cannot continue until all are settled', async () => {
       mockApi(routes())
       open()

@@ -361,14 +361,47 @@ def test_rows_that_do_not_fit_the_chosen_columns_are_listed_and_the_person_can_c
     assert _match(client, auth_headers, uploaded["id"], OTHER_MAPPING).status_code == 200
 
 
-def test_matching_again_starts_the_categories_over(client, db, auth_headers, category_ids):
+def test_matching_again_without_changes_leaves_the_choices_alone(client, db, user, auth_headers, category_ids):
     job = _stage(client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito")
+    assert job["new_categories"] == [{"name": "Pets", "rows": 1, "category_id": None}]
     _choose(client, auth_headers, job["id"], {"Pets": category_ids["Aluguel"]})
-    assert client.get(f"/imports/{job['id']}", headers=auth_headers).json()["data"]["unknown_categories"] == []
+    before = db.query(ImportJobDB).one().rows
 
     again = _match(client, auth_headers, job["id"], job["column_map"]).json()["data"]
 
-    assert [c["name"] for c in again["unknown_categories"]] == ["Pets"]
+    assert again["unknown_categories"] == []  # still settled
+    assert again["new_categories"] == [{"name": "Pets", "rows": 1, "category_id": category_ids["Aluguel"]}]
+    db.expire_all()
+    assert db.query(ImportJobDB).one().rows == before
+
+
+def test_matching_again_with_other_columns_keeps_the_choices_about_names_still_in_the_file(
+    client, db, auth_headers, category_ids
+):
+    job = _stage(client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito")
+    _choose(client, auth_headers, job["id"], {"Pets": category_ids["Aluguel"]})
+
+    again = _match(client, auth_headers, job["id"], {**job["column_map"], "Tipo": None}, sign="negative_debit").json()[
+        "data"
+    ]
+
+    assert [r["type"] for r in db.query(ImportJobDB).one().rows] == ["credit"]  # the rows really changed
+    assert again["unknown_categories"] == []
+    assert again["new_categories"][0]["category_id"] == category_ids["Aluguel"]
+
+
+def test_matching_again_keeps_who_the_person_chose_for_a_name(client, db, user, auth_headers, make_user):
+    partner = _partner(db, user, make_user)
+    job = _stage_people(client, auth_headers, "15/03/2026;Mercado;Aluguel;10,00;Débito;Apelido")
+    _choose_people(client, auth_headers, job["id"], {"Apelido": partner.id})
+
+    same = _match(client, auth_headers, job["id"], job["column_map"]).json()["data"]
+    changed = _match(
+        client, auth_headers, job["id"], {**job["column_map"], "Tipo": None}, sign="negative_debit"
+    ).json()["data"]
+
+    assert same["people"] == [{"name": "Apelido", "rows": 1, "user_id": partner.id}]
+    assert changed["people"] == [{"name": "Apelido", "rows": 1, "user_id": partner.id}]
 
 
 def test_categories_and_starting_wait_for_the_columns(client, db, auth_headers, category_ids):

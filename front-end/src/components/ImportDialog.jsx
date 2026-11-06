@@ -644,17 +644,23 @@ export default function ImportDialog({ open, onClose }) {
     // Move on once the columns are matched and every row is fine: to the categories the file needs, or to confirming
     const goOn = async (checked) => {
         setJob(checked);
-        if (checked.unknown_categories.length === 0) {
+        // Every category of the file the family does not have, with the choice already made (the server keeps it, also
+        // when the person comes back and the columns are matched again)
+        const toSettle = checked.new_categories ?? checked.unknown_categories;
+        if (toSettle.length === 0) {
             setUnknown([]);
             toPeopleOrConfirm(checked);
             return;
         }
         const groupList = await loadCategories();
         const fallback = groupList.find((group) => group.name === FALLBACK_GROUP) ?? groupList[0];
-        setUnknown(checked.unknown_categories);
+        setUnknown(toSettle);
         setRows(
             Object.fromEntries(
-                checked.unknown_categories.map((item) => [item.name, { value: "", newName: item.name, groupId: String(fallback?.id ?? "") }]),
+                toSettle.map((item) => [
+                    item.name,
+                    { value: item.category_id == null ? "" : String(item.category_id), newName: item.name, groupId: String(fallback?.id ?? "") },
+                ]),
             ),
         );
         setCategoryError("");

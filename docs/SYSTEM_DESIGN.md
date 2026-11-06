@@ -667,8 +667,12 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    by itself), how many rows would be imported and which would be skipped.
    `PUT /imports/{id}/categories {mapping: {name in file: category id}}` records that an unknown name stands for one
    of the family's categories (defaults or its own; a foreign or missing id is `422`). Names are compared by their
-   words, as everywhere else, and the family's own category wins over a default one with the same name. Matching the
-   columns again starts these choices over. Both calls answer `409` before the columns are matched.
+   words, as everywhere else, and the family's own category wins over a default one with the same name. The check also
+   lists `new_categories`: every category of the file the family has no category of that name for, with the one chosen
+   (`category_id`, null while none), so the dialog can show and change the choices. Matching the columns again keeps
+   the choices: if the checked rows come out the same (same columns and formats) nothing at all is touched, and if they
+   change the choices about names still in the file (and who the person chose for a name of the Pessoa column) are kept.
+   Both calls answer `409` before the columns are matched.
 4. `POST /imports/{id}/start` answers `202` and queues the job (`409` while a category is still unsettled, while
    the family has another import queued or running, or if the job already started). The FastAPI background task
    saves the transactions in **one database transaction together with marking the job done**, so it is all or
