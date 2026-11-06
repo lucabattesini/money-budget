@@ -254,9 +254,9 @@ describe('dashboard', () => {
     renderApp(<Dashboard />)
 
     await screen.findByText('Principais categorias')
-    // the chart prints compact numbers: 100,00 -> "100", 25,50 -> "25.5"
-    expect(screen.getByText('100')).toBeInTheDocument()
-    expect(screen.getByText('25.5')).toBeInTheDocument()
+    const panel = within(card('Principais categorias'))
+    expect(panel.getByText('R$ 100,00')).toBeInTheDocument()
+    expect(panel.getByText('R$ 25,50')).toBeInTheDocument()
   })
 
   describe('transfers and income are not spending', () => {
@@ -307,8 +307,9 @@ describe('dashboard', () => {
       renderApp(<Dashboard />)
 
       await screen.findByText('Principais categorias')
-      expect(screen.getByText('100')).toBeInTheDocument()
-      expect(screen.getByText('25.5')).toBeInTheDocument()
+      const panel = within(card('Principais categorias'))
+      expect(panel.getByText('R$ 100,00')).toBeInTheDocument()
+      expect(panel.getByText('R$ 25,50')).toBeInTheDocument()
       expect(screen.queryByText(/Pagamento de fatura/)).not.toBeInTheDocument()
     })
 

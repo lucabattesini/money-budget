@@ -3,10 +3,12 @@ import DashboardCard from "./DashboardCard";
 import { BarList, useChart } from "@chakra-ui/charts";
 import { useMemo, useState } from "react";
 import { LuChevronDown, LuChevronUp } from "react-icons/lu";
+import { formatMoney, useLocale } from "../lib/locale";
 
 const TOP = 5; // how many categories the panel shows until it is expanded
 
 export default function TopCategoriesBarList({ transactions, categories }) {
+    useLocale(); // the amounts follow the family's currency and language
     const [expanded, setExpanded] = useState(false);
     const all = useMemo(() => {
         if (!transactions || !categories) return [];
@@ -50,7 +52,7 @@ export default function TopCategoriesBarList({ transactions, categories }) {
                     <BarList.Root chart={chart}>
                         <BarList.Content>
                             <BarList.Bar />
-                            <BarList.Value />
+                            <BarList.Value valueFormatter={(value) => formatMoney(value)} />
                         </BarList.Content>
                     </BarList.Root>
                     {canExpand && (
