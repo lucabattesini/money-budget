@@ -709,6 +709,36 @@ describe('transactions page', () => {
       expect(within(rowOf('Almoço')).getByRole('img', { name: 'Clara Battesini' })).toBeInTheDocument()
     })
 
+    it('shows the first name next to the category, and no separator when the person is unknown', async () => {
+      mockApi({
+        'GET /families/me': FAMILY,
+        'GET /categories': CATEGORIES,
+        'POST /transactions': { data: [
+          { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 1 },
+          { ...t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2), user_id: 99 }, // a person who is no longer in the family
+        ] },
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      expect(rowOf('Almoço').textContent).toContain('· Clara')
+      expect(rowOf('Uber').textContent).not.toContain('·')
+    })
+
+    it('splits the category name from its emoji, flags and joined emoji included', async () => {
+      mockApi({
+        'GET /families/me': FAMILY,
+        'GET /categories': { data: [{ id: 1, name: '🎁 Presentes' }, { id: 2, name: '🇨🇦 Canadá' }, { id: 3, name: '👨‍👩‍👧 Família' }] },
+        'POST /transactions': { data: [t(1, 'A', 100, '2026-03-15T09:00:00', 1), t(2, 'B', 100, '2026-03-15T08:00:00', 2), t(3, 'C', 100, '2026-03-15T07:00:00', 3)] },
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('A')
+
+      // the last cell of a row is the phone-only icon; the category cell keeps the name (the emoji is only for wider screens)
+      expect(['A', 'B', 'C'].map((l) => rowOf(l).lastElementChild.textContent)).toEqual(['🎁', '🇨🇦', '👨‍👩‍👧'])
+      expect(['A', 'B', 'C'].map((l) => rowOf(l).children[2].textContent)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
+    })
+
     it('has the logged-in person chosen in a new transaction, and sends it', async () => {
       const api = await setup()
 

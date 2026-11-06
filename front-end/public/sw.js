@@ -22,14 +22,29 @@ self.addEventListener("fetch", (event) => {
 
     // The page itself: the network first (so a new version shows up), the kept copy when offline
     if (request.mode === "navigate") {
-        event.respondWith(fetch(request).catch(() => caches.match("/")));
+        event.respondWith(
+            fetch(request).then((response) => {
+                // Keep the latest page, so offline it matches the built files the browser has
+                if (response.ok) {
+                    const copy = response.clone();
+                    caches.open(CACHE).then((cache) => cache.put("/", copy));
+                }
+                return response;
+            }).catch(() => caches.match("/")),
+        );
+        return;
+    }
+
+    // Anything else that is not a built file (manifest, icons): the network first, so a change shows up
+    if (!url.pathname.startsWith("/assets/")) {
+        event.respondWith(fetch(request).catch(() => caches.match(request)));
         return;
     }
 
     // Built files have a new name whenever they change, so a kept copy is always right
     event.respondWith(
         caches.match(request).then((kept) => kept || fetch(request).then((response) => {
-            if (response.ok && url.pathname.startsWith("/assets/")) {
+            if (response.ok) {
                 const copy = response.clone();
                 caches.open(CACHE).then((cache) => cache.put(request, copy));
             }

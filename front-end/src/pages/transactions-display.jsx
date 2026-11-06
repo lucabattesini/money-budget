@@ -125,8 +125,8 @@ export default function TransactionsDisplay() {
 
     // A category name starts with its emoji ("🎁 Presentes"); the phone layout shows the icon and the name apart
     const categoryParts = (name) => {
-        const match = name.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u);
-        return match ? { icon: match[1], name: match[2] } : { icon: "", name };
+        const first = [...new Intl.Segmenter().segment(name)][0]?.segment ?? ""; // one whole emoji, flags and joined emoji included
+        return /^(\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(first) ? { icon: first, name: name.slice(first.length).trim() } : { icon: "", name };
     };
 
     const renderRow = (transaction) => (
@@ -137,7 +137,7 @@ export default function TransactionsDisplay() {
             onClick={() => setEditing(transaction)}
             // On a phone each row is a small card: the category icon on the left, description above "category · first name", amount on the right
             display={{ base: "grid", md: "table-row" }}
-            gridTemplateColumns="36px auto auto minmax(0, 1fr) auto 40px"
+            gridTemplateColumns="36px auto auto minmax(0, 1fr) auto 44px"
             gridTemplateAreas={'"icon label label label amount menu" "icon category person . amount menu"'}
             alignItems="center"
             columnGap={2}
@@ -155,12 +155,12 @@ export default function TransactionsDisplay() {
                 {categoryParts(categoryName(transaction)).icon && <Text as="span" hideBelow="md">{categoryParts(categoryName(transaction)).icon} </Text>}{categoryParts(categoryName(transaction)).name}
             </Table.Cell>
             {/* Phone: the first name after the category; larger screens: the picture */}
-            <Table.Cell width="1%" gridArea="person" justifySelf="start" whiteSpace="nowrap" pl={{ base: 2, md: 3 }} pr={{ base: 0, md: 3 }} fontSize="xs" color="fg.muted" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }} _before={{ base: { content: '"·"', mr: 2 }, md: { content: 'none' } }}>
+            <Table.Cell width="1%" gridArea="person" justifySelf="start" whiteSpace="nowrap" px={{ base: 0, md: 3 }} fontSize="xs" color="fg.muted" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>
                 {(() => {
                     const person = family.members.find((member) => member.id === transaction.user_id);
                     return person && (<>
                         <Box hideBelow="md"><PersonAvatar person={person} /></Box>
-                        <Text as="span" hideFrom="md">{person.name.split(" ")[0]}</Text>
+                        <Text as="span" hideFrom="md" ml={2}>· {person.name.split(" ")[0]}</Text>
                     </>);
                 })()}
             </Table.Cell>
