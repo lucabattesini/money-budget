@@ -17,7 +17,7 @@ import MerchantTotals from "../components/MerchantTotals";
 import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 // "Todo o Resto" can be long, so it is shown in pages
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 30;
 
 export default function TransactionsDisplay() {
     const { merchantsEnabled } = useLocale(); // amounts and dates follow the family's currency and language
@@ -123,31 +123,46 @@ export default function TransactionsDisplay() {
 
     const merchantName = (transaction) => merchants?.find((merchant) => merchant.id === transaction.merchant_id)?.name;
 
+    // A category name starts with its emoji ("🎁 Presentes"); the phone layout shows the icon and the name apart
+    const categoryParts = (name) => {
+        const match = name.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u);
+        return match ? { icon: match[1], name: match[2] } : { icon: "", name };
+    };
+
     const renderRow = (transaction) => (
         <Table.Row
             key={transaction.id}
             cursor="pointer"
             _hover={{ bg: "bg.muted" }}
             onClick={() => setEditing(transaction)}
-            // On a phone each row is a small card: description and amount on top, date, category and person below
+            // On a phone each row is a small card: the category icon on the left, description above "category · first name", amount on the right
             display={{ base: "grid", md: "table-row" }}
-            gridTemplateColumns="auto minmax(0, 1fr) auto 44px"
-            gridTemplateAreas={'"label label amount menu" "date category person menu"'}
+            gridTemplateColumns="36px auto auto minmax(0, 1fr) auto 40px"
+            gridTemplateAreas={'"icon label label label amount menu" "icon category person . amount menu"'}
             alignItems="center"
             columnGap={2}
             py={{ base: 1, md: 0 }}
             borderBottomWidth={{ base: "1px", md: 0 }}
         >
-            <Table.Cell whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
+            <Table.Cell hideBelow="md" whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
             <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: 2 }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }}>
                 {transaction.label}
                 {merchantsEnabled && merchantName(transaction) && (
                     <Text fontSize="xs" color="fg.muted">{merchantName(transaction)}</Text>
                 )}
             </Table.Cell>
-            <Table.Cell color="fg.muted" gridArea="category" fontSize={{ base: "xs", md: "sm" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{categoryName(transaction)}</Table.Cell>
-            <Table.Cell width="1%" gridArea="person" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>
-                <PersonAvatar person={family.members.find((member) => member.id === transaction.user_id)} />
+            <Table.Cell color="fg.muted" gridArea="category" fontSize={{ base: "xs", md: "sm" }} minW={0} pr={{ base: 0, md: 3 }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>
+                {categoryParts(categoryName(transaction)).icon && <Text as="span" hideBelow="md">{categoryParts(categoryName(transaction)).icon} </Text>}{categoryParts(categoryName(transaction)).name}
+            </Table.Cell>
+            {/* Phone: the first name after the category; larger screens: the picture */}
+            <Table.Cell width="1%" gridArea="person" justifySelf="start" whiteSpace="nowrap" pl={{ base: 2, md: 3 }} pr={{ base: 0, md: 3 }} fontSize="xs" color="fg.muted" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }} _before={{ base: { content: '"·"', mr: 2 }, md: { content: 'none' } }}>
+                {(() => {
+                    const person = family.members.find((member) => member.id === transaction.user_id);
+                    return person && (<>
+                        <Box hideBelow="md"><PersonAvatar person={person} /></Box>
+                        <Text as="span" hideFrom="md">{person.name.split(" ")[0]}</Text>
+                    </>);
+                })()}
             </Table.Cell>
             <Table.Cell textAlign="end" whiteSpace="nowrap" gridArea="amount" borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }} color={transaction.type === "credit" ? "green.400" : undefined}>
                 {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
@@ -174,6 +189,8 @@ export default function TransactionsDisplay() {
                     </Portal>
                 </Menu.Root>
             </Table.Cell>
+            {/* Phone only (last in the row so the table columns keep their places): the category's icon (the emoji its name starts with) */}
+            <Table.Cell hideFrom="md" gridArea="icon" fontSize="xl" textAlign="center" p={0} borderBottomWidth={0} aria-hidden="true">{categoryParts(categoryName(transaction)).icon}</Table.Cell>
         </Table.Row>
     );
 
@@ -188,7 +205,7 @@ export default function TransactionsDisplay() {
 
     return(
         <Center>
-            <Stack minHeight="100dvh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={{ base: 6, md: 10 }} px={4}>
+            <Stack gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={{ base: 6, md: 10 }} px={4}>
                 <TransactionSummary transactions={transactions} />
 
                 {merchantsEnabled && merchants && <MerchantTotals transactions={filtered} merchants={merchants} />}
@@ -227,7 +244,7 @@ export default function TransactionsDisplay() {
                 {loading && <SpinnerLoading/>}
 
                 {!loading && visibleGroups.length > 0 && (
-                    <Table.ScrollArea w="full">
+                    <Table.ScrollArea w="full" overflowX={{ base: "hidden", md: "auto" }} borderWidth={{ base: 0, md: "1px" }}>
                         <Table.Root size="sm" display={{ base: "block", md: "table" }}>
                             <Table.Body display={{ base: "block", md: "table-row-group" }}>
                                 {visibleGroups.map((group) => (
@@ -239,7 +256,19 @@ export default function TransactionsDisplay() {
                                                 </Box>
                                             </Table.Cell>
                                         </Table.Row>
-                                        {group.data.map(renderRow)}
+                                        {group.data.map((transaction, index) => (
+                                            <Fragment key={transaction.id}>
+                                                {/* Phone only: the rows are grouped under their day, so the row itself does not show the date */}
+                                                {transaction.transactioned_at.slice(0, 10) !== group.data[index - 1]?.transactioned_at.slice(0, 10) && (
+                                                    <Table.Row data-day hideFrom="md" display="block">
+                                                        <Table.Cell display="block" pt={3} pb={1} px="10px" borderBottomWidth={0} color="fg.muted" fontSize="xs" fontWeight="semibold">
+                                                            {formatDate(transaction.transactioned_at)}
+                                                        </Table.Cell>
+                                                    </Table.Row>
+                                                )}
+                                                {renderRow(transaction)}
+                                            </Fragment>
+                                        ))}
                                     </Fragment>
                                 ))}
                             </Table.Body>

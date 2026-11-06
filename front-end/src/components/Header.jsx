@@ -18,6 +18,7 @@ export default function Header() {
             as="header"
             w="100%"
             h="60px"
+            flexShrink={0}
             bg={{ base: "gray.900", md: "transparent" }}
             color="white"
             px={{ base: 4, md: 8 }}

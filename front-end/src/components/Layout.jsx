@@ -14,12 +14,13 @@ export default function Layout() {
         if (token) getFamily(token).then((result) => result.ok && setLocale(result.data));
     }, []);
 
+    // On a phone the whole screen scrolls, the title bar too (it has no action, so it does not need to stay in view)
     return (
-        <Flex direction="column" h="100dvh" w="full" overflow="hidden">
+        <Flex direction="column" h="100dvh" w="full" overflowY={{ base: "auto", md: "hidden" }} overflowX="hidden">
             <Header />
             <Toaster />
             {/* On a phone the menu is a bar at the bottom of the screen, so the page leaves room for it */}
-            <Box flex="1" overflowY="auto" pb={{ base: "calc(60px + env(safe-area-inset-bottom))", md: 0 }}>
+            <Box flex="1" overflowY={{ base: "visible", md: "auto" }} pb={{ base: "calc(60px + env(safe-area-inset-bottom))", md: 0 }}>
                 <Outlet />
             </Box>
         </Flex>
