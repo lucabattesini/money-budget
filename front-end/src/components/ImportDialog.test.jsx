@@ -503,16 +503,19 @@ describe('import dialog', () => {
       expect(putBody(api).mapping).toEqual({ Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: null, Pessoa: null, Estabelecimento: null }) // Tipo: not used
     })
 
-    it('does not let one column serve two fields', async () => {
+    it('lets one column serve two fields', async () => {
       const api = mockApi(imports())
       open()
       await toColumns()
 
-      await userEvent.selectOptions(select('Valor'), 'Data')
+      await userEvent.selectOptions(select('Valor'), 'Data') // the same column as the date
 
-      expect(screen.getByText('Uma mesma coluna não pode ser usada para dois campos.')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Próximo' })).toBeDisabled()
-      expect(requestsMade(api)).toEqual(['POST /imports'])
+      expect(screen.queryByText(/não pode ser usada/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled()
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      await passCheck()
+      await screen.findByText('3 transações serão importadas')
+      expect(putBody(api).mapping).toMatchObject({ Data: 0, Valor: 0 }) // both fields read column 0
     })
 
     it('goes back to the formats, keeping them', async () => {
@@ -712,6 +715,66 @@ describe('import dialog', () => {
 
     const SETTLED = [{ ...PETS, category_id: 1 }] // what the server answers once Pets has a category (Aluguel)
 
+    const UUID_A = '7c1f5f0e-52a4-4d8c-9b7e-0a6c1d2f3e44'
+    const UUID_B = '0b9d6a1c-3f58-4e2a-8c47-91d5e6f7a802'
+    const TWO = [PETS, { name: 'Viagem', rows: 1 }]
+    const UUID_CATEGORIES = {
+      data: [
+        { id: UUID_A, name: 'Aluguel', group_id: 10 },
+        { id: UUID_B, name: '🛒 Supermercado', group_id: 11 },
+      ],
+    }
+
+    it('counts what is still missing and lets the person go on once everything is chosen (real ids are UUIDs)', async () => {
+      const api = mockApi(
+        routes({
+          ...imports({ unknown_categories: TWO }),
+          'GET /categories': UUID_CATEGORIES,
+          'PUT /imports/5/categories': { data: job({ to_import: 3, unknown_categories: [], new_categories: [] }) },
+        }),
+      )
+      open()
+      await check()
+      const next = () => screen.getByRole('button', { name: 'Próximo' })
+
+      expect(await screen.findByText('0 de 2 categorias escolhidas. Faltam 2.')).toBeInTheDocument()
+      expect(next()).toBeDisabled()
+
+      await userEvent.selectOptions(screen.getByLabelText('Categoria para "Pets"'), 'Aluguel')
+      expect(screen.getByText('1 de 2 categorias escolhidas. Falta 1.')).toBeInTheDocument()
+      expect(next()).toBeDisabled()
+
+      await userEvent.selectOptions(screen.getByLabelText('Categoria para "Viagem"'), '🛒 Supermercado')
+      expect(screen.getByText('Tudo escolhido: 2 categorias.')).toBeInTheDocument()
+      expect(next()).toBeEnabled()
+      await userEvent.click(next())
+      await screen.findByText(/transações serão importadas/)
+      const put = api.mock.calls.find(([url, o]) => o?.method === 'PUT' && String(url).endsWith('/categories'))
+      expect(JSON.parse(put[1].body)).toEqual({ mapping: { Pets: UUID_A, Viagem: UUID_B } })
+    })
+
+    it('marks each category that still needs a choice', async () => {
+      mockApi(routes({ ...imports({ unknown_categories: TWO }), 'GET /categories': UUID_CATEGORIES }))
+      open()
+      await check()
+
+      expect(await screen.findAllByText('Falta escolher')).toHaveLength(2)
+      await userEvent.selectOptions(screen.getByLabelText('Categoria para "Pets"'), 'Aluguel')
+
+      expect(screen.getAllByText('Falta escolher')).toHaveLength(1)
+    })
+
+    it('does not count a new category as chosen until it is created, and says what to do', async () => {
+      mockApi(routes({ ...imports({ unknown_categories: [PETS] }), 'GET /categories': UUID_CATEGORIES }))
+      open()
+      await check()
+      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Criar uma categoria nova')
+
+      expect(screen.getByText('0 de 1 categorias escolhidas. Falta 1.')).toBeInTheDocument()
+      expect(screen.getByText(/clique em .Criar categoria./i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Próximo' })).toBeDisabled()
+    })
+
     it('keeps the choices when the person goes back to the check and forward again', async () => {
       mockApi(
         routes({
@@ -903,6 +966,27 @@ describe('import dialog', () => {
     })
     const putPeople = (api) => JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/people'))[1].body)
     const saved = { 'PUT /imports/5/people': [{ data: job({ people: [], unknown_people: [], members: MEMBERS }) }, 200] }
+
+    it('counts the names still to be chosen and lets the person go on when all are (member ids are UUIDs)', async () => {
+      const A = '7c1f5f0e-52a4-4d8c-9b7e-0a6c1d2f3e44'
+      const B = '0b9d6a1c-3f58-4e2a-8c47-91d5e6f7a802'
+      const members = [{ id: A, name: 'Clara' }, { id: B, name: 'Bia Souza' }]
+      const two = [BIA, { name: 'Caio', rows: 1, user_id: null }]
+      mockApi({
+        ...imports({ people: two, unknown_people: two, members }),
+        'PUT /imports/5/people': [{ data: job({ people: [], unknown_people: [], members }) }, 200],
+      })
+      open()
+      await check()
+      expect(await screen.findByText('0 de 2 pessoas escolhidas. Faltam 2.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Próximo' })).toBeDisabled()
+
+      await userEvent.selectOptions(screen.getByLabelText('Pessoa para Bia'), 'Bia Souza')
+      await userEvent.selectOptions(screen.getByLabelText('Pessoa para Caio'), 'Clara')
+
+      expect(screen.getByText('Tudo escolhido: 2 pessoas.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled()
+    })
 
     it('says what an empty Pessoa means, and does not say Débito for it', async () => {
       mockApi(imports())

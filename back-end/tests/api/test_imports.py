@@ -12,7 +12,7 @@ from openpyxl import Workbook
 from api.controllers import imports_controller
 from api.routers import imports_router
 from api.utils.clock import family_today
-from schemas.tables import Categories, Families, ImportJobDB, Merchants, TransactionDB
+from schemas.tables import Categories, CategoryGroups, Families, ImportJobDB, Merchants, TransactionDB
 from tests.conftest import MISSING_ID
 
 HEADER = "Data;Descrição;Categoria;Valor;Tipo"
@@ -332,10 +332,23 @@ def test_a_field_left_out_altogether_counts_as_missing(client, auth_headers):
     assert response.status_code == 422 and "Valor" in response.json()["detail"]
 
 
+def test_the_same_column_can_serve_two_fields(client, db, user, auth_headers, queue):
+    """One column read as both the description and the category (the file has no separate ones)."""
+    uploaded = _upload(client, auth_headers, _csv("15/03/2026;Almoço;Aluguel;10,00;Débito")).json()["data"]
+    same_column = {"Data": 0, "Descrição": 2, "Categoria": 2, "Valor": 3, "Tipo": 4}
+
+    response = _match(client, auth_headers, uploaded["id"], same_column)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["unknown_categories"] == []  # "Aluguel" is a category the family has
+    assert _start(client, auth_headers, uploaded["id"]).status_code == 202
+    queue.run()
+    assert [(t.label, t.value) for t in _saved(db, user)] == [("Aluguel", 1000)]
+
+
 @pytest.mark.parametrize(
     "changes, message",
     [
-        ({"Valor": 0}, "mesma coluna"),  # the date column again
         ({"Valor": 9}, "não existe"),
         ({"Valor": -1}, "não existe"),
         ({"Preço": 3}, "desconhecido"),
@@ -1657,3 +1670,60 @@ def test_a_merchant_that_is_too_long_or_has_no_words_is_a_problem_of_its_row(cli
     assert response.status_code == 422
     assert [row for row, _message in _problems(response)] == [2, 3]
     assert db.query(Merchants).count() == 0
+
+
+# --- categories of the file found by themselves, by their English or Portuguese names ----------------------------------
+
+
+def test_english_names_of_the_default_categories_are_matched_by_themselves(client, db, user, auth_headers, queue):
+    job = _stage(
+        client,
+        auth_headers,
+        "15/03/2026;Weekly shop;Groceries;10,00;Débito",
+        "15/03/2026;Dinner;Restaurants & Bars;20,00;Débito",
+        "15/03/2026;Course;Education;30,00;Débito",
+    )
+
+    assert (job["unknown_categories"], job["new_categories"]) == ([], [])  # nobody has to choose anything
+    assert _start(client, auth_headers, job["id"]).status_code == 202
+    queue.run()
+    names = {t.label: db.get(Categories, t.category_id).name for t in _saved(db, user)}
+    assert names == {"Weekly shop": "Supermercado", "Dinner": "Restaurantes e Bares", "Course": "Educação"}
+
+
+def test_portuguese_names_without_accents_or_in_another_case_are_matched_too(client, auth_headers):
+    job = _stage(
+        client,
+        auth_headers,
+        "15/03/2026;Curso;EDUCACAO;30,00;Débito",
+        "15/03/2026;Mercado;mercado;10,00;Débito",
+    )
+
+    assert job["unknown_categories"] == []
+
+
+def test_a_name_that_means_nothing_for_sure_is_still_asked_about(client, auth_headers):
+    job = _stage(
+        client, auth_headers, "15/03/2026;Ônibus;Transporte;10,00;Débito", "15/03/2026;Ração;Bicho;5,00;Débito"
+    )
+
+    assert sorted(item["name"] for item in job["unknown_categories"]) == ["Bicho", "Transporte"]
+
+
+def test_a_category_the_family_really_has_wins_over_an_other_name(client, db, user, auth_headers, queue):
+    """The family has its own "Groceries": the file's "Groceries" is that one, not the default Supermercado."""
+    own = Categories(name="Groceries", family_id=user.family_id, group_id=db.query(CategoryGroups).first().id)
+    db.add(own)
+    db.commit()
+
+    job = _import(client, queue, auth_headers, "15/03/2026;Shop;Groceries;10,00;Débito")
+
+    assert job["status"] == "done"
+    assert [t.category_id for t in _saved(db, user)] == [own.id]
+
+
+def test_an_other_name_of_a_default_that_is_not_there_is_not_matched(client, auth_headers):
+    """ "Pets" is deliberately not seeded in the tests: its English name ("Pet Care") has nothing to point at."""
+    job = _stage(client, auth_headers, "15/03/2026;Vet;Pet Care;50,00;Débito")
+
+    assert [item["name"] for item in job["unknown_categories"]] == ["Pet Care"]

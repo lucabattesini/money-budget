@@ -41,6 +41,7 @@ from api.services.import_service import (
     suggest_mapping,
     suggest_sign,
 )
+from api.utils.category_aliases import alias_keys
 from api.utils.category_names import name_key
 from api.utils.clock import family_today
 from api.utils.formatting import AMOUNT_STYLES
@@ -131,6 +132,12 @@ def _category_lookup(db: Session, family_id: UUID) -> tuple[dict[str, str], set[
     lookup: dict[str, str] = {}
     for category in sorted(categories, key=lambda c: c.family_id is not None):  # defaults first, then overwritten
         lookup[name_key(category.name)] = str(category.id)
+    # Other names of the default categories (English, or Portuguese without accents) find them too, but never take
+    # the place of a name a category really has
+    defaults = {name_key(c.name): str(c.id) for c in categories if c.family_id is None}
+    for spelling, canonical in alias_keys().items():
+        if spelling not in lookup and name_key(canonical) in defaults:
+            lookup[spelling] = defaults[name_key(canonical)]
     return lookup, {str(category.id) for category in categories}
 
 

@@ -19,6 +19,22 @@ const STEPS = [
 const FALLBACK_GROUP = "Outros";
 const NEW_CATEGORY = "new"; // the value of the "create it" choice in a category's list
 
+// A choice in a list of categories or people counts once an item is picked (ids are UUIDs, not numbers): "Escolha..."
+// and "create a new one, not created yet" do not
+const isChosen = (value) => Boolean(value) && value !== NEW_CATEGORY;
+
+// "2 de 5 escolhidas. Faltam 3." so a disabled "Próximo" always has a visible reason
+function Progress({ done, total, noun }) {
+    const missing = total - done;
+    return (
+        <Text role="status" fontSize="sm" color={missing === 0 ? "fg.success" : "fg.muted"}>
+            {missing === 0
+                ? `Tudo escolhido: ${total === 1 ? `1 ${noun.one}` : `${total} ${noun.many}`}.`
+                : `${done} de ${total} ${noun.many} escolhidas. ${missing === 1 ? "Falta 1." : `Faltam ${missing}.`}`}
+        </Text>
+    );
+}
+
 // The fields of a transaction, as the page's table of columns names them; the last two may be left out.
 const FIELDS = [
     { name: "Data", required: true },
@@ -92,13 +108,6 @@ function fieldsInUse(formats, merchantsEnabled) {
     return FIELDS.filter(
         (field) => (formats.sign === "type_column" || field.name !== "Tipo") && (merchantsEnabled || !field.merchants),
     );
-}
-
-// The positions of the columns in use.
-function usedColumns(choice, formats, merchantsEnabled) {
-    return fieldsInUse(formats, merchantsEnabled)
-        .map((field) => choice[field.name])
-        .filter((value) => value !== undefined && value !== "");
 }
 
 // What went wrong with the file or the chosen columns: the message and, when rows are wrong, all of them with their row.
@@ -265,12 +274,10 @@ function FormatsStep({ job, formats, setFormats }) {
 // folded away, so the step is not crowded.
 function ColumnsStep({ job, choice, setChoice, formats }) {
     const { merchantsEnabled } = useLocale();
-    const taken = usedColumns(choice, formats, merchantsEnabled);
-    const repeated = taken.length !== new Set(taken).size;
     const fields = fieldsInUse(formats, merchantsEnabled);
     return (
         <Stack gap={5}>
-            <Section title="Colunas do arquivo" hint="Escolha a coluna de cada informação. * obrigatório.">
+            <Section title="Colunas do arquivo" hint="Escolha a coluna de cada informação. * obrigatório. A mesma coluna pode servir para mais de um campo.">
             <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={5}>
                 {fields.map((field) => (
                     <Field.Root key={field.name} required={field.required}>
@@ -295,7 +302,6 @@ function ColumnsStep({ job, choice, setChoice, formats }) {
                     </Field.Root>
                 ))}
             </Box>
-            {repeated && <Text color="fg.error" role="alert">Uma mesma coluna não pode ser usada para dois campos.</Text>}
             </Section>
 
             <CollapsibleSample job={job} />
@@ -381,10 +387,13 @@ function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
 
     return (
         <Stack as="li" gap={4} borderWidth="1px" borderRadius="md" p={4} listStyleType="none">
-            <Text>
-                <Text as="span" fontWeight="semibold">{item.name}</Text>
-                <Text as="span" color="fg.muted"> · {item.rows === 1 ? "1 linha" : `${item.rows} linhas`}</Text>
-            </Text>
+            <HStack justify="space-between" align="start" gap={3}>
+                <Text>
+                    <Text as="span" fontWeight="semibold">{item.name}</Text>
+                    <Text as="span" color="fg.muted"> · {item.rows === 1 ? "1 linha" : `${item.rows} linhas`}</Text>
+                </Text>
+                {!isChosen(row.value) && <Badge colorPalette="orange" variant="subtle" flexShrink={0}>Falta escolher</Badge>}
+            </HStack>
             <Field.Root>
                 <Field.Label>{`Categoria para "${item.name}"`}</Field.Label>
                 <NativeSelect.Root>
@@ -424,6 +433,7 @@ function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
                         </NativeSelect.Root>
                     </Field.Root>
                     <Button alignSelf="start" size="sm" onClick={create} loading={creating}>Criar categoria</Button>
+                    <Text fontSize="sm" color="fg.muted">Para continuar, clique em &ldquo;Criar categoria&rdquo; (ou escolha uma existente na lista).</Text>
                 </Stack>
             )}
         </Stack>
@@ -457,6 +467,11 @@ function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCate
                         />
                     ))}
                 </Stack>
+                <Progress
+                    done={unknown.filter((item) => isChosen(rows[item.name]?.value)).length}
+                    total={unknown.length}
+                    noun={{ one: "categoria", many: "categorias" }}
+                />
                 {error && <Text color="fg.error" role="alert">{error}</Text>}
             </Section>
         </Stack>
@@ -498,6 +513,11 @@ function PeopleStep({ people, members, choices, setChoices, error }) {
                         </Field.Root>
                     ))}
                 </Stack>
+                <Progress
+                    done={people.filter((item) => isChosen(choices[item.name])).length}
+                    total={people.length}
+                    noun={{ one: "pessoa", many: "pessoas" }}
+                />
                 {error && <Text color="fg.error" role="alert">{error}</Text>}
             </Section>
         </Stack>
@@ -747,13 +767,12 @@ export default function ImportDialog({ open, onClose }) {
         followImport(queued); // not awaited: the result is announced even if the user goes elsewhere
     };
 
-    const taken = usedColumns(choice, formats, merchantsEnabled);
-    const columnsReady = job && FIELDS.filter((f) => f.required).every((f) => choice[f.name] !== "" && choice[f.name] !== undefined) && taken.length === new Set(taken).size;
+    const columnsReady = job && FIELDS.filter((f) => f.required).every((f) => choice[f.name] !== "" && choice[f.name] !== undefined);
     // The people step only exists when the file has a Pessoa column with names in it
     const usesPeople = choice.Pessoa !== undefined && choice.Pessoa !== "" && (job?.people === undefined || job.people.length > 0);
     const steps = STEPS.filter((item) => item.id !== "people" || usesPeople || step === "people");
-    const allPeopleChosen = filePeople.length > 0 && filePeople.every((item) => /^\d+$/.test(peopleChoices[item.name] ?? ""));
-    const allChosen = unknown.length > 0 && unknown.every((item) => /^\d+$/.test(rows[item.name]?.value ?? ""));
+    const allPeopleChosen = filePeople.length > 0 && filePeople.every((item) => isChosen(peopleChoices[item.name]));
+    const allChosen = unknown.length > 0 && unknown.every((item) => isChosen(rows[item.name]?.value));
 
     return (
         <Dialog.Root

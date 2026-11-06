@@ -75,8 +75,8 @@ def mapping_problem(mapping: dict[str, int | None], column_count: int) -> str | 
     chosen = [position for position in mapping.values() if position is not None]
     if any(position < 0 or position >= column_count for position in chosen):
         return "Essa coluna não existe no arquivo."
-    if len(chosen) != len(set(chosen)):
-        return "Uma mesma coluna não pode ser usada para dois campos."
+    # The same column may serve several fields (for example one "Local" column read as both the category and the
+    # merchant), so repeated positions are fine
     return None
 
 

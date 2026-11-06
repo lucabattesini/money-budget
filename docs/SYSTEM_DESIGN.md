@@ -131,7 +131,7 @@ flowchart TB
   `transactions-display` (table of history, with the picture of each row's person, filters in a menu (including one person), 10-per-page
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
-  (a left menu with sections as nested routes: `/account` profile,
+  (a left menu with sections as nested routes: `/account` profile (its WhatsApp number settings are hidden until the web app is built with `VITE_WHATSAPP_ENABLED=true`),
   `/account/categories` the family's categories under their groups (every group is shown, even an empty one, with an
   "Adicionar" button that opens the side panel already set to that group; rename, change group and delete for its own
   ones; the default ones are marked "Padrão" and cannot be changed; the emoji grid is a keyboard-friendly radio group),
@@ -664,7 +664,7 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    records which member each stands for, changing the matched ones too when the person says so (a name that is not in the
    file, or a person outside the family, answers `422`; the choice is kept on the job's rows)
    and `POST /imports/{id}/start` answers `409` while one is left, as it does for categories. The export writes the
-   same column. `date_order` is
+   same column. One file column may be chosen for more than one field (for example one column read as both the description and the category). `date_order` is
    `auto`, `day_first` (15/03/2026), `month_first` (03/15/2026) or `iso` (2026-10-13); separators `/ - .` are accepted,
    and a real Excel date is accepted in any case. `auto` reads the file: a number above 12 in the first place proves
    day first, in the second place month first, and if no date proves it, it is day first, the order of the file the app
@@ -683,7 +683,11 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    by itself), how many rows would be imported and which would be skipped.
    `PUT /imports/{id}/categories {mapping: {name in file: category id}}` records that an unknown name stands for one
    of the family's categories (defaults or its own; a foreign or missing id is `422`). Names are compared by their
-   words, as everywhere else, and the family's own category wins over a default one with the same name. The check also
+   words, as everywhere else, and the family's own category wins over a default one with the same name. A name of a
+   default category in another language, or without accents, is found by itself too (`api/utils/category_aliases.py`: the
+   English names of the Monarch Money categories and everyday words such as "Groceries" or "Mercado"; a word that could
+   mean two categories, like "Transporte", is left out, so the person is asked); a name a category really has always wins
+   over such an alias, and an alias only points at a default category that exists. The check also
    lists `new_categories`: every category of the file the family has no category of that name for, with the one chosen
    (`category_id`, null while none), so the dialog can show and change the choices. Matching the columns again keeps
    the choices: if the checked rows come out the same (same columns and formats) nothing at all is touched, and if they
