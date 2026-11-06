@@ -15,8 +15,9 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0021"
+LATEST = "0022"
 BEFORE_CONNECTOR = "0020"
+BEFORE_INDEX = "0021"
 BEFORE_UUIDS = "0018"  # the migrations of the older tests below end here: ids were still counting numbers
 
 
@@ -1415,3 +1416,48 @@ def test_undoing_the_connector_revision_drops_only_its_tables_and_it_can_go_forw
         assert conn.execute(text("SELECT count(*) FROM families")).scalar() == 1
     upgrade_database(url)
     assert _version(engine) == LATEST
+
+
+# --- 0022: an index on a family's transactions by date (TKT-91) -------------------------------------------------------------
+
+
+def _index_names(engine):
+    return {i["name"] for i in inspect(engine).get_indexes("transactions")}
+
+
+def test_the_transactions_index_is_made_and_undone_without_touching_the_rows(url, engine):
+    command.upgrade(alembic_config(url), BEFORE_INDEX)
+    assert "ix_transactions_family_date" not in _index_names(engine)
+    with engine.begin() as conn:
+        family = conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid()) RETURNING id")).scalar()
+        user = conn.execute(
+            text(
+                "INSERT INTO users (id, family_id, google_id, name, email) "
+                "VALUES (gen_random_uuid(), :f, 'g', 'Ana', 'a@e.com') RETURNING id"
+            ),
+            {"f": family},
+        ).scalar()
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, family_id, user_id, label, value) "
+                "VALUES (gen_random_uuid(), :f, :u, 'Almoço', 100)"
+            ),
+            {"f": family, "u": user},
+        )
+
+    upgrade_database(url)
+    assert "ix_transactions_family_date" in _index_names(engine)
+    command.downgrade(alembic_config(url), BEFORE_INDEX)
+
+    assert "ix_transactions_family_date" not in _index_names(engine)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM transactions")).scalar() == 1
+    upgrade_database(url)
+    assert _version(engine) == LATEST
+
+
+def test_a_database_without_the_index_is_recognised_as_before_it(url, engine):
+    command.upgrade(alembic_config(url), BEFORE_INDEX)
+    _forget_history(engine)
+
+    assert detect_revision(inspect(engine)) == BEFORE_INDEX

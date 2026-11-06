@@ -75,7 +75,9 @@ def detect_revision(inspector) -> str | None:
         return "0019"
     if not inspector.has_table("oauth_grants"):
         return "0020"
-    return "0021"
+    if "ix_transactions_family_date" not in {i["name"] for i in inspector.get_indexes("transactions")}:
+        return "0021"
+    return "0022"
 
 
 def upgrade_database(url: str = DATABASE_URL, revision: str = "head") -> None:

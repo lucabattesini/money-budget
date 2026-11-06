@@ -29,13 +29,14 @@ from schemas.tables_schemas import GetTransactionsParams, Transaction, Transacti
 
 
 def _parse_date(transaction: GetTransactionsParams):
-    """Return the (start, end) of the period asked for, end excluded; (None, None) means no filter.
+    """Return the (start, end) of the period asked for, end excluded; (None, None) means no filter. A range given as start and
+    end is used as it is (either may be open).
 
     "day" is that exact day, "month" that month of that year, "year" that year.
     """
     datetype = transaction.organized_by
     if datetype is None:
-        return None, None
+        return transaction.start, transaction.end  # a range, or no filter at all
     d = transaction.date
     if datetype == "year":
         start, end = datetime(d.year, 1, 1), (d.year + 1, 1, 1)

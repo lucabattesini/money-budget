@@ -136,11 +136,21 @@ class UserUpdatePhone(BaseModel):
 class GetTransactionsParams(BaseModel):
     organized_by: Optional[Literal["day", "month", "year"]] = None
     date: Optional[datetime] = None
+    # Or a range of days instead: start is included and end excluded, either may be left open. Written as the
+    # wall-clock time of the family, like the dates of the transactions (a time zone, if sent, is dropped).
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
 
     @model_validator(mode="after")
     def _grouping_needs_a_date(self):
         if self.organized_by is not None and self.date is None:
             raise ValueError("'date' is required when 'organized_by' is set")
+        if self.organized_by is not None and (self.start is not None or self.end is not None):
+            raise ValueError("use either 'organized_by' with 'date', or 'start' and 'end'")
+        self.start = self.start.replace(tzinfo=None) if self.start else None
+        self.end = self.end.replace(tzinfo=None) if self.end else None
+        if self.start is not None and self.end is not None and self.start >= self.end:
+            raise ValueError("'start' must be before 'end'")
         return self
 
 
