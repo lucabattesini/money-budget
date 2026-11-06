@@ -10,6 +10,19 @@ const DATA = [
 ]
 const ids = (filters) => applyFilters(DATA, { ...EMPTY_FILTERS, ...filters }).map((x) => x.id)
 
+describe('the filter on what counts in the totals', () => {
+  const list = [{ id: 1, transactioned_at: '2026-03-10T10:00:00', value: 100 }, { id: 2, transactioned_at: '2026-03-10T10:00:00', value: 100, excluded: true }]
+  const only = (counting) => applyFilters(list, { ...EMPTY_FILTERS, counting }).map((x) => x.id)
+
+  it('shows everything by default, only the ones that count, or only the ones left out', () => {
+    expect([only(''), only('counted'), only('left_out')]).toEqual([[1, 2], [1], [2]])
+  })
+
+  it('counts as an active filter', () => {
+    expect(hasActiveFilters({ ...EMPTY_FILTERS, counting: 'left_out' })).toBe(true)
+  })
+})
+
 describe('applyFilters', () => {
   it('keeps everything when no filter is set', () => {
     expect(ids({})).toEqual([1, 2, 3])

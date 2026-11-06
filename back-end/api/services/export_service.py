@@ -8,10 +8,10 @@ an exported file (after removing the apostrophe the export adds to text starting
 from decimal import Decimal
 
 from api.gateways.documents import Document, Table, get_document_gateway
-from api.utils.formatting import type_label
+from api.utils.formatting import type_label, yes_no_label
 from schemas.tables_schemas import TransactionOut
 
-EXPORT_COLUMNS = ["Data", "Descrição", "Categoria", "Valor", "Tipo", "Pessoa"]
+EXPORT_COLUMNS = ["Data", "Descrição", "Categoria", "Valor", "Tipo", "Pessoa", "Fora dos totais"]
 
 
 def build_transactions_table(transactions: list[TransactionOut]) -> Table:
@@ -26,6 +26,7 @@ def build_transactions_table(transactions: list[TransactionOut]) -> Table:
                 Decimal(t.value) / 100,
                 type_label(t.type),
                 t.user_name or "",
+                yes_no_label(t.excluded),
             ]
             for t in transactions
         ],

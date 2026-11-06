@@ -20,6 +20,8 @@ class Transaction(BaseModel):
     merchant: Optional[str] = Field(
         None, max_length=100
     )  # the place or company; only while the family has merchants on
+    # Left out of the totals. Empty means the default of the category (a transfer or a card payment is left out)
+    excluded: Optional[bool] = None
 
 
 class TransactionUpdate(BaseModel):
@@ -32,6 +34,7 @@ class TransactionUpdate(BaseModel):
     transactioned_at: Optional[datetime] = None  # None keeps the current date
     user_id: Optional[UUID] = None  # a member of the family it belongs to; None keeps the current person
     merchant: Optional[str] = Field(None, max_length=100)  # None keeps the merchant, "" takes it off
+    excluded: Optional[bool] = None  # None keeps it as it is
 
 
 class TransactionFilters(BaseModel):
@@ -72,6 +75,7 @@ class TransactionOut(BaseModel):
     user_name: Optional[str] = None  # and their name, for the export
     merchant_id: Optional[UUID] = None
     merchant_name: Optional[str] = None
+    excluded: bool = False  # left out of the totals
 
 
 class TransactionAggregate(BaseModel):

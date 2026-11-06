@@ -44,6 +44,7 @@ const FIELDS = [
     { name: "Tipo", required: false, help: "Se vazio, é Débito." },
     { name: "Pessoa", required: false, help: "Se vazio, é quem está importando." },
     { name: "Estabelecimento", required: false, merchants: true, help: "Se vazio, fica sem estabelecimento. Os que você ainda não tem são criados." },
+    { name: "Fora dos totais", required: false, help: "Sim ou Não. Se vazio, só transferências e pagamentos de fatura ficam de fora." },
 ];
 
 // How the file writes dates and amounts, and what the sign of the amount means. "Automático" looks at the file.

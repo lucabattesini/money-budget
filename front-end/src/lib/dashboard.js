@@ -9,12 +9,14 @@ export const isSpending = (transaction) => transaction.type !== 'credit'
 export const NOT_SPENDING_GROUPS = ['Receitas', 'Transferências']
 
 /**
- * What counts as spending: the debits, except those in a category of an income or transfer group. A transaction whose
- * category is unknown (deleted) still counts.
+ * What counts as spending: the debits, except those in a category of an income or transfer group and those the person
+ * left out of the totals. A transaction whose category is unknown (deleted) still counts.
  */
 export function countsAsSpending(transactions, categories) {
   const groupOf = new Map(categories.map((category) => [category.id, category.group_name]))
-  return transactions.filter((t) => isSpending(t) && !NOT_SPENDING_GROUPS.includes(groupOf.get(t.category_id)))
+  return transactions.filter(
+    (t) => !t.excluded && isSpending(t) && !NOT_SPENDING_GROUPS.includes(groupOf.get(t.category_id)),
+  )
 }
 
 const parts = (key) => {
@@ -48,7 +50,7 @@ export const spendingOfMonth = (transactions, key) => transactionsOfMonth(transa
  */
 export function countsAsIncoming(transactions, categories) {
   const groupOf = new Map(categories.map((category) => [category.id, category.group_name]))
-  return transactions.filter((t) => t.type === 'credit' && groupOf.get(t.category_id) !== 'Transferências')
+  return transactions.filter((t) => !t.excluded && t.type === 'credit' && groupOf.get(t.category_id) !== 'Transferências')
 }
 
 /** The total of the transactions, in cents. */

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button, Drawer, Field, Input, NativeSelect, Portal, RadioGroup, Stack, Text, CloseButton } from "@chakra-ui/react";
+import { Button, Checkbox, Drawer, Field, Input, NativeSelect, Portal, RadioGroup, Stack, Text, CloseButton } from "@chakra-ui/react";
 import { insertNewTransaction, updateTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { digitsToCents, maskAmount } from "../lib/money";
 import AmountInput from "./AmountInput";
 import { CURRENCIES, familyNow, useLocale } from "../lib/locale";
+import { leftOutByDefault } from "../lib/totals";
 import customToaster from "../utils/customToaster";
 
 const MAX_LABEL = 25;
@@ -40,6 +41,8 @@ export default function TransactionDrawer({ open, onClose, categories, members =
     const [categoryId, setCategoryId] = useState("");
     const [personId, setPersonId] = useState(""); // who it belongs to
     const [merchant, setMerchant] = useState(""); // the name typed or picked; only while the family has merchants (a list)
+    const [excluded, setExcluded] = useState(false); // left out of the totals
+    const [excludedTouched, setExcludedTouched] = useState(false); // once the person decides, the category stops deciding
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
 
@@ -56,10 +59,18 @@ export default function TransactionDrawer({ open, onClose, categories, members =
             const person = editing ? transaction.user_id : me;
             setPersonId(members.some((member) => member.id === person) ? String(person) : "");
             setMerchant(editing ? merchants?.find((m) => m.id === transaction.merchant_id)?.name ?? "" : "");
+            setExcluded(editing ? Boolean(transaction.excluded) : false);
+            setExcludedTouched(editing);
             setErrors({});
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, transaction]);
+
+    // Choosing a category sets the checkbox (a transfer or a card payment starts out left out) until the person decides
+    const chooseCategory = (id) => {
+        setCategoryId(id);
+        if (!excludedTouched) setExcluded(leftOutByDefault(categories.find((category) => String(category.id) === id)));
+    };
 
     const validate = () => {
         const found = {};
@@ -89,6 +100,7 @@ export default function TransactionDrawer({ open, onClose, categories, members =
             ...(personId ? { user_id: personId } : {}),
             // "" takes the merchant off an edited transaction; a new one without it simply has none
             ...(merchants ? { merchant: merchant.trim() } : {}),
+            excluded,
         };
         const result = editing
             ? await updateTransaction(transaction.id, payload, getToken())
@@ -167,7 +179,7 @@ export default function TransactionDrawer({ open, onClose, categories, members =
                                     <NativeSelect.Root>
                                         <NativeSelect.Field
                                             value={categoryId}
-                                            onChange={(e) => setCategoryId(e.target.value)}
+                                            onChange={(e) => chooseCategory(e.target.value)}
                                         >
                                             <option value="">Selecione</option>
                                             {categories.map((category) => (
@@ -208,6 +220,23 @@ export default function TransactionDrawer({ open, onClose, categories, members =
                                         </NativeSelect.Field>
                                         <NativeSelect.Indicator />
                                     </NativeSelect.Root>
+                                </Field.Root>
+
+                                <Field.Root>
+                                    <Checkbox.Root
+                                        checked={excluded}
+                                        onCheckedChange={(e) => {
+                                            setExcluded(Boolean(e.checked));
+                                            setExcludedTouched(true);
+                                        }}
+                                    >
+                                        <Checkbox.HiddenInput />
+                                        <Checkbox.Control />
+                                        <Checkbox.Label>Não contar nos totais</Checkbox.Label>
+                                    </Checkbox.Root>
+                                    <Field.HelperText>
+                                        A transação continua na lista, mas fica de fora do painel, do orçamento e das respostas do assistente.
+                                    </Field.HelperText>
                                 </Field.Root>
                             </Stack>
                         </Drawer.Body>
