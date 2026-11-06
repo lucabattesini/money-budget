@@ -44,7 +44,7 @@ from api.utils.category_names import name_key
 from api.utils.clock import family_today
 from api.utils.formatting import AMOUNT_STYLES
 from db.connection import session_scope
-from schemas.tables import ImportJobDB
+from schemas.tables import ImportJobDB, Merchants
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,20 @@ def _file_people(job: ImportJobDB) -> dict[str, dict]:
 def _unknown_people(job: ImportJobDB) -> dict[str, dict]:
     """The names of the file that no member stands for yet: the person has to choose."""
     return {key: entry for key, entry in _file_people(job).items() if entry["user_id"] is None}
+
+
+def _merchant_ids(db: Session, family_id: int, names: set[str]) -> dict[str, int]:
+    """(words of the name -> merchant id) for each merchant of the file: the family's own when one has the same words
+    (ignoring case, spaces and emoji), otherwise a new one, created here. Not committed: it goes with the import, so
+    either everything is saved or nothing is."""
+    lookup = {name_key(m.name): m.id for m in db.query(Merchants).filter(Merchants.family_id == family_id)}
+    for name in sorted(names):  # in a fixed order, so the same file always creates them in the same order
+        if name_key(name) not in lookup:
+            merchant = Merchants(family_id=family_id, name=name)
+            db.add(merchant)
+            db.flush()
+            lookup[name_key(name)] = merchant.id
+    return lookup
 
 
 def _category_lookup(db: Session, family_id: int) -> tuple[dict[str, int], set[int]]:
@@ -388,14 +402,27 @@ def run_import_job(job_id: int) -> None:
             ):  # someone left
                 mark_failed(db, job, "Uma pessoa do arquivo deixou de ser da família. Comece de novo.")
                 return
+            kept = [row for row in job.rows if row["row"] not in skipped_rows]
+            # A merchant column counts only while the family has merchants on; a name the family has is reused, a new one
+            # is created
+            merchants = {}
+            if get_family(db, job.family_id).merchants_enabled:
+                first_spelling: dict[str, str] = {}
+                for row in kept:
+                    if row.get("merchant"):
+                        first_spelling.setdefault(name_key(row["merchant"]), row["merchant"])
+                merchants = _merchant_ids(db, job.family_id, set(first_spelling.values()))
             add_transactions(
                 db,
                 job.family_id,
                 job.requested_by,
                 [
-                    {**row, "category_id": resolved[name_key(row["category"])]}
-                    for row in job.rows
-                    if row["row"] not in skipped_rows
+                    {
+                        **row,
+                        "category_id": resolved[name_key(row["category"])],
+                        "merchant_id": merchants.get(name_key(row["merchant"])) if row.get("merchant") else None,
+                    }
+                    for row in kept
                 ],
             )
             mark_done(db, job, len(job.rows) - len(duplicates), duplicates)

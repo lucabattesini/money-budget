@@ -175,6 +175,7 @@ def add_transactions(db: Session, family_id: int, user_id: int, items: list[dict
     db.add_all(
         TransactionDB(
             family_id=family_id,
+            merchant_id=item.get("merchant_id"),
             user_id=item.get("user_id") or user_id,  # the file may name a person; else whoever imports
             label=item["label"],
             value=item["value"],

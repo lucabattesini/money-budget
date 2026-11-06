@@ -143,8 +143,8 @@ flowchart TB
   checked yet); 2) **formats**: how the file writes dates (DD/MM/AAAA, MM/DD/AAAA, AAAA-MM-DD, or automatic) and amounts
   (`1.234,56`, `1,234.56` or automatic), and what the sign of the amount means (always positive with the type in a
   column, negative is debit, or negative is credit), with the first rows of the file to judge by; 3) **columns**: which
-  column of the file is Data, Descrição, Categoria, Valor, Tipo and Pessoa (those named like the fields come already chosen;
-  Tipo is left out when the sign says the direction; Pessoa is optional); 4) **check**: leaving step 3 sends the choices and checks every
+  column of the file is Data, Descrição, Categoria, Valor, Tipo, Pessoa and, with merchants on, Estabelecimento (those named like the fields come already chosen;
+  Tipo is left out when the sign says the direction; the last two are optional; the first rows of the file can be folded away); 4) **check**: leaving step 3 sends the choices and checks every
   row the way steps 2 and 3 said, by itself; it shows "tudo certo" or lists all the problems with their row (nothing
   is imported, and the person can go back to change columns or formats); 5) for each category in the file the family does not
   have, pick an existing one or create it (name and group) without leaving the dialog, skipped when nothing is
@@ -569,7 +569,7 @@ names from `/merchants` only while the setting is on, shows the name under the d
 totals the spending per merchant for what is on screen. Joining another family with the data brings its merchants and
 merges those with the same words into the new family's; a family that is deleted after 30 days takes its merchants
 with it. Not built: merchant logos, merging merchants, default categories per merchant, guessing the merchant from the
-description, a merchant column in the import.
+description, a merchant column in the export.
 
 **Managing categories** (`/categories`, all require login). A family manages only its own categories; the default
 ones (no `family_id`, `is_default` true in the list) are shown but cannot be changed. `POST /categories {name,
@@ -635,7 +635,11 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    Uploading again throws away the person's previous staged job.
 2. `PUT /imports/{id}/columns {mapping, date_order, amount_style, sign}` says which column holds each field and how the
    file writes things, then checks **every** row before anything is kept. `mapping` is the position of each of Data,
-   Descrição, Categoria, Valor, Tipo and Pessoa (only Tipo and Pessoa may be null; a column serves one field only). Pessoa is
+   Descrição, Categoria, Valor, Tipo, Pessoa and Estabelecimento (only Tipo, Pessoa and Estabelecimento may be null; a column serves one field only).
+   Estabelecimento is only used while the family has merchants on: each name is compared with the family's merchants
+   (the rule of `same_name`: case, spaces and emoji) and reused when one matches, otherwise a new merchant is created, all
+   together with the import (so a failed import creates none); more than 100 characters or no letters at all is a problem of
+   that row, and with merchants off the column is ignored. Pessoa is
    the name of a member of the family. A name that is exactly one member's (case and accents ignored) is matched by
    itself, an empty cell means the person importing, and the check lists every name of the column in `people`
    (`{name, rows, user_id}`; `user_id` is the member it was matched to, or null when there is none or when two members

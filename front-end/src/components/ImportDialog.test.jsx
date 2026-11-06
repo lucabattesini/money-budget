@@ -2,6 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
+import { setLocale } from '../lib/locale'
 import { followImport, queueImport } from '../lib/importJobs'
 import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
 import ImportDialog from './ImportDialog'
@@ -22,7 +23,7 @@ const GROUPS = {
 }
 const skipped = (row) => ({ row, date: '2026-03-15', label: `Almoço ${row}`, value: 123456, type: 'debit', category: 'Aluguel' })
 const COLUMNS = ['Data', 'Descrição', 'Categoria', 'Valor', 'Tipo']
-const SUGGESTED = { Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: 4, Pessoa: null }
+const SUGGESTED = { Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: 4, Pessoa: null, Estabelecimento: null }
 const SAMPLE = [['15/03/2026', 'Almoço', 'Aluguel', '12,00', 'Débito']]
 // What the server answers to the upload: the file is read, nothing is checked yet
 const uploaded = (extra = {}) => ({ id: 5, status: 'staged', filename: 'transacoes.csv', columns: COLUMNS, suggested_map: SUGGESTED, sample: SAMPLE, ...extra })
@@ -157,7 +158,7 @@ describe('import dialog', () => {
   })
 
   describe('sections', () => {
-    const headings = () => screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    const headings = () => screen.queryAllByRole('heading', { level: 3 }).map((h) => h.textContent)
 
     it('organises each step in titled sections', async () => {
       mockApi({ ...imports({ unknown_categories: [PETS] }), 'GET /categories': CATEGORIES, 'GET /categories/groups': GROUPS })
@@ -165,11 +166,11 @@ describe('import dialog', () => {
       expect(headings()).toEqual(['Planilha'])
 
       await toFormats()
-      expect(headings()).toEqual(['Como o arquivo escreve os valores', 'Primeiras linhas do arquivo'])
+      expect(headings()).toEqual(['Formatos do arquivo', 'Primeiras linhas do arquivo'])
 
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByLabelText('Coluna para Data')
-      expect(headings()).toEqual(['Campos obrigatórios', 'Campos opcionais', 'Primeiras linhas do arquivo'])
+      expect(headings()).toEqual(['Colunas do arquivo', 'Primeiras linhas do arquivo']) // the fields have no titles of their own: required ones have a *
 
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       expect(await screen.findByText(/Tudo certo/)).toBeInTheDocument()
@@ -177,7 +178,7 @@ describe('import dialog', () => {
 
       await passCheck()
       await screen.findByLabelText('Categoria para "Pets"')
-      expect(headings()).toEqual(['Categorias que você ainda não tem'])
+      expect(headings()).toEqual(['Categorias novas'])
     })
 
     it('has the summary and, when there are duplicates, their own section when confirming', async () => {
@@ -198,7 +199,9 @@ describe('import dialog', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByLabelText('Coluna para Data')
 
-      expect(headings()).toEqual(['Campos obrigatórios', 'Campos opcionais', 'Primeiras linhas do arquivo']) // Pessoa is still optional
+      expect(headings()).toEqual(['Colunas do arquivo', 'Primeiras linhas do arquivo'])
+      expect(screen.queryByLabelText('Coluna para Tipo')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Coluna para Pessoa')).toBeInTheDocument() // still optional
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await passCheck()
       await screen.findByText(/3 transações serão importadas/)
@@ -243,7 +246,7 @@ describe('import dialog', () => {
       await toFormats()
 
       expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Formatos')
-      expect(screen.getByText('Como o arquivo escreve os valores')).toBeInTheDocument()
+      expect(screen.getByText('Formatos do arquivo')).toBeInTheDocument()
       const sample = within(screen.getByRole('table', { name: 'Primeiras linhas do arquivo' }))
       expect(sample.getAllByRole('row')[1]).toHaveTextContent('15/03/2026')
       expect(requestsMade(api)).toEqual(['POST /imports']) // nothing is checked until the columns are matched
@@ -359,13 +362,28 @@ describe('import dialog', () => {
     })
   })
 
+  describe('the example of the file', () => {
+    it('can be folded away and shown again in the formats step too', async () => {
+      mockApi(imports())
+      open()
+      await toFormats()
+
+      expect(screen.getByRole('table', { name: 'Primeiras linhas do arquivo' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: /Recolher/ }))
+      expect(screen.queryByRole('table', { name: 'Primeiras linhas do arquivo' })).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: /Mostrar/ }))
+
+      expect(screen.getByRole('table', { name: 'Primeiras linhas do arquivo' })).toBeInTheDocument()
+    })
+  })
+
   describe('step 3: columns', () => {
     const select = (field) => screen.getByLabelText(`Coluna para ${field}`)
     const putBody = (api) => JSON.parse(api.mock.calls.find(([, o]) => o?.method === 'PUT')[1].body)
     // A file whose columns are named differently: nothing is suggested
     const OTHER = uploaded({
       columns: ['Quando', 'O que', 'Tipo de gasto', 'Quanto', ''],
-      suggested_map: { Data: null, Descrição: null, Categoria: null, Valor: null, Tipo: null, Pessoa: null },
+      suggested_map: { Data: null, Descrição: null, Categoria: null, Valor: null, Tipo: null, Pessoa: null, Estabelecimento: null },
       sample: [['15/03/2026', 'Almoço', 'Aluguel', '12,00', 'x']],
     })
 
@@ -383,6 +401,58 @@ describe('import dialog', () => {
       expect(sample.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(COLUMNS)
       expect(sample.getAllByRole('row')[1]).toHaveTextContent('15/03/2026')
       expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled()
+    })
+
+    it('has the Estabelecimento column to choose only while the family has merchants on, and sends it', async () => {
+      mockApi(imports())
+      open()
+      await toColumns()
+      expect(screen.queryByLabelText('Coluna para Estabelecimento')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Coluna para Tipo')).toBeInTheDocument()
+    })
+
+    it('chooses the Estabelecimento column, explains what empty means, and sends the choice', async () => {
+      setLocale({ merchants_enabled: true })
+      const api = mockApi({
+        ...imports(),
+        'POST /imports': [{ data: uploaded({ columns: [...COLUMNS, 'Pessoa', 'Estabelecimento'], suggested_map: { ...SUGGESTED, Estabelecimento: 6 } }) }, 201],
+      })
+      open()
+      await toColumns()
+
+      expect(screen.getByLabelText('Coluna para Estabelecimento')).toHaveValue('6')
+      expect(screen.getByText(/Se vazio, fica sem estabelecimento/)).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+      await screen.findByText('3 transações serão importadas', {}, { timeout: 3000 }).catch(() => {})
+
+      expect(putBody(api).mapping).toMatchObject({ Estabelecimento: 6 })
+    })
+
+    it('shows the example of the file open, and folds it away and back on request', async () => {
+      mockApi(imports())
+      open()
+      await toColumns()
+
+      const toggle = screen.getByRole('button', { name: /Recolher/ })
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      await userEvent.click(toggle)
+
+      expect(screen.queryByRole('table', { name: 'Primeiras linhas do arquivo' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Mostrar/ })).toHaveAttribute('aria-expanded', 'false')
+      await userEvent.click(screen.getByRole('button', { name: /Mostrar/ }))
+      expect(screen.getByRole('table', { name: 'Primeiras linhas do arquivo' })).toBeInTheDocument()
+    })
+
+    it('marks the required fields with a *, with no titles or introduction for the fields', async () => {
+      mockApi(imports())
+      open()
+      await toColumns()
+
+      expect(screen.queryByText('Campos obrigatórios')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Campos? opcionais?/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Diga qual coluna/)).not.toBeInTheDocument() // no introduction either
+      expect(screen.getByText('Valor', { selector: 'label' })).toHaveTextContent('*')
+      expect(screen.getByText('Tipo', { selector: 'label' })).not.toHaveTextContent('*')
     })
 
     it('sends the Pessoa column when the file has one', async () => {
@@ -431,7 +501,7 @@ describe('import dialog', () => {
       await passCheck()
 
       await screen.findByText('3 transações serão importadas')
-      expect(putBody(api).mapping).toEqual({ Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: null, Pessoa: null }) // Tipo: not used
+      expect(putBody(api).mapping).toEqual({ Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: null, Pessoa: null, Estabelecimento: null }) // Tipo: not used
     })
 
     it('does not let one column serve two fields', async () => {
@@ -794,8 +864,10 @@ describe('import dialog', () => {
 
       await toColumns()
 
-      expect(screen.getByText('Pessoa (opcional, se vazio é quem está importando)')).toBeInTheDocument()
-      expect(screen.getByText('Tipo (opcional, se vazio é Débito)')).toBeInTheDocument()
+      // What an empty cell means is written under the field it is about, not in its label
+      expect(screen.getByText('Se vazio, é quem está importando.')).toBeInTheDocument()
+      expect(screen.getByText('Se vazio, é Débito.')).toBeInTheDocument()
+      expect(screen.queryByText(/opcional/i)).not.toBeInTheDocument()
     })
 
     it('goes straight to confirming when the file has no names in the Pessoa column', async () => {

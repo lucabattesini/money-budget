@@ -11,6 +11,7 @@ from datetime import date
 from decimal import Decimal
 
 from api.gateways.documents import Cell
+from api.utils.category_names import name_key
 from api.utils.formatting import (
     date_parts,
     parse_amount,
@@ -20,7 +21,7 @@ from api.utils.formatting import (
 )
 
 REQUIRED_FIELDS = ["Data", "Descrição", "Categoria", "Valor"]
-OPTIONAL_FIELDS = ["Tipo", "Pessoa"]
+OPTIONAL_FIELDS = ["Tipo", "Pessoa", "Estabelecimento"]
 FIELDS = REQUIRED_FIELDS + OPTIONAL_FIELDS
 MAX_LABEL = 100  # the size of the column
 MAX_CENTS = 2147483647  # must fit the 32-bit column
@@ -250,6 +251,12 @@ def check_table(
             kind = "debit" if (cents < 0) == out_is_negative else "credit"
             cents = abs(cents)
 
+        merchant = _text(cell("Estabelecimento"))
+        if len(merchant) > MAX_LABEL:  # the merchant's column is as long as the description's
+            found.append(f"o estabelecimento tem {len(merchant)} caracteres e o máximo é {MAX_LABEL}.")
+        elif merchant and not name_key(merchant):
+            found.append("o estabelecimento precisa ter pelo menos uma letra ou um número.")
+
         person = _text(cell("Pessoa"))
         # Who the name stands for is settled after the check (see imports_controller), like the categories: a name
         # of exactly one member is matched by itself, any other is for the person to choose
@@ -266,6 +273,7 @@ def check_table(
                     "value": cents,
                     "type": kind,
                     "category": category,
+                    "merchant": merchant,  # applied only while the family has merchants on
                     "person": person,  # the name as the file wrote it ("" when the cell was empty)
                     "user_id": person_id,  # the member it stands for; None while unsettled (or when the cell was empty)
                 }

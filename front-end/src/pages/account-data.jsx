@@ -15,6 +15,7 @@ const COLUMNS = [
     { name: "Valor", required: true, format: "Zero ou mais, no máximo duas casas decimais: 1.234,56 ou 1,234.56. Pode vir negativo (veja o sinal)", example: "1.234,56" },
     { name: "Tipo", required: false, format: "Débito ou Crédito (se vazio, Débito). Dispensável se o sinal do valor já diz", example: "Débito" },
     { name: "Pessoa", required: false, format: "Nome de alguém da sua família (se vazio, quem está importando)", example: "Bia Souza" },
+    { name: "Estabelecimento", required: false, format: "Só com estabelecimentos ligados. Um que a família já tem é reaproveitado; um novo é criado na importação (se vazio, sem estabelecimento)", example: "Uber" },
 ];
 
 const EXPORT_FORMATS = [
