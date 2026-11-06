@@ -93,6 +93,8 @@ def _run_query_tool(
                     "date": t.transactioned_at.date().isoformat() if t.transactioned_at else None,
                     "category": t.category_name,
                     **({"merchant": t.merchant_name} if merchants_enabled else {}),
+                    # Said only when it is so: the person left it out of the totals, so a sum of this list must skip it
+                    **({"left_out_of_totals": True} if t.excluded else {}),
                 }
                 for t in rows
             ]

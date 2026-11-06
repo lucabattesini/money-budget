@@ -76,6 +76,35 @@ def test_list_returns_the_users_transactions_in_reais(user, other_user, make_tra
     ]
 
 
+def test_a_summary_leaves_out_what_the_person_left_out_of_the_totals(user, make_transaction, category_ids):
+    food = category_ids["Restaurantes e Bares"]
+    make_transaction(user, food, "counted", 1000)
+    make_transaction(user, food, "left out", 9000, excluded=True)
+
+    [result] = run(user, summarize(group_by="category"))
+
+    assert [(r["category"], r["total"], r["count"]) for r in result["result"]] == [("Restaurantes e Bares", 10.0, 1)]
+
+
+def test_a_list_still_shows_a_left_out_transaction_and_says_it_is_not_counted(user, make_transaction, category_ids):
+    food = category_ids["Restaurantes e Bares"]
+    make_transaction(user, food, "counted", 1000, datetime(2026, 3, 2))
+    make_transaction(user, food, "left out", 9000, datetime(2026, 3, 1), excluded=True)
+
+    [result] = run(user, list_(limit=10))
+
+    assert result["result"] == [
+        {"description": "counted", "amount": 10.0, "date": "2026-03-02", "category": "Restaurantes e Bares"},
+        {
+            "description": "left out",
+            "amount": 90.0,
+            "date": "2026-03-01",
+            "category": "Restaurantes e Bares",
+            "left_out_of_totals": True,
+        },
+    ]
+
+
 def test_category_filter_by_name(user, make_transaction, category_ids):
     make_transaction(user, category_ids["Restaurantes e Bares"], "food", 1000)
     make_transaction(user, category_ids["Transporte público"], "bus", 500)
