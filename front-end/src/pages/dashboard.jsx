@@ -98,13 +98,13 @@ export default function Dashboard() {
                         <Box />
                     )}
                     <HStack gap={2}>
-                        <IconButton aria-label="Mês anterior" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} onClick={() => setMonth(shiftMonth(month, -1))}>
+                        <IconButton aria-label="Mês anterior" variant="outline" size="sm" onClick={() => setMonth(shiftMonth(month, -1))}>
                             <LuChevronLeft />
                         </IconButton>
                         <Heading size="md" minW={{ base: "8rem", md: "10rem" }} textAlign="center" textTransform="capitalize" aria-live="polite">
                             {monthLabel(month)}
                         </Heading>
-                        <IconButton aria-label="Próximo mês" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} disabled={month >= thisMonth} onClick={() => setMonth(shiftMonth(month, 1))}>
+                        <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= thisMonth} onClick={() => setMonth(shiftMonth(month, 1))}>
                             <LuChevronRight />
                         </IconButton>
                     </HStack>

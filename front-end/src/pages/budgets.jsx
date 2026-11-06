@@ -123,13 +123,13 @@ export default function Budgets() {
             </Stack>
 
             <HStack gap={2}>
-                <IconButton aria-label="Mês anterior" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
+                <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
                     <LuChevronLeft />
                 </IconButton>
                 <Heading size="lg" minW={{ base: "8rem", md: "11rem" }} textAlign="center" textTransform="capitalize" aria-live="polite">
                     {monthLabel(month)}
                 </Heading>
-                <IconButton aria-label="Próximo mês" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
+                <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
                     <LuChevronRight />
                 </IconButton>
             </HStack>

@@ -143,7 +143,7 @@ export default function Chatbot() {
             <Flex p={{ base: 3, md: 6 }} bg="transparent" gap={{ base: 2, md: 4 }} align="center">
                 <Input
                     flex="1"
-                    minH="44px"
+                    minH={{ base: "44px", md: "40px" }}
                     placeholder="Digite sua mensagem..."
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
@@ -163,7 +163,7 @@ export default function Chatbot() {
                     onClick={handleSendMessage}
                     disabled={isLoading || !inputValue.trim()}
                     borderRadius="full"
-                    boxSize="44px"
+                    boxSize={{ base: "44px", md: "40px" }}
                     flexShrink={0}
                 >
                     <LuSend />

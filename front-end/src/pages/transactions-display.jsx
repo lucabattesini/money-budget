@@ -138,25 +138,25 @@ export default function TransactionsDisplay() {
             py={{ base: 1, md: 0 }}
             borderBottomWidth={{ base: "1px", md: 0 }}
         >
-            <Table.Cell whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: undefined }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
-            <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: undefined }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: undefined }}>
+            <Table.Cell whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
+            <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: 2 }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }}>
                 {transaction.label}
                 {merchantsEnabled && merchantName(transaction) && (
                     <Text fontSize="xs" color="fg.muted">{merchantName(transaction)}</Text>
                 )}
             </Table.Cell>
-            <Table.Cell color="fg.muted" gridArea="category" fontSize={{ base: "xs", md: "sm" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: undefined }}>{categoryName(transaction)}</Table.Cell>
-            <Table.Cell width="1%" gridArea="person" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: undefined }}>
+            <Table.Cell color="fg.muted" gridArea="category" fontSize={{ base: "xs", md: "sm" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{categoryName(transaction)}</Table.Cell>
+            <Table.Cell width="1%" gridArea="person" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>
                 <PersonAvatar person={family.members.find((member) => member.id === transaction.user_id)} />
             </Table.Cell>
-            <Table.Cell textAlign="end" whiteSpace="nowrap" gridArea="amount" borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: undefined }} color={transaction.type === "credit" ? "green.400" : undefined}>
+            <Table.Cell textAlign="end" whiteSpace="nowrap" gridArea="amount" borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }} color={transaction.type === "credit" ? "green.400" : undefined}>
                 {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
             </Table.Cell>
             {/* Clicks here (the menu is rendered elsewhere but still bubbles) must not open the editor */}
             <Table.Cell textAlign="end" width="1%" gridArea="menu" borderBottomWidth={{ base: 0, md: "1px" }} onClick={(event) => event.stopPropagation()}>
                 <Menu.Root positioning={{ placement: "bottom-end" }}>
                     <Menu.Trigger asChild>
-                        <IconButton variant="ghost" size="xs" boxSize={{ base: "44px", md: "auto" }} aria-label={`Ações para ${transaction.label}`}>
+                        <IconButton variant="ghost" size="xs" aria-label={`Ações para ${transaction.label}`}>
                             <LuEllipsisVertical />
                         </IconButton>
                     </Menu.Trigger>
@@ -249,12 +249,12 @@ export default function TransactionsDisplay() {
 
                 {!loading && pageCount > 1 && (
                     <Flex align="center" gap={3}>
-                        <Button size="sm" minH={{ base: "44px", md: "auto" }} variant="outline" disabled={currentPage === 1}
+                        <Button size={{ base: "sm", md: "xs" }} variant="outline" disabled={currentPage === 1}
                             onClick={() => setPage(currentPage - 1)}>
                             Anterior
                         </Button>
                         <Text fontSize="sm">Página {currentPage} de {pageCount}</Text>
-                        <Button size="sm" minH={{ base: "44px", md: "auto" }} variant="outline" disabled={currentPage === pageCount}
+                        <Button size={{ base: "sm", md: "xs" }} variant="outline" disabled={currentPage === pageCount}
                             onClick={() => setPage(currentPage + 1)}>
                             Próxima
                         </Button>
