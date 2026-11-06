@@ -3,6 +3,7 @@ import { Center, Stack, Heading, Text, Box, Alert } from "@chakra-ui/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { loginWithGoogle } from "../api/endpoints";
 import { saveToken } from "../lib/auth";
+import { takePendingConnect } from "../lib/connect";
 import customToaster from "../utils/customToaster";
 
 const hasClientId = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
@@ -17,7 +18,9 @@ function LoginGoogleForm() {
         const data = await loginWithGoogle(credentialResponse.credential, phone);
         if (data?.data?.token) {
             saveToken(data.data.token);
-            navigate("/");
+            // An AI app was waiting for the person to sign in: take them back to its question
+            const pending = takePendingConnect();
+            navigate(pending ? `/connect${pending}` : "/");
         } else {
             customToaster("Error", "error", "Não foi possível entrar. Tente novamente.");
         }

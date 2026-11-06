@@ -1,6 +1,6 @@
 import { Box, Button, Flex, Heading, Link, Menu, Portal, Stack, Text } from "@chakra-ui/react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LuArrowDownUp, LuChevronDown, LuSettings, LuStore, LuTags, LuUser, LuUsers } from "react-icons/lu";
+import { LuArrowDownUp, LuBot, LuChevronDown, LuSettings, LuStore, LuTags, LuUser, LuUsers } from "react-icons/lu";
 import { useLocale } from "../lib/locale";
 
 // One entry per section of the account area. Add a line here (and a route in App.jsx) for a new section.
@@ -11,6 +11,7 @@ const ACCOUNT_SECTIONS = [
     { name: "Estabelecimentos", path: "/account/merchants", icon: LuStore, needsMerchants: true },
     { name: "Preferências", path: "/account/preferences", icon: LuSettings },
     { name: "Importar e exportar", path: "/account/data", icon: LuArrowDownUp },
+    { name: "Assistentes de IA", path: "/account/assistants", icon: LuBot },
 ];
 
 // The account area: a vertical menu on the left and the chosen section on the right.

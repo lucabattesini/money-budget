@@ -126,6 +126,10 @@ undo a task's work if it ran inside the request.)
 checked, `_stage` does both from CSV lines and expects success), `_choose` (categories) and `_start`; `_import` does
 all of them and returns the finished job.
 
+`tests/api/test_connector.py` plays the Claude app: `connect(person)` registers an app, answers the consent as that person
+and swaps the code for tokens (returns the tokens and the client id), `_call` posts a JSON-RPC message to `/mcp` and `_tool`
+calls a tool and returns its decoded answer.
+
 The test database itself is built with `create_all`, which is quick. The migrations are tested
 separately in `tests/db/test_migrations.py`, on a throwaway database named
 `<test database>_migrations_test` that is created and dropped around each test. Those tests check that

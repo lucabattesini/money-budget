@@ -73,7 +73,9 @@ def detect_revision(inspector) -> str | None:
         return "0018"
     if "excluded" not in columns:
         return "0019"
-    return "0020"
+    if not inspector.has_table("oauth_grants"):
+        return "0020"
+    return "0021"
 
 
 def upgrade_database(url: str = DATABASE_URL, revision: str = "head") -> None:

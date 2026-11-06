@@ -18,7 +18,9 @@ from api.routers import (
     exports_router,
     families_router,
     imports_router,
+    mcp_router,
     merchants_router,
+    oauth_router,
     transactions_router,
     users_router,
     whatsapp_router,
@@ -46,7 +48,20 @@ async def refuse_huge_uploads(request, call_next):
     if request.method == "POST" and request.url.path.rstrip("/") == "/imports" and declared.isdigit():
         if int(declared) > MAX_FILE_BYTES + UPLOAD_OVERHEAD:
             return JSONResponse({"detail": "O arquivo é grande demais (o máximo é 5 MB)."}, status_code=413)
-    return await call_next(request)
+    if request.method == "POST" and request.url.path.rstrip("/") == "/mcp" and declared.isdigit():
+        if int(declared) > mcp_router.MAX_BODY_BYTES:
+            return JSONResponse({"error": "Request too large."}, status_code=413)
+    if request.method == "POST" and request.url.path.startswith("/oauth/") and declared.isdigit():
+        if int(declared) > oauth_router.MAX_OAUTH_BODY:  # open to anyone, so small
+            return JSONResponse({"error": "invalid_request"}, status_code=413)
+    response = await call_next(request)
+    # Nothing legitimate puts this app in a frame (the consent page would be clickjackable)
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    if request.url.path.rstrip("/") == "/mcp":
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
 
 
 app.add_middleware(
@@ -67,6 +82,8 @@ app.include_router(exports_router.router)
 app.include_router(imports_router.router)
 app.include_router(families_router.router)
 app.include_router(whatsapp_router.router)
+app.include_router(oauth_router.router)
+app.include_router(mcp_router.router)
 
 # In production the same server serves the web app (a hash-routed single page, so every address is "/" plus files).
 # Mounted last: every API address above wins over a file of the same name.

@@ -13,6 +13,8 @@ export const endpoints = {
     merchants: `${URL_BASE}/merchants`,
     user: `${URL_BASE}/user`,
     auth: `${URL_BASE}/auth`,
+    oauth: `${URL_BASE}/oauth`,
+    connections: `${URL_BASE}/connections`,
 };
 
 // An answer of 401 means the login is no longer valid: forget it and go to the login page.
@@ -274,6 +276,13 @@ export const deleteCategory = (id, token) => jsonCall(endpoints.categories + `/$
 export const getMerchants = (token) => jsonCall(endpoints.merchants, "get", token);
 export const renameMerchant = (id, name, token) => jsonCall(endpoints.merchants + `/${id}`, "patch", token, { name });
 export const deleteMerchant = (id, token) => jsonCall(endpoints.merchants + `/${id}`, "delete", token);
+
+// ─── AI apps (the Claude connector) ───────────────────────────────────────────
+
+// The person's answer to an app that asks for access. Resolves with the address to send them to next.
+export const decideConnection = (decision, token) => jsonCall(endpoints.oauth + "/authorize", "post", token, decision);
+export const getConnections = (token) => jsonCall(endpoints.connections, "get", token);
+export const disconnectApp = (id, token) => jsonCall(endpoints.connections + `/${id}`, "delete", token);
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────
 

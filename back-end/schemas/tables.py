@@ -204,3 +204,45 @@ class ExportJobDB(Base):
     error = Column(String(255))
     created_at = Column(DateTime, server_default=func.now())
     finished_at = Column(DateTime)
+
+
+class OAuthClient(Base):
+    """An AI app (the Claude app) that registered itself to ask people for access (TKT-72). It holds no secret: it is a
+    public client, and what protects a sign-in is the PKCE check, not a password."""
+
+    __tablename__ = "oauth_clients"
+
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)  # the client_id
+    name = Column(String(100), nullable=False)  # as the app calls itself; shown when asking the person
+    redirect_uris = Column(JSON, nullable=False)  # the only addresses a code may be sent back to
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class OAuthCode(Base):
+    """What the app gets after the person said yes, to be swapped for tokens once. Short-lived; only its hash is kept."""
+
+    __tablename__ = "oauth_codes"
+
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    code_hash = Column(String(64), nullable=False, unique=True)
+    client_id = Column(Uuid, ForeignKey("oauth_clients.id"), nullable=False)
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False)  # who said yes
+    redirect_uri = Column(String(500), nullable=False)
+    code_challenge = Column(String(128), nullable=False)  # PKCE (S256)
+    expires_at = Column(DateTime, nullable=False)
+
+
+class OAuthGrant(Base):
+    """One person's connection with one app. Deleting the row disconnects it. Only hashes of the tokens are kept."""
+
+    __tablename__ = "oauth_grants"
+
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    client_id = Column(Uuid, ForeignKey("oauth_clients.id"), nullable=False)
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False)  # everything done through it is done as this person
+    access_hash = Column(String(64), nullable=False, unique=True)
+    access_expires_at = Column(DateTime, nullable=False)
+    refresh_hash = Column(String(64), nullable=False, unique=True)
+    refresh_expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    last_used_at = Column(DateTime, nullable=True)

@@ -15,7 +15,8 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0020"
+LATEST = "0021"
+BEFORE_CONNECTOR = "0020"
 BEFORE_UUIDS = "0018"  # the migrations of the older tests below end here: ids were still counting numbers
 
 
@@ -48,6 +49,9 @@ def test_a_new_database_gets_every_table_and_ends_on_the_latest_revision(url, en
         "budgets",
         "import_jobs",
         "merchants",
+        "oauth_clients",
+        "oauth_codes",
+        "oauth_grants",
     }
     assert _version(engine) == LATEST
 
@@ -1390,5 +1394,24 @@ def test_undoing_the_left_out_revision_only_drops_its_column(url, engine):
 
     assert _version(engine) == "0019"
     assert "excluded" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
+    upgrade_database(url)
+    assert _version(engine) == LATEST
+
+
+# --- 0021: sign-in for the Claude connector (TKT-72) ---------------------------------------------------------------------
+
+
+def test_undoing_the_connector_revision_drops_only_its_tables_and_it_can_go_forward_again(url, engine):
+    upgrade_database(url)
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid())"))
+
+    command.downgrade(alembic_config(url), BEFORE_CONNECTOR)
+
+    names = set(inspect(engine).get_table_names())
+    assert names.isdisjoint({"oauth_clients", "oauth_codes", "oauth_grants"})
+    assert {"families", "users", "transactions"} <= names
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM families")).scalar() == 1
     upgrade_database(url)
     assert _version(engine) == LATEST
