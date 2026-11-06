@@ -56,7 +56,7 @@ names, not secrets):
    `gcloud run jobs execute money-budget-migrate --region us-central1 --args=-m,db.seed --wait`
 3. **Google sign-in.** In Google Cloud Console > APIs & Services > Credentials, open the OAuth client and add the app's
    address to *Authorized JavaScript origins*.
-4. **WhatsApp** is not switched on. When it is, add its secrets, give `mb-run` access to them and set
+4. **WhatsApp** is not switched on, and until `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_ID` are set the webhook answers `503` to every message (it has no signature check yet, TKT-27, so on a public address it must not accept messages from anyone). When it is, add its secrets, give `mb-run` access to them and set
    `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` and `WHATSAPP_VERIFY_TOKEN` on the service, then point Meta's webhook at
    `<address>/webhook/`.
 

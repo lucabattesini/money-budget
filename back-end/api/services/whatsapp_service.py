@@ -4,6 +4,11 @@ import os
 import requests
 
 
+def whatsapp_configured() -> bool:
+    """True once the WhatsApp keys are set. Until then the chatbot does not exist: nothing is read or answered."""
+    return bool(os.getenv("WHATSAPP_TOKEN") and os.getenv("WHATSAPP_PHONE_ID"))
+
+
 def send_whatsapp_message(to_number: str, message_body: str):
     token = os.getenv("WHATSAPP_TOKEN")
     phone_id = os.getenv("WHATSAPP_PHONE_ID")

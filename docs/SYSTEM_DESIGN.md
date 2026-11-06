@@ -801,7 +801,7 @@ sequenceDiagram
 - **Production (Google Cloud, TKT-68; guide in `docs/DEPLOY.md`).** One Cloud Run service (`money-budget`) runs the
   image built from the root `Dockerfile`: the API plus the built web app, which the API serves from `/` on the same
   address (`STATIC_DIR`; the app is hash-routed, so the only page address is `/`; API addresses always win over files),
-  so there is no cross-origin traffic and `FRONT_URL` is that address. The generated `/docs`, `/redoc` and `/openapi.json` pages are off while the web app is served (they stay on in development). A route the web app calls without a trailing slash must be registered with and without it, because the file server mounted at `/` takes over from the automatic redirect. The data is a database
+  so there is no cross-origin traffic and `FRONT_URL` is that address. The generated `/docs`, `/redoc` and `/openapi.json` pages are off while the web app is served (they stay on in development). `POST /webhook/` answers `503` until `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_ID` are set, because it has no signature check yet (TKT-27) and the address is public. A route the web app calls without a trailing slash must be registered with and without it, because the file server mounted at `/` takes over from the automatic redirect. The data is a database
   (`money_budget`, its own user that owns only it) on the Cloud SQL instance the team already has, reached through
   Cloud Run's built-in Cloud SQL connection; the password (`DB_PASSWORD`) and `JWT_SECRET` come from Secret Manager,
   never from the repository or the image. The pool is small (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `pool_pre_ping`) and the

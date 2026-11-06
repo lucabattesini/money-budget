@@ -11,6 +11,13 @@ def message_payload(sender="5511999990000", text="gastei 10 de almoço"):
     return {"entry": [{"changes": [{"value": {"messages": [{"from": sender, "text": {"body": text}}]}}]}]}
 
 
+@pytest.fixture(autouse=True)
+def whatsapp_is_set_up(monkeypatch):
+    """Most tests here are about a deployment that has WhatsApp configured (sending itself is stubbed)."""
+    monkeypatch.setenv("WHATSAPP_TOKEN", "test-token")
+    monkeypatch.setenv("WHATSAPP_PHONE_ID", "test-phone-id")
+
+
 @pytest.fixture
 def graph(monkeypatch):
     """Replace the chatbot graph; records what it was invoked with."""
@@ -209,3 +216,18 @@ def test_the_phone_number_of_a_sender_is_not_written_to_the_log(client, make_use
 
     out = capsys.readouterr()
     assert "5511999990000" not in out.out + out.err
+
+
+@pytest.mark.parametrize("missing", ["WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID"])
+def test_without_the_whatsapp_keys_no_message_is_accepted_and_nothing_is_recorded(
+    client, make_user, graph, sent_messages, monkeypatch, missing
+):
+    """Until WhatsApp is set up (and the signature check of TKT-27 exists) a public address must not let anyone post a
+    message in somebody's name."""
+    make_user(whatsapp_phone="5511999990000")
+    monkeypatch.setenv(missing, "")
+
+    response = client.post("/webhook/", json=message_payload())
+
+    assert response.status_code == 503
+    assert (graph, sent_messages) == ([], [])  # the chatbot was never asked

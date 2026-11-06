@@ -1,11 +1,11 @@
 import os
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
 from api.controllers.whatsapp_controller import process_whatsapp_message
-from api.services.whatsapp_service import send_whatsapp_message
+from api.services.whatsapp_service import send_whatsapp_message, whatsapp_configured
 from db.connection import get_db
 
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
@@ -31,6 +31,10 @@ async def verify_webhook(
 
 @router.post("/")
 async def receive_message(request: Request, db: Session = Depends(get_db)):
+    # The webhook has no signature check yet (TKT-27), so on a public address anyone could post a message for any
+    # phone number. Until WhatsApp is set up, nothing is accepted.
+    if not whatsapp_configured():
+        return JSONResponse({"status": "error", "message": "WhatsApp is not configured"}, status_code=503)
     try:
         body = await request.json()
 
