@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from "react";
-import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
+import { Badge, Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
 import { useLocation } from "react-router-dom";
 import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
@@ -147,6 +147,9 @@ export default function TransactionsDisplay() {
             <Table.Cell hideBelow="md" whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
             <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: 2 }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }}>
                 {transaction.label}
+                {transaction.excluded && (
+                    <Badge ml={2} size="xs" variant="subtle" colorPalette="gray" title="Não conta nos totais">Fora dos totais</Badge>
+                )}
                 {merchantsEnabled && merchantName(transaction) && (
                     <Text fontSize="xs" color="fg.muted">{merchantName(transaction)}</Text>
                 )}

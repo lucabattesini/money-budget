@@ -17,11 +17,12 @@ from api.utils.formatting import (
     parse_amount,
     parse_date,
     parse_type,
+    parse_yes_no,
     remove_formula_guard,
 )
 
 REQUIRED_FIELDS = ["Data", "Descrição", "Categoria", "Valor"]
-OPTIONAL_FIELDS = ["Tipo", "Pessoa", "Estabelecimento"]
+OPTIONAL_FIELDS = ["Tipo", "Pessoa", "Estabelecimento", "Fora dos totais"]
 FIELDS = REQUIRED_FIELDS + OPTIONAL_FIELDS
 MAX_LABEL = 100  # the size of the column
 MAX_CENTS = 2147483647  # must fit the 32-bit column
@@ -257,6 +258,13 @@ def check_table(
         elif merchant and not name_key(merchant):
             found.append("o estabelecimento precisa ter pelo menos uma letra ou um número.")
 
+        # "Sim"/"Não": whether the transaction is left out of the totals. Empty: the category's default decides (a
+        # transfer or a card payment is left out), which is settled when the rows are saved
+        left_out_text = _text(cell("Fora dos totais"))
+        excluded = parse_yes_no(left_out_text)
+        if left_out_text and excluded is None:
+            found.append('"Fora dos totais" precisa ser Sim ou Não.')
+
         person = _text(cell("Pessoa"))
         # Who the name stands for is settled after the check (see imports_controller), like the categories: a name
         # of exactly one member is matched by itself, any other is for the person to choose
@@ -274,6 +282,7 @@ def check_table(
                     "type": kind,
                     "category": category,
                     "merchant": merchant,  # applied only while the family has merchants on
+                    "excluded": excluded,  # left out of the totals; None when the cell was empty
                     "person": person,  # the name as the file wrote it ("" when the cell was empty)
                     "user_id": person_id,  # the member it stands for; None while unsettled (or when the cell was empty)
                 }

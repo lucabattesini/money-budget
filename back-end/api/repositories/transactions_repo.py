@@ -6,6 +6,7 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from api.repositories.categories_repo import category_visible_to_family
+from api.utils.totals import excluded_by_default
 from schemas.tables import Categories, Merchants, TransactionDB, Users
 from schemas.tables_schemas import (
     Transaction,
@@ -35,6 +36,10 @@ def create_transaction(db: Session, t: Transaction, family_id: UUID, user_id: UU
     try:
         data = t.model_dump(exclude={"merchant"})
         data["merchant_id"] = merchant_id
+        if (
+            data["excluded"] is None
+        ):  # not said: a transfer or a card payment is left out of the totals, the rest counts
+            data["excluded"] = t.category_id in excluded_by_default(db, [t.category_id])
         if data["user_id"] is None:
             data["user_id"] = user_id  # belongs to whoever adds it unless said otherwise
         transaction = TransactionDB(**data, family_id=family_id)
@@ -61,7 +66,8 @@ def get_transactions_summed_by_category(
 ):
     query = (
         db.query(TransactionDB.category_id, func.sum(TransactionDB.value).label("total"))
-        .filter(TransactionDB.family_id == family_id, TransactionDB.type == "debit")  # spending only
+        # spending only, and not what the person left out of the totals
+        .filter(TransactionDB.family_id == family_id, TransactionDB.type == "debit", TransactionDB.excluded.is_(False))
         .group_by(TransactionDB.category_id)
     )
 
@@ -73,9 +79,12 @@ def get_transactions_summed_by_category(
     return query.all()
 
 
-def _apply_filters(query, family_id: UUID, f: TransactionFilters):
-    """Scope the query to the family and apply every filter that was set."""
+def _apply_filters(query, family_id: UUID, f: TransactionFilters, counted_only: bool = False):
+    """Scope the query to the family and apply every filter that was set. `counted_only` leaves out the transactions
+    the person excluded from the totals: every sum asks for it, a plain list does not."""
     query = query.filter(TransactionDB.family_id == family_id)
+    if counted_only:
+        query = query.filter(TransactionDB.excluded.is_(False))
 
     if f.start_date:
         query = query.filter(TransactionDB.transactioned_at >= datetime.combine(f.start_date, time.min))
@@ -162,6 +171,7 @@ def _to_out(rows) -> list[TransactionOut]:
             user_name=user_name,
             merchant_id=t.merchant_id,
             merchant_name=merchant_name,
+            excluded=t.excluded,
         )
         for t, category_name, user_name, merchant_name in rows
     ]
@@ -182,28 +192,32 @@ def aggregate_transactions(
     ]
 
     if group_by is None:
-        row = _apply_filters(db.query(*metrics), family_id, filters).one()
+        row = _apply_filters(db.query(*metrics), family_id, filters, counted_only=True).one()
         return [TransactionAggregate(**row._mapping)]
 
     if group_by == "category":
         keys = [TransactionDB.category_id.label("category_id"), Categories.name.label("category_name")]
         query = db.query(*keys, *metrics).outerjoin(Categories, TransactionDB.category_id == Categories.id)
-        query = _apply_filters(query, family_id, filters).group_by(*keys).order_by(func.sum(TransactionDB.value).desc())
+        query = _apply_filters(query, family_id, filters, counted_only=True)
+        query = query.group_by(*keys).order_by(func.sum(TransactionDB.value).desc())
         return [TransactionAggregate(**row._mapping) for row in query.all()]
 
     if group_by == "merchant":
         keys = [TransactionDB.merchant_id.label("merchant_id"), Merchants.name.label("merchant_name")]
         query = db.query(*keys, *metrics).outerjoin(Merchants, TransactionDB.merchant_id == Merchants.id)
-        query = _apply_filters(query, family_id, filters).group_by(*keys).order_by(func.sum(TransactionDB.value).desc())
+        query = _apply_filters(query, family_id, filters, counted_only=True)
+        query = query.group_by(*keys).order_by(func.sum(TransactionDB.value).desc())
         return [TransactionAggregate(**row._mapping) for row in query.all()]
 
     if group_by == "weekday":
         key = extract("dow", TransactionDB.transactioned_at).label("weekday")
-        query = _apply_filters(db.query(key, *metrics), family_id, filters).group_by(key).order_by(key)
+        query = _apply_filters(db.query(key, *metrics), family_id, filters, counted_only=True)
+        query = query.group_by(key).order_by(key)
         return [TransactionAggregate(**row._mapping) for row in query.all()]
 
     parts = [extract(p, TransactionDB.transactioned_at).label(p) for p in PERIOD_PARTS[group_by]]
-    query = _apply_filters(db.query(*parts, *metrics), family_id, filters).group_by(*parts).order_by(*parts)
+    query = _apply_filters(db.query(*parts, *metrics), family_id, filters, counted_only=True)
+    query = query.group_by(*parts).order_by(*parts)
 
     results = []
     for row in query.all():
@@ -246,6 +260,8 @@ def update_transaction(
         transaction.user_id = changes.user_id
     if changes.merchant is not None:  # None keeps it; "" (merchant_id None) takes it off
         transaction.merchant_id = merchant_id
+    if changes.excluded is not None:
+        transaction.excluded = changes.excluded
     transaction.updated_at = datetime.now()
     db.commit()
     return transaction

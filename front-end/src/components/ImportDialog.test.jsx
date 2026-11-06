@@ -23,7 +23,7 @@ const GROUPS = {
 }
 const skipped = (row) => ({ row, date: '2026-03-15', label: `Almoço ${row}`, value: 123456, type: 'debit', category: 'Aluguel' })
 const COLUMNS = ['Data', 'Descrição', 'Categoria', 'Valor', 'Tipo']
-const SUGGESTED = { Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: 4, Pessoa: null, Estabelecimento: null }
+const SUGGESTED = { Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: 4, Pessoa: null, Estabelecimento: null, 'Fora dos totais': null }
 const SAMPLE = [['15/03/2026', 'Almoço', 'Aluguel', '12,00', 'Débito']]
 // What the server answers to the upload: the file is read, nothing is checked yet
 const uploaded = (extra = {}) => ({ id: 5, status: 'staged', filename: 'transacoes.csv', columns: COLUMNS, suggested_map: SUGGESTED, sample: SAMPLE, ...extra })
@@ -382,8 +382,18 @@ describe('import dialog', () => {
     // A file whose columns are named differently: nothing is suggested
     const OTHER = uploaded({
       columns: ['Quando', 'O que', 'Tipo de gasto', 'Quanto', ''],
-      suggested_map: { Data: null, Descrição: null, Categoria: null, Valor: null, Tipo: null, Pessoa: null, Estabelecimento: null },
+      suggested_map: { Data: null, Descrição: null, Categoria: null, Valor: null, Tipo: null, Pessoa: null, Estabelecimento: null, 'Fora dos totais': null },
       sample: [['15/03/2026', 'Almoço', 'Aluguel', '12,00', 'x']],
+    })
+
+    it('offers the Fora dos totais column, not used unless chosen, and says what an empty cell means', async () => {
+      mockApi(imports())
+      open()
+
+      await toColumns()
+
+      expect(select('Fora dos totais')).toHaveValue('') // "Não usar"
+      expect(screen.getByText('Sim ou Não. Se vazio, só transferências e pagamentos de fatura ficam de fora.')).toBeInTheDocument()
     })
 
     it('has the columns the server recognised already chosen, and shows the first rows of the file', async () => {
@@ -500,7 +510,7 @@ describe('import dialog', () => {
       await passCheck()
 
       await screen.findByText('3 transações serão importadas')
-      expect(putBody(api).mapping).toEqual({ Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: null, Pessoa: null, Estabelecimento: null }) // Tipo: not used
+      expect(putBody(api).mapping).toEqual({ Data: 0, Descrição: 1, Categoria: 2, Valor: 3, Tipo: null, Pessoa: null, Estabelecimento: null, 'Fora dos totais': null }) // Tipo: not used
     })
 
     it('lets one column serve two fields', async () => {

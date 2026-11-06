@@ -10,7 +10,7 @@ export default function MerchantTotals({ transactions, merchants }) {
     useLocale(); // amounts follow the family's currency and language
     const totals = new Map();
     transactions
-        .filter((transaction) => transaction.type !== "credit" && transaction.merchant_id != null)
+        .filter((transaction) => !transaction.excluded && transaction.type !== "credit" && transaction.merchant_id != null)
         .forEach((transaction) => {
             totals.set(transaction.merchant_id, (totals.get(transaction.merchant_id) ?? 0) + transaction.value);
         });

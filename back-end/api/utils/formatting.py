@@ -166,6 +166,21 @@ def parse_type(text: str | None) -> str | None:
     return {"debito": "debit", "credito": "credit"}.get(wanted)
 
 
+def parse_yes_no(text: str | None) -> bool | None:
+    """ "Sim" -> True, "Não" -> False (any case, with or without the accent; also yes/no, s/n, x, 1/0, true/false).
+    None for an empty cell (the person said nothing) and for anything else: the caller tells the two apart by the text."""
+    wanted = (text or "").strip().casefold()
+    if wanted in ("sim", "s", "yes", "y", "x", "1", "true", "verdadeiro"):
+        return True
+    if wanted in ("nao", "não", "n", "no", "0", "false", "falso"):
+        return False
+    return None
+
+
+def yes_no_label(value: bool) -> str:
+    return "Sim" if value else "Não"
+
+
 def remove_formula_guard(text: str) -> str:
     """Undo neutralize_formula: "'=SOMA(A1)" -> "=SOMA(A1)". An apostrophe in front of anything else stays."""
     return text[1:] if text.startswith("'") and text[1:].startswith(_FORMULA_STARTERS) else text

@@ -118,9 +118,9 @@ def test_csv_file_has_the_documented_columns_and_brazilian_formatting(
     assert response.headers["content-type"].startswith("text/csv")
     assert response.headers["content-disposition"].startswith('attachment; filename="transacoes-')
     assert _csv_rows(response) == [
-        "Data;Descrição;Categoria;Valor;Tipo;Pessoa",
-        "15/03/2026;Almoço;Restaurantes e Bares;1.234,56;Débito;Test User",
-        "01/03/2026;Salário;Transporte público;0,05;Crédito;Test User",
+        "Data;Descrição;Categoria;Valor;Tipo;Pessoa;Fora dos totais",
+        "15/03/2026;Almoço;Restaurantes e Bares;1.234,56;Débito;Test User;Não",
+        "01/03/2026;Salário;Transporte público;0,05;Crédito;Test User;Não",
     ]
 
 
@@ -134,15 +134,24 @@ def test_xlsx_file_has_real_dates_and_numbers(client, user, auth_headers, make_t
 
     assert response.headers["content-disposition"].endswith('.xlsx"')
     sheet = load_workbook(io.BytesIO(response.content)).active
-    assert [c.value for c in sheet[1]] == ["Data", "Descrição", "Categoria", "Valor", "Tipo", "Pessoa"]
-    when, label, category, amount, kind, person = sheet[2]
-    assert (when.value, label.value, category.value, amount.value, kind.value, person.value) == (
+    assert [c.value for c in sheet[1]] == [
+        "Data",
+        "Descrição",
+        "Categoria",
+        "Valor",
+        "Tipo",
+        "Pessoa",
+        "Fora dos totais",
+    ]
+    when, label, category, amount, kind, person, left_out = sheet[2]
+    assert (when.value, label.value, category.value, amount.value, kind.value, person.value, left_out.value) == (
         datetime(2026, 3, 15, 12, 0),
         "Almoço",
         "Restaurantes e Bares",
         1234.56,
         "Débito",
         "Test User",
+        "Não",
     )
 
 
@@ -196,7 +205,9 @@ def test_the_file_lists_the_newest_first_and_shows_a_missing_category_as_empty(
 def test_an_export_without_transactions_is_just_the_header(client, auth_headers, queue):
     job_id = _run(client, queue, auth_headers)
 
-    assert _csv_rows(_file(client, auth_headers, job_id)) == ["Data;Descrição;Categoria;Valor;Tipo;Pessoa"]
+    assert _csv_rows(_file(client, auth_headers, job_id)) == [
+        "Data;Descrição;Categoria;Valor;Tipo;Pessoa;Fora dos totais"
+    ]
 
 
 def test_a_description_cannot_run_as_a_formula(client, user, auth_headers, make_transaction, category_ids, queue):

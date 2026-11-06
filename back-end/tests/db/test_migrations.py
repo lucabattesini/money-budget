@@ -15,8 +15,8 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0020"
-BEFORE_CONNECTOR = "0019"
+LATEST = "0021"
+BEFORE_CONNECTOR = "0020"
 BEFORE_UUIDS = "0018"  # the migrations of the older tests below end here: ids were still counting numbers
 
 
@@ -1311,7 +1311,94 @@ def test_a_database_without_rows_survives_the_uuid_revision_both_ways(url, engin
     assert _version(engine) == LATEST
 
 
-# --- 0020: sign-in for the Claude connector (TKT-72) ---------------------------------------------------------------------
+# --- 0020: a transaction can be left out of the totals (TKT-87) ---------------------------------------------------------
+
+
+def _ids_and_transactions_before_0020(engine):
+    """Rows at revision 0019 (UUID ids): a transfer, a card payment, a balance adjustment, a purchase, and a family's own
+    category called "Transferência" in another group."""
+    with engine.begin() as conn:
+        groups = dict(conn.execute(text("SELECT name, id FROM category_groups")).all())
+        family = conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid()) RETURNING id")).scalar()
+        user = conn.execute(
+            text(
+                "INSERT INTO users (id, family_id, google_id, name, email) "
+                "VALUES (gen_random_uuid(), :f, 'g', 'Ana', 'a@e.com') RETURNING id"
+            ),
+            {"f": family},
+        ).scalar()
+        categories = {}
+        for key, name, group in [
+            ("transfer", "🔄 Transferência", "Transferências"),
+            ("card", "💳 Pagamento de fatura do cartão", "Transferências"),
+            ("adjust", "🧮 Ajustes de saldo", "Transferências"),
+            ("food", "🛒 Supermercado", "Alimentação"),
+            ("lookalike", "Transferência", "Outros"),  # same words, but not in the group of transfers
+        ]:
+            categories[key] = conn.execute(
+                text("INSERT INTO categories (id, name, group_id) VALUES (gen_random_uuid(), :n, :g) RETURNING id"),
+                {"n": name, "g": groups[group]},
+            ).scalar()
+        for key, category in categories.items():
+            conn.execute(
+                text(
+                    "INSERT INTO transactions (id, family_id, user_id, label, value, category_id) "
+                    "VALUES (gen_random_uuid(), :f, :u, :l, 100, :c)"
+                ),
+                {"f": family, "u": user, "l": key, "c": category},
+            )
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, family_id, user_id, label, value) "
+                "VALUES (gen_random_uuid(), :f, :u, 'no category', 100)"
+            ),
+            {"f": family, "u": user},
+        )
+
+
+def test_a_database_with_the_uuid_revision_is_recognised_and_brought_to_the_latest(url, engine):
+    command.upgrade(alembic_config(url), "0019")
+    _forget_history(engine)
+
+    assert detect_revision(inspect(engine)) == "0019"
+    upgrade_database(url)
+
+    assert _version(engine) == LATEST
+    assert "excluded" in {c["name"] for c in inspect(engine).get_columns("transactions")}
+
+
+def test_existing_transfers_and_card_payments_are_left_out_of_the_totals_and_everything_else_keeps_counting(
+    url, engine
+):
+    command.upgrade(alembic_config(url), "0019")
+    _ids_and_transactions_before_0020(engine)
+
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        left_out = dict(conn.execute(text("SELECT label, excluded FROM transactions")).all())
+    assert left_out == {
+        "transfer": True,
+        "card": True,
+        "adjust": False,  # a correction of a balance is not a move between accounts
+        "food": False,
+        "lookalike": False,  # not in the group of transfers
+        "no category": False,
+    }
+
+
+def test_undoing_the_left_out_revision_only_drops_its_column(url, engine):
+    command.upgrade(alembic_config(url), "head")
+
+    command.downgrade(alembic_config(url), "0019")
+
+    assert _version(engine) == "0019"
+    assert "excluded" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
+    upgrade_database(url)
+    assert _version(engine) == LATEST
+
+
+# --- 0021: sign-in for the Claude connector (TKT-72) ---------------------------------------------------------------------
 
 
 def test_undoing_the_connector_revision_drops_only_its_tables_and_it_can_go_forward_again(url, engine):

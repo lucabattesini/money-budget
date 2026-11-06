@@ -2,15 +2,15 @@
 
 Only new tables, so existing data is untouched.
 
-Revision ID: 0020
-Revises: 0019
+Revision ID: 0021
+Revises: 0020
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0020"
-down_revision = "0019"
+revision = "0021"
+down_revision = "0020"
 branch_labels = None
 depends_on = None
 

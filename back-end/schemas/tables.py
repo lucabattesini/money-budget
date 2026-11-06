@@ -52,6 +52,9 @@ class TransactionDB(Base):
     updated_at = Column(DateTime)  # when the row was last edited; empty if never edited
     category_id = Column(Uuid, ForeignKey("categories.id"), nullable=True)
     merchant_id = Column(Uuid, ForeignKey("merchants.id"), nullable=True)  # the place or company the money went to
+    # Left out of every total (dashboard, budgets, sums, the assistant's answers) but still listed and exported. Money
+    # moved between the person's own accounts, a card bill already counted by its purchases... (TKT-87)
+    excluded = Column(Boolean, nullable=False, default=False, server_default=expression.false())
 
 
 class Merchants(Base):

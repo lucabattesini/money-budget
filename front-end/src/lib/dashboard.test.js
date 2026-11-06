@@ -20,6 +20,24 @@ describe('isSpending', () => {
   })
 })
 
+describe('what the person left out of the totals', () => {
+  const categories = [{ id: 1, group_name: 'Alimentação' }]
+  const at = (excluded, type = 'debit') => ({ ...tx('2026-03-10', 100, type), category_id: 1, excluded })
+
+  it('is not spending, even though it is a debit in an ordinary category', () => {
+    const counted = at(false)
+    const unmarked = { ...at(false), excluded: undefined } // a transaction from before the mark existed
+
+    expect(countsAsSpending([counted, at(true), unmarked], categories)).toEqual([counted, unmarked])
+  })
+
+  it('is not money that came in either', () => {
+    const salary = at(false, 'credit')
+
+    expect(countsAsIncoming([salary, at(true, 'credit')], categories)).toEqual([salary])
+  })
+})
+
 describe('countsAsSpending', () => {
   const categories = [
     { id: 1, group_name: 'Alimentação' },

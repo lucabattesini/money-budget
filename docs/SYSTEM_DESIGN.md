@@ -183,7 +183,7 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   function takes the database session as its first argument.
 - `services/` — logic that is not a request or a query: `whatsapp_service.py`
   (outbound calls to the Meta Cloud API), `export_service.py` (turns a user's
-  transactions into a table of Data / Descrição / Categoria / Valor / Tipo / Pessoa and
+  transactions into a table of Data / Descrição / Categoria / Valor / Tipo / Pessoa / Fora dos totais (Sim or Não) and
   asks a document gateway for the file) and `import_service.py` (the reverse: checks every row of a table read
   from a file and collects all the problems, with the row number as the spreadsheet shows it).
 - `gateways/documents/` — the **document gateway**: the only place that knows
@@ -357,6 +357,7 @@ erDiagram
         datetime updated_at "when last edited"
         uuid category_id FK
         uuid merchant_id FK "optional: the place or company the money went to"
+        bool excluded "left out of every total; still listed and exported"
     }
     MERCHANTS {
         uuid id PK
@@ -555,6 +556,7 @@ whatever their date says, and a person whose previous family is deleted simply h
 | `value` | Amount in integer cents. Always positive (the API rejects 0, negatives and values over the 32-bit limit on edit); the direction is in `type`, never in the sign. Converted to reais (`/100`) at the API/agent boundary. |
 | `user_id` | The family member the transaction belongs to (who paid). Set to the caller on create unless another member of the same family is sent; changeable through `PUT`. Imports and the WhatsApp assistant use the person importing / whose number wrote. Not a permission. |
 | `type` | `debit` (money out, the default) or `credit` (money in). Not null. Spending totals (the summary at the top of the transactions page, `summed-by-category`) count debits only. |
+| `excluded` | True when the person left the transaction out of the totals (TKT-87). Not null, false unless set. It stays in lists and exports, but no sum counts it: `summed-by-category` (and so the budgets' spending), the assistant's totals (`aggregate_transactions`, through `_apply_filters(..., counted_only=True)`), and, in the web app, the dashboard panels and the merchant totals (`countsAsSpending`, `countsAsIncoming`). Sent on `POST /transactions/create` and `PUT /transactions/{id}` (`excluded`; left out, a create takes the category's default and an edit keeps it). The default is `true` for a category named "Transferência" or "Pagamento de fatura do cartão" in the group "Transferências" (`api/utils/totals.py`, mirrored by `front-end/src/lib/totals.js`; "Ajustes de saldo" is a correction and counts); migration `0020` marked the existing ones. The older rule by group (the budget and the dashboard ignore Receitas and Transferências for spending) stays as it was. |
 | `transactioned_at` | When the money moved. The user can change it (the edit form picks a day and keeps the time of day). Defaults to the moment of creation on the family's clock. Never in the future for entries made in the web app or by the chatbot. This column used to be called `date`. |
 | `created_at` | When the row was first saved. Set by the database, never changed. |
 | `updated_at` | When the row was last edited through `PUT /transactions/{id}`. Empty until the first edit. |
@@ -599,7 +601,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are), `0018` the `merchants` table, `transactions.merchant_id` (empty for every existing transaction) and `families.merchants_enabled` (off for every existing family), `0019` UUID identifiers for every table (every link is kept; imports in progress are dropped; old login tokens stop working), `0020` the `oauth_clients`, `oauth_codes` and `oauth_grants` tables for the Claude connector (new tables only).
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are), `0018` the `merchants` table, `transactions.merchant_id` (empty for every existing transaction) and `families.merchants_enabled` (off for every existing family), `0019` UUID identifiers for every table (every link is kept; imports in progress are dropped; old login tokens stop working), `0020` `transactions.excluded` (left out of the totals; false for every transaction except those in the "Transferência" and "Pagamento de fatura do cartão" categories, which are marked), `0021` the `oauth_clients`, `oauth_codes` and `oauth_grants` tables for the Claude connector (new tables only).
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de
@@ -714,7 +716,7 @@ minutes is marked failed the next time it is read or the user queues an export,
 and the page gives up after two minutes. Times come from the database clock. A
 separate worker would be the next step if exports ever get large.
 
-**Connector sign-in tables** (TKT-72, migration `0020`; see 3.3.1). `oauth_clients` (`id` is the client id, `name`,
+**Connector sign-in tables** (TKT-72, migration `0021`; see 3.3.1). `oauth_clients` (`id` is the client id, `name`,
 `redirect_uris` JSON, `created_at`) are the registered apps; `oauth_codes` (`code_hash` unique, `client_id`, `user_id`,
 `redirect_uri`, `code_challenge`, `expires_at`) are the one-time codes; `oauth_grants` (`client_id`, `user_id`,
 `access_hash` and `refresh_hash` unique with their expiry, `created_at`, `last_used_at`) are the connections. Only hashes
@@ -730,7 +732,7 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    Uploading again throws away the person's previous staged job.
 2. `PUT /imports/{id}/columns {mapping, date_order, amount_style, sign}` says which column holds each field and how the
    file writes things, then checks **every** row before anything is kept. `mapping` is the position of each of Data,
-   Descrição, Categoria, Valor, Tipo, Pessoa and Estabelecimento (only Tipo, Pessoa and Estabelecimento may be null; a column serves one field only).
+   Descrição, Categoria, Valor, Tipo, Pessoa, Estabelecimento and Fora dos totais (only Tipo, Pessoa, Estabelecimento and Fora dos totais may be null; a column may serve more than one field). Fora dos totais is Sim or Não (anything else is a problem of that row); empty means the category's default (a transfer or a card payment is left out).
    Estabelecimento is only used while the family has merchants on: each name is compared with the family's merchants
    (the rule of `same_name`: case, spaces and emoji) and reused when one matches, otherwise a new merchant is created, all
    together with the import (so a failed import creates none); more than 100 characters or no letters at all is a problem of

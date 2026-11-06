@@ -1,6 +1,7 @@
 import { digitsToCents } from "./money";
 
-export const EMPTY_FILTERS = { search: "", category: "", type: "", person: "", merchant: "", from: "", to: "", min: "", max: "" };
+// `counting`: "" every transaction, "left_out" only those left out of the totals, "counted" only the others
+export const EMPTY_FILTERS = { search: "", category: "", type: "", person: "", merchant: "", counting: "", from: "", to: "", min: "", max: "" };
 
 const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
 
@@ -44,6 +45,8 @@ export function applyFilters(transactions, filters) {
         if (filters.merchant && String(transaction.merchant_id) !== filters.merchant) return false;
         if (filters.person && String(transaction.user_id) !== filters.person) return false;
         if (filters.type && (transaction.type ?? "debit") !== filters.type) return false;
+        if (filters.counting === "left_out" && !transaction.excluded) return false;
+        if (filters.counting === "counted" && transaction.excluded) return false;
         if (from && date < from) return false;
         if (to && date >= to) return false;
         if (min !== null && transaction.value < min) return false;
