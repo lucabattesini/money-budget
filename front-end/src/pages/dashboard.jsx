@@ -8,7 +8,7 @@ import { monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { countsAsIncoming, countsAsSpending, spendingOfMonth, sumCents, transactionsOfMonth } from "../lib/dashboard";
 import { familyNow, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
-import { SpinnerLoading } from "../components/spinnerLoading";
+import DashboardSkeleton from "../components/DashboardSkeleton";
 import BudgetRing from "../components/BudgetRing";
 import CashFlowCard from "../components/CashFlowCard";
 import SpendingCard from "../components/SpendingCard";
@@ -19,8 +19,12 @@ export default function Dashboard() {
     const { timezone } = useLocale(); // amounts and the month name follow the family's currency and language; "today" its timezone
     const [categories, setCategories] = useState([]);
     const [categoriesLoaded, setCategoriesLoaded] = useState(false);
-    const [transactions, setTransactions] = useState(null); // null while the month's transactions are on their way
-    const loading = !categoriesLoaded || transactions === null;
+    // The transactions the cards are drawn from, with the month they were asked for: null until the first answer. When the
+    // person changes month the cards stay (dimmed) on the month they show until the new answer arrives, instead of
+    // blanking the page, and a month already seen is shown at once while it is asked for again quietly.
+    const [loaded, setLoaded] = useState(null);
+    const seen = useRef(new Map());
+    const loading = !categoriesLoaded || loaded === null;
     const [user, setUser] = useState(null);
     const [members, setMembers] = useState([]); // the family, to show whose each transaction is
     // eslint-disable-next-line react-hooks/exhaustive-deps -- read again only when the family's timezone arrives or changes
@@ -32,6 +36,8 @@ export default function Dashboard() {
     const requested = monthFromLink(params.get("month"), thisMonth);
     const month = requested > thisMonth ? thisMonth : requested;
     const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key }, { replace: true });
+    const shownMonth = loaded?.month ?? month;
+    const refreshing = !loading && loaded.month !== month;
     // After an expired login the token is gone and the user is on the login page: no message there
     // (One message, however many of the calls failed)
     const toldLoadFailed = useRef(false);
@@ -65,13 +71,15 @@ export default function Dashboard() {
     // like the transactions themselves. An answer for a month that is no longer on the page is ignored.
     useEffect(() => {
         let current = true;
-        setTransactions(null);
+        if (seen.current.has(month)) setLoaded({ month, transactions: seen.current.get(month) });
         const query = { start: `${shiftMonth(month, -1)}-01T00:00:00`, end: `${shiftMonth(month, 1)}-01T00:00:00` };
         getTransactions(query, getToken()).then((data) => {
             if (!current) return;
-            if (data) setTransactions(data.data);
-            else {
-                setTransactions([]);
+            if (data) {
+                seen.current.set(month, data.data);
+                setLoaded({ month, transactions: data.data });
+            } else {
+                setLoaded({ month, transactions: [] });
                 tellLoadFailed();
             }
         });
@@ -98,10 +106,10 @@ export default function Dashboard() {
     }, [month]);
 
     // Only money that was really spent: no credits, no transfers between accounts, like the budget
-    const outgoing = useMemo(() => countsAsSpending(transactions ?? [], categories), [transactions, categories]);
-    const spending = useMemo(() => spendingOfMonth(outgoing, month), [outgoing, month]);
+    const outgoing = useMemo(() => countsAsSpending(loaded?.transactions ?? [], categories), [loaded, categories]);
+    const spending = useMemo(() => spendingOfMonth(outgoing, shownMonth), [outgoing, shownMonth]);
     // What came in: credits, but not the other side of a transfer between accounts
-    const entered = useMemo(() => sumCents(transactionsOfMonth(countsAsIncoming(transactions ?? [], categories), month)), [transactions, categories, month]);
+    const entered = useMemo(() => sumCents(transactionsOfMonth(countsAsIncoming(loaded?.transactions ?? [], categories), shownMonth)), [loaded, categories, shownMonth]);
 
     return (
         <Center>
@@ -126,17 +134,17 @@ export default function Dashboard() {
                 </HStack>
 
                 {loading ? (
-                    <SpinnerLoading />
+                    <DashboardSkeleton />
                 ) : (
-                    <Grid templateColumns={{ base: "minmax(0, 1fr)", lg: "3fr 2fr" }} gap={6} alignItems="start">
+                    <Grid aria-busy={refreshing} opacity={refreshing ? 0.5 : 1} transition="opacity 0.15s" templateColumns={{ base: "minmax(0, 1fr)", lg: "3fr 2fr" }} gap={6} alignItems="start">
                         {/* On a phone the two columns become one list and the chart goes last (order); on a wide screen they are columns */}
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
                             <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} month={month} /></Box>
-                            <Box order={{ base: 2, lg: 0 }}><CashFlowCard entered={entered} spent={sumCents(spending)} month={month} /></Box>
-                            <Box order={{ base: 5, lg: 0 }}><SpendingCard transactions={outgoing} month={month} now={now} /></Box>
+                            <Box order={{ base: 2, lg: 0 }}><CashFlowCard entered={entered} spent={sumCents(spending)} month={shownMonth} /></Box>
+                            <Box order={{ base: 5, lg: 0 }}><SpendingCard transactions={outgoing} month={shownMonth} now={now} /></Box>
                         </Stack>
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
-                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} month={month} members={members} /></Box>
+                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} month={shownMonth} members={members} /></Box>
                             <Box order={{ base: 4, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
                         </Stack>
                     </Grid>

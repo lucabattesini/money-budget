@@ -98,15 +98,15 @@ describe('dashboard', () => {
     expect(screen.queryByText(/Olá, /)).not.toBeInTheDocument()
   })
 
-  it('shows a spinner until the data has loaded', async () => {
+  it('shows placeholders where the cards will be until the data has loaded', async () => {
     mockApi(ROUTES)
 
     renderApp(<Dashboard />)
 
-    expect(document.querySelector('.chakra-spinner')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Carregando…')
     expect(screen.queryByText('Gastos')).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Gastos')).toBeInTheDocument())
-    expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('survives an expired session instead of showing a blank page', async () => {
@@ -611,6 +611,58 @@ describe('dashboard', () => {
       await act(async () => answerMarch())
 
       expect(monthTotal()).toBe('R$ 0,00') // February has nothing; March's late answer did not replace it
+    })
+
+    it('keeps the cards on screen, dimmed, while the other month loads, and does not blank the page', async () => {
+      let answer
+      let calls = 0
+      mockApi({
+        ...ROUTES,
+        [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) },
+        'POST /transactions': () => {
+          calls += 1
+          if (calls === 1) return jsonResponse(ROUTES['POST /transactions'])
+          return new Promise((resolve) => (answer = () => resolve(jsonResponse({ data: [t(9, 700, '2026-02-03T10:00:00')] }))))
+        },
+      })
+      const user = userEvent.setup()
+
+      renderApp(<Dashboard />)
+      await screen.findByText('Gastos')
+      await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
+
+      expect(screen.getByRole('heading', { name: 'fevereiro de 2026' })).toBeInTheDocument()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument() // no placeholders: the page stays
+      expect(monthTotal()).toBe('R$ 125,50') // still March's cards, shown as busy until February arrives
+      expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+
+      await act(async () => answer())
+
+      expect(monthTotal()).toBe('R$ 7,00')
+      expect(document.querySelector('[aria-busy="true"]')).not.toBeInTheDocument()
+    })
+
+    it('shows a month it has already seen at once, and refreshes it quietly', async () => {
+      let calls = 0
+      mockApi({
+        ...ROUTES,
+        [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) },
+        'POST /transactions': () => {
+          calls += 1
+          if (calls === 3) return new Promise(() => {}) // the second visit to March never answers
+          return jsonResponse(calls === 2 ? { data: [t(9, 700, '2026-02-03T10:00:00')] } : ROUTES['POST /transactions'])
+        },
+      })
+      const user = userEvent.setup()
+
+      renderApp(<Dashboard />)
+      await screen.findByText('Gastos')
+      await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      await waitFor(() => expect(monthTotal()).toBe('R$ 7,00'))
+      await user.click(screen.getByRole('button', { name: 'Próximo mês' }))
+
+      await waitFor(() => expect(calls).toBe(3))
+      expect(monthTotal()).toBe('R$ 125,50') // March from memory, while it is asked for again
     })
 
     it('ignores a late answer for a month that is no longer on the page', async () => {
