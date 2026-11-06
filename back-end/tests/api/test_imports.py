@@ -1426,7 +1426,8 @@ def test_a_name_that_matches_nobody_waits_for_the_person_to_choose_who_it_stands
         "18/03/2026;Café;Aluguel;2,00;Débito;",
     )
 
-    assert job["unknown_people"] == [{"name": "Bia", "rows": 2}]  # "bia" is the same name: asked once
+    assert job["unknown_people"] == [{"name": "Bia", "rows": 2, "user_id": None}]  # "bia" is the same name: asked once
+    assert [(p["name"], p["user_id"]) for p in job["people"]] == [("Bia Souza", partner.id), ("Bia", None)]  # all shown
     assert {m["id"] for m in job["members"]} == {user.id, partner.id}
     assert _start(client, auth_headers, job["id"]).status_code == 409  # not before it is settled
     assert _saved(db, user) == []
@@ -1457,7 +1458,9 @@ def test_the_person_can_choose_themselves_for_a_name(client, db, user, auth_head
 
 def test_a_person_of_another_family_cannot_be_chosen(client, db, user, other_user, auth_headers):
     job = _stage_people(client, auth_headers, f"15/03/2026;Mercado;Aluguel;10,00;Débito;{other_user.name}")
-    assert job["unknown_people"] == [{"name": other_user.name, "rows": 1}]  # not matched: not in this family
+    assert job["unknown_people"] == [
+        {"name": other_user.name, "rows": 1, "user_id": None}
+    ]  # not matched: not in this family
 
     refused = _choose_people(client, auth_headers, job["id"], {other_user.name: other_user.id})
 
@@ -1477,7 +1480,22 @@ def test_two_people_with_the_same_name_are_not_guessed_but_asked(client, db, use
 
     job = _stage_people(client, auth_headers, f"15/03/2026;Mercado;Aluguel;10,00;Débito;{user.name}")
 
-    assert job["unknown_people"] == [{"name": user.name, "rows": 1}]
+    assert job["unknown_people"] == [{"name": user.name, "rows": 1, "user_id": None}]
+
+
+def test_the_person_can_change_a_name_that_was_matched_by_itself(client, db, user, auth_headers, make_user, queue):
+    partner = _partner(db, user, make_user)
+    job = _stage_people(client, auth_headers, "15/03/2026;Mercado;Aluguel;10,00;Débito;Bia Souza")
+    assert job["unknown_people"] == []
+    assert job["people"] == [{"name": "Bia Souza", "rows": 1, "user_id": partner.id}]  # matched, and shown
+
+    changed = _choose_people(client, auth_headers, job["id"], {"Bia Souza": user.id})
+
+    assert changed.status_code == 200
+    assert changed.json()["data"]["people"][0]["user_id"] == user.id
+    _start(client, auth_headers, job["id"])
+    queue.run()
+    assert [t.user_id for t in _saved(db, user)] == [user.id]
 
 
 def test_a_file_without_unknown_people_asks_nothing(client, auth_headers):
