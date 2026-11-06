@@ -255,9 +255,28 @@ describe('dashboard', () => {
     renderApp(<Dashboard />)
 
     await screen.findByText('Principais categorias')
-    // the chart prints compact numbers: 100,00 -> "100", 25,50 -> "25.5"
-    expect(screen.getByText('100')).toBeInTheDocument()
-    expect(screen.getByText('25.5')).toBeInTheDocument()
+    const panel = within(card('Principais categorias'))
+    expect(panel.getByText('R$ 100,00')).toBeInTheDocument()
+    expect(panel.getByText('R$ 25,50')).toBeInTheDocument()
+  })
+
+  it('starts the list of categories closed again when the month changes', async () => {
+    const many = Array.from({ length: 7 }, (_, n) => t(n + 1, (n + 1) * 1000, '2026-03-02T10:00:00', n + 1))
+    mockApi({
+      ...ROUTES,
+      [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) },
+      'GET /categories': { data: many.map((x) => ({ id: x.category_id, name: `Categoria ${x.category_id}` })) },
+      'POST /transactions': { data: many },
+    })
+    const user = userEvent.setup()
+    renderApp(<Dashboard />)
+    await user.click(await screen.findByRole('button', { name: 'Ver todas (7)' }))
+    expect(screen.getByRole('button', { name: 'Mostrar menos' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
+    await user.click(screen.getByRole('button', { name: 'Próximo mês' }))
+
+    expect(await screen.findByRole('button', { name: 'Ver todas (7)' })).toBeInTheDocument()
   })
 
   describe('transfers and income are not spending', () => {
@@ -308,8 +327,9 @@ describe('dashboard', () => {
       renderApp(<Dashboard />)
 
       await screen.findByText('Principais categorias')
-      expect(screen.getByText('100')).toBeInTheDocument()
-      expect(screen.getByText('25.5')).toBeInTheDocument()
+      const panel = within(card('Principais categorias'))
+      expect(panel.getByText('R$ 100,00')).toBeInTheDocument()
+      expect(panel.getByText('R$ 25,50')).toBeInTheDocument()
       expect(screen.queryByText(/Pagamento de fatura/)).not.toBeInTheDocument()
     })
 

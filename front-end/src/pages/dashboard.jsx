@@ -145,7 +145,8 @@ export default function Dashboard() {
                         </Stack>
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
                             <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} month={shownMonth} members={members} /></Box>
-                            <Box order={{ base: 4, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
+                            {/* key: a new month starts with the list closed again */}
+                            <Box order={{ base: 4, lg: 0 }}><TopCategoriesBarList key={shownMonth} transactions={spending} categories={categories} /></Box>
                         </Stack>
                     </Grid>
                 )}
