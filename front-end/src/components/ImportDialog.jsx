@@ -528,7 +528,7 @@ function ConfirmStep({ job }) {
 
             {job.skipped_count > 0 && (
                 <Section title="Já existem e serão ignoradas" hint="Iguais a transações que você já tem (dia, descrição, valor, categoria e tipo).">
-                    <Box maxH="48" overflowY="auto">
+                    <Box maxH="48" overflow="auto">
                         <Table.Root size="sm" aria-label="Transações que serão ignoradas">
                             <Table.Header>
                                 <Table.Row>
@@ -759,7 +759,7 @@ export default function ImportDialog({ open, onClose }) {
         <Dialog.Root
             open={open}
             onOpenChange={(e) => !e.open && !busy && !checking && close()}
-            size="xl"
+            size={{ base: "full", md: "xl" }}
             scrollBehavior="inside"
             closeOnInteractOutside={false}
         >
@@ -801,7 +801,7 @@ export default function ImportDialog({ open, onClose }) {
                             {step === "confirm" && job && <ConfirmStep job={job} />}
                             {checking && <Spinner mt={4} aria-label="Conferindo o arquivo" />}
                         </Dialog.Body>
-                        <Dialog.Footer px={{ base: 4, md: 8 }} py={5} gap={3} borderTopWidth="1px">
+                        <Dialog.Footer px={{ base: 4, md: 8 }} py={5} gap={3} borderTopWidth="1px" flexWrap="wrap" justifyContent="flex-end">
                             <Button variant="outline" onClick={close} disabled={busy || checking}>Cancelar</Button>
                             {step !== "file" && (
                                 <Button variant="outline" onClick={goBack} disabled={busy}>Voltar</Button>

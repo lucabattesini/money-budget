@@ -121,6 +121,9 @@ flowchart TB
 
 ### 3.1 Front-end (`front-end/`)
 - React (Vite) SPA, `HashRouter`-based, Chakra UI for components/theming.
+- Installable as a PWA: `public/manifest.json` (name, icons, standalone display) and `public/sw.js`, a small service worker registered
+  from `lib/pwa.js` in the built app only. It keeps the app's own files (network first for the page, cache first for `/assets/*`) and never
+  touches the API or non-GET requests, so data is always live; there is no offline data.
 - `lib/auth.js` stores the JWT in `localStorage` and attaches it as a Bearer
   token to every API call (`lib/utils.js` / `api/endpoints.js`).
 - Pages: `dashboard` (fixed panels for one month, chosen with a month switcher: what is left of the month's plan, from the budgets API; what came in and what went out in the month with the balance (entries are the credits, a salary or a refund, but not the other side of a transfer between accounts; exits are the spending below);

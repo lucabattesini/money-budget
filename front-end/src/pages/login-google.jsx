@@ -41,7 +41,7 @@ function LoginGoogleForm() {
 
 export default function LoginGoogle() {
     return (
-        <Center minH="100vh">
+        <Center minH="100dvh">
             <Stack gap={8} align="center" maxW="sm" w="full" px={6}>
                 <Stack gap={2} align="center" textAlign="center">
                     <Heading size="2xl">Bem-vindo de volta!</Heading>

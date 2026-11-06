@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { renderApp } from '../test/helpers'
@@ -32,5 +32,13 @@ describe('header', () => {
 
     const current = screen.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page')
     expect(current.map((link) => link.textContent)).toEqual([name])
+  })
+
+  it('has a main menu with every section, which a phone shows as a bar at the bottom', () => {
+    renderApp(<Header />, { route: '/' })
+
+    const menu = screen.getByRole('navigation', { name: 'Menu principal' })
+    const links = within(menu).getAllByRole('link').map((link) => link.getAttribute('href'))
+    expect(links).toEqual(['/', '/transactions', '/budgets', '/account'])
   })
 })

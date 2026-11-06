@@ -17,7 +17,7 @@ import MerchantTotals from "../components/MerchantTotals";
 import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 // "Todo o Resto" can be long, so it is shown in pages
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 30;
 
 export default function TransactionsDisplay() {
     const { merchantsEnabled } = useLocale(); // amounts and dates follow the family's currency and language
@@ -123,24 +123,52 @@ export default function TransactionsDisplay() {
 
     const merchantName = (transaction) => merchants?.find((merchant) => merchant.id === transaction.merchant_id)?.name;
 
+    // A category name starts with its emoji ("🎁 Presentes"); the phone layout shows the icon and the name apart
+    const categoryParts = (name) => {
+        const first = [...new Intl.Segmenter().segment(name)][0]?.segment ?? ""; // one whole emoji, flags and joined emoji included
+        return /^(\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(first) ? { icon: first, name: name.slice(first.length).trim() } : { icon: "", name };
+    };
+
     const renderRow = (transaction) => (
-        <Table.Row key={transaction.id} cursor="pointer" _hover={{ bg: "bg.muted" }} onClick={() => setEditing(transaction)}>
-            <Table.Cell whiteSpace="nowrap">{formatDate(transaction.transactioned_at)}</Table.Cell>
-            <Table.Cell wordBreak="break-word">
+        <Table.Row
+            key={transaction.id}
+            cursor="pointer"
+            _hover={{ bg: "bg.muted" }}
+            onClick={() => setEditing(transaction)}
+            // On a phone each row is a small card: the category icon on the left, description above "category · first name", amount on the right
+            display={{ base: "grid", md: "table-row" }}
+            gridTemplateColumns="36px auto auto minmax(0, 1fr) auto 44px"
+            gridTemplateAreas={'"icon label label label amount menu" "icon category person . amount menu"'}
+            alignItems="center"
+            columnGap={2}
+            py={{ base: 1, md: 0 }}
+            borderBottomWidth={{ base: "1px", md: 0 }}
+        >
+            <Table.Cell hideBelow="md" whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
+            <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: 2 }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }}>
                 {transaction.label}
                 {merchantsEnabled && merchantName(transaction) && (
                     <Text fontSize="xs" color="fg.muted">{merchantName(transaction)}</Text>
                 )}
             </Table.Cell>
-            <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
-            <Table.Cell width="1%">
-                <PersonAvatar person={family.members.find((member) => member.id === transaction.user_id)} />
+            <Table.Cell color="fg.muted" gridArea="category" fontSize={{ base: "xs", md: "sm" }} minW={0} pr={{ base: 0, md: 3 }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>
+                {categoryParts(categoryName(transaction)).icon && <Text as="span" hideBelow="md">{categoryParts(categoryName(transaction)).icon} </Text>}{categoryParts(categoryName(transaction)).name}
             </Table.Cell>
-            <Table.Cell textAlign="end" whiteSpace="nowrap" color={transaction.type === "credit" ? "green.400" : undefined}>
+            {/* Phone: the first name after the category; larger screens: the picture */}
+            <Table.Cell width="1%" gridArea="person" justifySelf="start" whiteSpace="nowrap" px={{ base: 0, md: 3 }} fontSize="xs" color="fg.muted" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>
+                {(() => {
+                    const person = family.members.find((member) => member.id === transaction.user_id);
+                    return person && (<>
+                        <Box hideBelow="md"><PersonAvatar person={person} /></Box>
+                        <Text as="span" hideFrom="md" ml={2}>· {person.name.split(" ")[0]}</Text>
+                    </>);
+                })()}
+            </Table.Cell>
+            <Table.Cell textAlign="end" whiteSpace="nowrap" gridArea="amount" borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }} color={transaction.type === "credit" ? "green.400" : undefined}>
                 {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
             </Table.Cell>
             {/* Clicks here (the menu is rendered elsewhere but still bubbles) must not open the editor */}
-            <Table.Cell textAlign="end" width="1%" onClick={(event) => event.stopPropagation()}>
+            <Table.Cell textAlign="end" width="1%" gridArea="menu" borderBottomWidth={{ base: 0, md: "1px" }} onClick={(event) => event.stopPropagation()}>
                 <Menu.Root positioning={{ placement: "bottom-end" }}>
                     <Menu.Trigger asChild>
                         <IconButton variant="ghost" size="xs" aria-label={`Ações para ${transaction.label}`}>
@@ -161,6 +189,8 @@ export default function TransactionsDisplay() {
                     </Portal>
                 </Menu.Root>
             </Table.Cell>
+            {/* Phone only (last in the row so the table columns keep their places): the category's icon (the emoji its name starts with) */}
+            <Table.Cell hideFrom="md" gridArea="icon" fontSize="xl" textAlign="center" p={0} borderBottomWidth={0} aria-hidden="true">{categoryParts(categoryName(transaction)).icon}</Table.Cell>
         </Table.Row>
     );
 
@@ -175,23 +205,23 @@ export default function TransactionsDisplay() {
 
     return(
         <Center>
-            <Stack minHeight="100vh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={10} px={4}>
+            <Stack gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={{ base: 6, md: 10 }} px={4}>
                 <TransactionSummary transactions={transactions} />
 
                 {merchantsEnabled && merchants && <MerchantTotals transactions={filtered} merchants={merchants} />}
 
-                <Flex w="full" justify="space-between" align="center">
+                <Flex w="full" justify="space-between" align="center" wrap="wrap" gap={2}>
                     <Text fontSize="lg" fontWeight="bold">Transações</Text>
                     <Flex gap={2}>
                         <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
                             <Popover.Trigger asChild>
-                                <Button size="sm" variant="outline">
+                                <Button size="sm" variant="outline" minH={{ base: "44px", md: "auto" }}>
                                     <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
                                 </Button>
                             </Popover.Trigger>
                             <Portal>
                                 <Popover.Positioner>
-                                    <Popover.Content width="auto">
+                                    <Popover.Content width="auto" maxW="calc(100vw - 2rem)" maxH="calc(100dvh - 8rem)" overflowY="auto">
                                         <Popover.Body>
                                             <TransactionFilters
                                                 filters={filters}
@@ -205,7 +235,7 @@ export default function TransactionsDisplay() {
                                 </Popover.Positioner>
                             </Portal>
                         </Popover.Root>
-                        <Button size="sm" onClick={() => setAdding(true)}>
+                        <Button size="sm" minH={{ base: "44px", md: "auto" }} onClick={() => setAdding(true)}>
                             <LuPlus /> Adicionar
                         </Button>
                     </Flex>
@@ -214,19 +244,31 @@ export default function TransactionsDisplay() {
                 {loading && <SpinnerLoading/>}
 
                 {!loading && visibleGroups.length > 0 && (
-                    <Table.ScrollArea w="full">
-                        <Table.Root size="sm">
-                            <Table.Body>
+                    <Table.ScrollArea w="full" overflowX={{ base: "hidden", md: "auto" }} borderWidth={{ base: 0, md: "1px" }}>
+                        <Table.Root size="sm" display={{ base: "block", md: "table" }}>
+                            <Table.Body display={{ base: "block", md: "table-row-group" }}>
                                 {visibleGroups.map((group) => (
                                     <Fragment key={group.title}>
-                                        <Table.Row>
-                                            <Table.Cell colSpan={6} pt={6}>
+                                        <Table.Row display={{ base: "block", md: "table-row" }}>
+                                            <Table.Cell colSpan={6} pt={6} display={{ base: "block", md: "table-cell" }}>
                                                 <Box color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase">
                                                     {group.title}
                                                 </Box>
                                             </Table.Cell>
                                         </Table.Row>
-                                        {group.data.map(renderRow)}
+                                        {group.data.map((transaction, index) => (
+                                            <Fragment key={transaction.id}>
+                                                {/* Phone only: the rows are grouped under their day, so the row itself does not show the date */}
+                                                {transaction.transactioned_at.slice(0, 10) !== group.data[index - 1]?.transactioned_at.slice(0, 10) && (
+                                                    <Table.Row data-day hideFrom="md" display="block">
+                                                        <Table.Cell display="block" pt={3} pb={1} px="10px" borderBottomWidth={0} color="fg.muted" fontSize="xs" fontWeight="semibold">
+                                                            {formatDate(transaction.transactioned_at)}
+                                                        </Table.Cell>
+                                                    </Table.Row>
+                                                )}
+                                                {renderRow(transaction)}
+                                            </Fragment>
+                                        ))}
                                     </Fragment>
                                 ))}
                             </Table.Body>
@@ -236,12 +278,12 @@ export default function TransactionsDisplay() {
 
                 {!loading && pageCount > 1 && (
                     <Flex align="center" gap={3}>
-                        <Button size="xs" variant="outline" disabled={currentPage === 1}
+                        <Button size={{ base: "sm", md: "xs" }} variant="outline" disabled={currentPage === 1}
                             onClick={() => setPage(currentPage - 1)}>
                             Anterior
                         </Button>
                         <Text fontSize="sm">Página {currentPage} de {pageCount}</Text>
-                        <Button size="xs" variant="outline" disabled={currentPage === pageCount}
+                        <Button size={{ base: "sm", md: "xs" }} variant="outline" disabled={currentPage === pageCount}
                             onClick={() => setPage(currentPage + 1)}>
                             Próxima
                         </Button>

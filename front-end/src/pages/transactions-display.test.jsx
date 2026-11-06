@@ -31,7 +31,7 @@ const rowsOnPage = () => [...document.querySelectorAll('tbody tr')].filter((row)
 // The group of a row is the closest heading row above it
 const groupOf = (label) => {
   const rows = [...document.querySelectorAll('tbody tr')]
-  const heading = rows.slice(0, rows.indexOf(rowOf(label))).reverse().find((row) => row.children.length === 1)
+  const heading = rows.slice(0, rows.indexOf(rowOf(label))).reverse().find((row) => row.children.length === 1 && !('day' in row.dataset))
   return GROUP_TITLES.find((title) => heading?.textContent === title)
 }
 // The filters live in a popover next to the add button
@@ -618,18 +618,18 @@ describe('transactions page', () => {
   })
 
   describe('pagination of "Todo o Resto"', () => {
-    // 23 old transactions, named "antigo 01" (newest) ... "antigo 23"; plus one from today
-    const old = Array.from({ length: 23 }, (_, i) =>
+    // 73 old transactions, named "antigo 01" (newest) ... "antigo 73"; plus one from today
+    const old = Array.from({ length: 73 }, (_, i) =>
       t(100 + i, `antigo ${String(i + 1).padStart(2, '0')}`, 1000, new Date(2026, 0, 20 - i % 5, 10 - (i % 3)).toISOString().slice(0, 19), 1))
     const DATA = { data: [t(1, 'hoje', 500, '2026-03-15T09:00:00'), ...old] }
     const oldRows = () => rowsOnPage().map((row) => row.children[1].textContent).filter((l) => l.startsWith('antigo'))
 
-    it('shows 10 per page with a page indicator, and the recent groups are never paginated', async () => {
+    it('shows 30 per page with a page indicator, and the recent groups are never paginated', async () => {
       mockApi(routes(DATA))
       renderApp(<TransactionsDisplay />)
       await screen.findByText('hoje')
 
-      expect(oldRows()).toHaveLength(10)
+      expect(oldRows()).toHaveLength(30)
       expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
       expect(screen.getByText('hoje')).toBeInTheDocument()
     })
@@ -645,11 +645,11 @@ describe('transactions page', () => {
 
       await userEvent.click(next)
       expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
-      expect(oldRows()).toHaveLength(10)
+      expect(oldRows()).toHaveLength(30)
       expect(oldRows()).not.toEqual(firstPage)
       await userEvent.click(next)
       expect(screen.getByText('Página 3 de 3')).toBeInTheDocument()
-      expect(oldRows()).toHaveLength(3) // 23 = 10 + 10 + 3
+      expect(oldRows()).toHaveLength(13) // 73 = 30 + 30 + 13
       expect(next).toBeDisabled()
       await userEvent.click(previous)
       expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
@@ -662,19 +662,19 @@ describe('transactions page', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Próxima' }))
 
       await openFilters()
-      await userEvent.type(screen.getByLabelText('Buscar'), 'antigo 2')
+      await userEvent.type(screen.getByLabelText('Buscar'), 'antigo 7')
 
-      expect(oldRows()).toHaveLength(4) // antigo 20 to 23
+      expect(oldRows()).toHaveLength(4) // antigo 70 to 73
       expect(screen.queryByText(/Página \d/)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
     })
 
-    it('has no page controls with 10 or fewer old transactions', async () => {
-      mockApi(routes({ data: DATA.data.slice(0, 11) }))
+    it('has no page controls with 30 or fewer old transactions', async () => {
+      mockApi(routes({ data: DATA.data.slice(0, 31) }))
       renderApp(<TransactionsDisplay />)
       await screen.findByText('hoje')
 
-      expect(oldRows()).toHaveLength(10)
+      expect(oldRows()).toHaveLength(30)
       expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
     })
   })
@@ -707,6 +707,36 @@ describe('transactions page', () => {
       const bia = within(rowOf('Uber')).getByRole('img', { name: 'Bia Souza' })
       expect(bia).toHaveAttribute('title', 'Bia Souza')
       expect(within(rowOf('Almoço')).getByRole('img', { name: 'Clara Battesini' })).toBeInTheDocument()
+    })
+
+    it('shows the first name next to the category, and no separator when the person is unknown', async () => {
+      mockApi({
+        'GET /families/me': FAMILY,
+        'GET /categories': CATEGORIES,
+        'POST /transactions': { data: [
+          { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 1 },
+          { ...t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2), user_id: 99 }, // a person who is no longer in the family
+        ] },
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      expect(rowOf('Almoço').textContent).toContain('· Clara')
+      expect(rowOf('Uber').textContent).not.toContain('·')
+    })
+
+    it('splits the category name from its emoji, flags and joined emoji included', async () => {
+      mockApi({
+        'GET /families/me': FAMILY,
+        'GET /categories': { data: [{ id: 1, name: '🎁 Presentes' }, { id: 2, name: '🇨🇦 Canadá' }, { id: 3, name: '👨‍👩‍👧 Família' }] },
+        'POST /transactions': { data: [t(1, 'A', 100, '2026-03-15T09:00:00', 1), t(2, 'B', 100, '2026-03-15T08:00:00', 2), t(3, 'C', 100, '2026-03-15T07:00:00', 3)] },
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('A')
+
+      // the last cell of a row is the phone-only icon; the category cell keeps the name (the emoji is only for wider screens)
+      expect(['A', 'B', 'C'].map((l) => rowOf(l).lastElementChild.textContent)).toEqual(['🎁', '🇨🇦', '👨‍👩‍👧'])
+      expect(['A', 'B', 'C'].map((l) => rowOf(l).children[2].textContent)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
     })
 
     it('has the logged-in person chosen in a new transaction, and sends it', async () => {
