@@ -33,6 +33,16 @@ describe('TransactionSummary', () => {
     expect(totals().today).toBe('R$ 10,00')
   })
 
+  it('does not add what the person left out of the totals', () => {
+    renderApp(
+      <TransactionSummary
+        transactions={[tx('2026-03-15T09:00:00', 1000), { ...tx('2026-03-15T10:00:00', 50000), excluded: true }]}
+      />,
+    )
+
+    expect(totals()).toEqual({ today: 'R$ 10,00', week: 'R$ 10,00', month: 'R$ 10,00' })
+  })
+
   it('sums the amounts (cents to reais) for today, the last 7 days and this month', () => {
     renderApp(
       <TransactionSummary
