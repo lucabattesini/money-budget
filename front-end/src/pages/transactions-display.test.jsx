@@ -403,6 +403,19 @@ describe('transactions page', () => {
       expect(JSON.parse(put[1].body).transactioned_at).toBe('2026-03-01T09:00:00')
     })
 
+    it('marks a transaction that is left out of the totals, and only that one', async () => {
+      mockApi({
+        'GET /families/me': FAMILY,
+        'GET /categories': CATEGORIES,
+        'POST /transactions': { data: [{ ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00'), excluded: true }, t(2, 'Uber', 1800, '2026-03-10T18:00:00')] },
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      expect(within(rowOf('Almoço')).getByText('Fora dos totais')).toBeInTheDocument()
+      expect(within(rowOf('Uber')).queryByText('Fora dos totais')).not.toBeInTheDocument()
+    })
+
     it('opens the same sidebar when the row is clicked', async () => {
       editRoutes()
       renderApp(<TransactionsDisplay />)
@@ -433,7 +446,7 @@ describe('transactions page', () => {
       expect(await screen.findByText('Jantar')).toBeInTheDocument()
       const put = api.mock.calls.find(([, o]) => o.method === 'put')
       expect(JSON.parse(put[1].body)).toEqual({
-        label: 'Jantar', value: 3099, category_id: '2', type: 'debit', transactioned_at: '2026-03-15T09:00:00',
+        label: 'Jantar', value: 3099, category_id: '2', type: 'debit', transactioned_at: '2026-03-15T09:00:00', excluded: false,
       })
       expect(put[1].headers.Authorization).toBe('Bearer tok')
       expect(screen.queryByText('Almoço')).not.toBeInTheDocument()

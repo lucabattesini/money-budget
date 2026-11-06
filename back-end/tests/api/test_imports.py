@@ -236,6 +236,7 @@ def test_the_columns_named_like_the_fields_are_suggested_even_with_other_case_or
         "Tipo": None,
         "Pessoa": None,
         "Estabelecimento": None,
+        "Fora dos totais": None,
     }
 
 
@@ -250,6 +251,7 @@ def test_a_file_from_the_export_has_every_column_suggested(client, auth_headers)
         "Tipo": 4,
         "Pessoa": None,
         "Estabelecimento": None,
+        "Fora dos totais": None,
     }
 
 
@@ -290,6 +292,7 @@ def test_the_person_can_say_which_column_is_which_when_the_names_do_not_match(cl
         "Tipo": None,
         "Pessoa": None,
         "Estabelecimento": None,
+        "Fora dos totais": None,
     }
 
     response = _match(client, auth_headers, uploaded["id"], OTHER_MAPPING)

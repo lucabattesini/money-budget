@@ -127,11 +127,90 @@ describe('transaction sidebar', () => {
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     expect(created(api)).toEqual({
-      label: 'Almoço', value: 2550, category_id: '2', type: 'debit', transactioned_at: '2026-03-15T12:00:00',
+      label: 'Almoço', value: 2550, category_id: '2', type: 'debit', transactioned_at: '2026-03-15T12:00:00', excluded: false,
     })
     expect(api.mock.calls.find(([url]) => url.endsWith('/transactions/create'))[1].headers.Authorization).toBe('Bearer tok')
     expect(onClose).toHaveBeenCalled()
     expect(customToaster).toHaveBeenCalledWith('Salvo', 'success', expect.any(String))
+  })
+
+  describe('leaving a transaction out of the totals', () => {
+    const WITH_GROUPS = [
+      { id: 1, name: '🛒 Supermercado', group_name: 'Alimentação' },
+      { id: 2, name: '🔄 Transferência', group_name: 'Transferências' },
+      { id: 3, name: '🧮 Ajustes de saldo', group_name: 'Transferências' },
+    ]
+    const checkbox = () => screen.getByRole('checkbox', { name: 'Não contar nos totais' })
+    const open = (props = {}) => {
+      saveToken('tok')
+      const api = mockApi({
+        'POST /transactions/create': () => jsonResponse({ data: {} }, 201),
+        'PUT /transactions/9': () => jsonResponse({ data: {} }, 200),
+      })
+      renderApp(<TransactionDrawer open onClose={vi.fn()} onSaved={vi.fn()} categories={WITH_GROUPS} {...props} />)
+      return api
+    }
+    const fill = async () => {
+      await userEvent.type(amount(), '1000')
+      await userEvent.type(description(), 'Algo')
+    }
+
+    it('is unchecked for an ordinary category and sent as counted', async () => {
+      const api = open()
+      await fill()
+
+      await userEvent.selectOptions(category(), '🛒 Supermercado')
+      expect(checkbox()).not.toBeChecked()
+      await userEvent.click(save())
+
+      await waitFor(() => expect(created(api)).toBeTruthy())
+      expect(created(api).excluded).toBe(false)
+    })
+
+    it('starts checked for a transfer or a card payment, and the person can uncheck it', async () => {
+      const api = open()
+      await fill()
+
+      await userEvent.selectOptions(category(), '🔄 Transferência')
+      expect(checkbox()).toBeChecked()
+      await userEvent.click(checkbox())
+      await userEvent.click(save())
+
+      await waitFor(() => expect(created(api)).toBeTruthy())
+      expect(created(api).excluded).toBe(false)
+    })
+
+    it('does not change a choice the person made when they pick another category', async () => {
+      open()
+      await userEvent.click(checkbox()) // they leave it out themselves
+      await userEvent.selectOptions(category(), '🛒 Supermercado')
+      expect(checkbox()).toBeChecked()
+
+      await userEvent.selectOptions(category(), '🔄 Transferência')
+      expect(checkbox()).toBeChecked()
+    })
+
+    it('follows the category until the person decides, then goes back when the category is not a transfer', async () => {
+      open()
+
+      await userEvent.selectOptions(category(), '🔄 Transferência')
+      expect(checkbox()).toBeChecked()
+      await userEvent.selectOptions(category(), '🧮 Ajustes de saldo') // a correction: it counts
+      expect(checkbox()).not.toBeChecked()
+    })
+
+    it('shows an edited transaction as it is, and sends the change', async () => {
+      const row = { id: 9, label: 'Mercado', value: 5000, type: 'debit', category_id: 1, transactioned_at: '2026-03-10T10:00:00', excluded: true }
+      const api = open({ transaction: row })
+      expect(await screen.findByRole('checkbox', { name: 'Não contar nos totais' })).toBeChecked()
+
+      await userEvent.click(checkbox())
+      await userEvent.click(save())
+
+      await waitFor(() => expect(api.mock.calls.some(([url, o]) => url.endsWith('/transactions/9') && o.method === 'put')).toBe(true))
+      const put = api.mock.calls.find(([url]) => url.endsWith('/transactions/9'))
+      expect(JSON.parse(put[1].body).excluded).toBe(false)
+    })
   })
 
   it.each([

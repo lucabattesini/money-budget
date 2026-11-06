@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from api.utils.totals import excluded_by_default
 from schemas.tables import ImportJobDB, TransactionDB
 
 KEEP_JOBS_FOR = timedelta(days=1)
@@ -174,6 +175,7 @@ def existing_transaction_keys(db: Session, family_id: UUID, first: date, last: d
 def add_transactions(db: Session, family_id: UUID, user_id: UUID, items: list[dict]) -> None:
     """Add the transactions to the session. The caller commits, together with marking the job done, so either
     everything is saved or nothing is."""
+    left_out_by_default = excluded_by_default(db, {UUID(item["category_id"]) for item in items})
     db.add_all(
         TransactionDB(
             family_id=family_id,
@@ -184,6 +186,12 @@ def add_transactions(db: Session, family_id: UUID, user_id: UUID, items: list[di
             value=item["value"],
             type=item["type"],
             category_id=UUID(item["category_id"]),
+            # the file may say; when it does not, a transfer or a card payment is left out of the totals
+            excluded=(
+                item["excluded"]
+                if item.get("excluded") is not None
+                else UUID(item["category_id"]) in left_out_by_default
+            ),
             transactioned_at=datetime.combine(date.fromisoformat(item["date"]), time(12, 0)),
         )
         for item in items

@@ -105,4 +105,5 @@ def update_transaction(db: Session, id: UUID, changes: TransactionUpdate, family
         "category_id": transaction.category_id,
         "user_id": transaction.user_id,
         "merchant_id": transaction.merchant_id,
+        "excluded": transaction.excluded,
     }
