@@ -771,7 +771,7 @@ sequenceDiagram
   `VITE_API_URL`.
 - Config: one `.env` at the repo root (see `.env.example`) feeds compose, the
   back-end (`find_dotenv` walks up to it) and Vite (`envDir: '..'`). Back-end
-  settings (`FRONT_URL`, `GEMINI_MODEL`, `SQL_ECHO`) are read once in
+  settings (`FRONT_URL`, `GEMINI_MODEL`, `SQL_ECHO`, `STATIC_DIR`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`) are read once in
   `back-end/config.py`.
 - Database migrations: Alembic (`back-end/alembic.ini`, `back-end/migrations/`).
   `python -m db.upgrade` applies them and is safe to run any number of times. A database
@@ -798,6 +798,21 @@ sequenceDiagram
   (Vite dev server). Source is bind-mounted for hot reload. The compose
   `DB_URL` must use `postgresql+psycopg2://` (SQLAlchemy 2.1 defaults a bare
   `postgresql://` to psycopg v3, which is not installed).
+- **Production (Google Cloud, TKT-68; guide in `docs/DEPLOY.md`).** One Cloud Run service (`money-budget`) runs the
+  image built from the root `Dockerfile`: the API plus the built web app, which the API serves from `/` on the same
+  address (`STATIC_DIR`; the app is hash-routed, so the only page address is `/`; API addresses always win over files),
+  so there is no cross-origin traffic and `FRONT_URL` is that address. The data is a database
+  (`money_budget`, its own user that owns only it) on the Cloud SQL instance the team already has, reached through
+  Cloud Run's built-in Cloud SQL connection; the password (`DB_PASSWORD`) and `JWT_SECRET` come from Secret Manager,
+  never from the repository or the image. The pool is small (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `pool_pre_ping`) and the
+  service is capped at 2 instances, so it cannot starve the other database users. CPU stays allocated
+  (`--no-cpu-throttling`) because imports and exports run as FastAPI background tasks after the response is sent.
+  Migrations are a Cloud Run Job (`money-budget-migrate`, `python -m db.upgrade`) that runs to the end before the new
+  version is deployed; a failed migration stops the deploy. Seeding stays a manual command.
+  `.github/workflows/deploy.yml` runs on every push to `main`: the tests and lint workflows first (reused through
+  `workflow_call`), then build and push the image to Artifact Registry, run the migration job and deploy the service.
+  GitHub proves who it is to Google with Workload Identity Federation (restricted to this repository and the `main`
+  branch), so there is no key file anywhere. Cloud Run keeps old revisions, which is how a release is rolled back.
 - DB: PostgreSQL everywhere (local dev, tests, production). `DB_URL` is required; there
   is no SQLite fallback.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
@@ -823,7 +838,7 @@ sequenceDiagram
   `fetch` is replaced per test, so no test reaches a real server. Google sign-in
   is stubbed.
 - **CI:** `.github/workflows/tests.yml` runs both suites on every pull request
-  and on pushes to `main` (the back-end against a Postgres service container;
+  and, through `deploy.yml`, on every push to `main` (the back-end against a Postgres service container;
   the front-end job also runs the linter and a production build).
   The checks are named "Back-end tests" and "Front-end tests"; a branch rule
   requiring them blocks merges when they fail.

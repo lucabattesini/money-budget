@@ -200,3 +200,12 @@ def test_the_user_is_told_when_the_chatbot_fails(client, make_user, monkeypatch,
     assert len(sent_messages) == 1
     assert sent_messages[0][0] == "5511999990000"
     assert "gemini is down" not in sent_messages[0][1]  # a friendly message, not the raw error
+
+
+def test_the_phone_number_of_a_sender_is_not_written_to_the_log(client, make_user, sent_messages, capsys):
+    make_user(whatsapp_phone="5511999990000")
+
+    client.post("/webhook/", json=message_payload(text="oi"))
+
+    out = capsys.readouterr()
+    assert "5511999990000" not in out.out + out.err
