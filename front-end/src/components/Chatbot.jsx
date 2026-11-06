@@ -113,7 +113,7 @@ export default function Chatbot() {
                         return (
                             <Flex key={index} justify={isUser ? "flex-end" : "flex-start"}>
                                 <Box
-                                    maxW="75%"
+                                    maxW={{ base: "88%", md: "75%" }}
                                     bg={isUser ? "white" : "gray.700"}
                                     color={isUser ? "black" : "white"}
                                     px={4}
@@ -140,9 +140,10 @@ export default function Chatbot() {
             </Box>
 
             {/* Input Area */}
-            <Flex p={6} bg="transparent" gap={4} align="center">
+            <Flex p={{ base: 3, md: 6 }} bg="transparent" gap={{ base: 2, md: 4 }} align="center">
                 <Input
                     flex="1"
+                    minH="44px"
                     placeholder="Digite sua mensagem..."
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
@@ -162,6 +163,8 @@ export default function Chatbot() {
                     onClick={handleSendMessage}
                     disabled={isLoading || !inputValue.trim()}
                     borderRadius="full"
+                    boxSize="44px"
+                    flexShrink={0}
                 >
                     <LuSend />
                 </IconButton>

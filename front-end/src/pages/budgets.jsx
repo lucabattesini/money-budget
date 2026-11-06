@@ -113,7 +113,7 @@ export default function Budgets() {
     const isOpen = (group) => opened[group.id] ?? true; // every group starts open
 
     return (
-        <Stack gap={6} maxW="5xl" mx="auto" px={6} pt={10} pb={12}>
+        <Stack gap={6} maxW="5xl" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 6, md: 10 }} pb={12}>
             <Stack gap={1}>
                 <Heading size="2xl">Orçamentos</Heading>
                 <Text color="fg.muted">
@@ -123,13 +123,13 @@ export default function Budgets() {
             </Stack>
 
             <HStack gap={2}>
-                <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
+                <IconButton aria-label="Mês anterior" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
                     <LuChevronLeft />
                 </IconButton>
-                <Heading size="lg" minW="11rem" textAlign="center" textTransform="capitalize" aria-live="polite">
+                <Heading size="lg" minW={{ base: "8rem", md: "11rem" }} textAlign="center" textTransform="capitalize" aria-live="polite">
                     {monthLabel(month)}
                 </Heading>
-                <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
+                <IconButton aria-label="Próximo mês" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
                     <LuChevronRight />
                 </IconButton>
             </HStack>
@@ -139,7 +139,7 @@ export default function Budgets() {
 
             {data && (
                 <>
-                    <Box borderWidth="1px" borderRadius="lg" p={5}>
+                    <Box borderWidth="1px" borderRadius="lg" p={{ base: 4, md: 5 }}>
                         <Stack gap={4}>
                             <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
                                 <Stat label="Orçado" value={formatCents(data.totals.budgeted)} />
@@ -169,9 +169,12 @@ export default function Budgets() {
                             <HStack
                                 as="button"
                                 w="full"
-                                px={5}
+                                px={{ base: 4, md: 5 }}
                                 py={3}
+                                minH="44px"
                                 justify="space-between"
+                                wrap="wrap"
+                                gap={1}
                                 aria-expanded={isOpen(group)}
                                 aria-label={`${group.name}: ${isOpen(group) ? "fechar" : "abrir"}`}
                                 onClick={() => setOpened({ ...opened, [group.id]: !isOpen(group) })}
@@ -193,15 +196,16 @@ export default function Budgets() {
                                         const name = plainName(category.name);
                                         const { state } = budgetStatus(category.spent, category.budgeted);
                                         return (
-                                            <Stack as="li" key={category.id} gap={2} px={5} py={3} borderTopWidth="1px">
+                                            <Stack as="li" key={category.id} gap={2} px={{ base: 4, md: 5 }} py={3} borderTopWidth="1px">
                                                 <HStack justify="space-between" gap={4} wrap="wrap">
-                                                    <Text flex="1" minW="10rem">{category.name}</Text>
+                                                    <Text flex="1" minW={{ base: "full", sm: "10rem" }}>{category.name}</Text>
                                                     <Text fontSize="sm" color="fg.muted" aria-label={`Gasto em ${name}`}>
                                                         {formatCents(category.spent)} gastos
                                                     </Text>
                                                     <Input
                                                         size="sm"
-                                                        w="9rem"
+                                                        minH={{ base: "44px", md: "auto" }}
+                                                        w={{ base: "full", sm: "9rem" }}
                                                         textAlign="right"
                                                         inputMode="numeric"
                                                         placeholder={maskAmount("0")}

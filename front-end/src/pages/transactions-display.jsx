@@ -124,26 +124,39 @@ export default function TransactionsDisplay() {
     const merchantName = (transaction) => merchants?.find((merchant) => merchant.id === transaction.merchant_id)?.name;
 
     const renderRow = (transaction) => (
-        <Table.Row key={transaction.id} cursor="pointer" _hover={{ bg: "bg.muted" }} onClick={() => setEditing(transaction)}>
-            <Table.Cell whiteSpace="nowrap">{formatDate(transaction.transactioned_at)}</Table.Cell>
-            <Table.Cell wordBreak="break-word">
+        <Table.Row
+            key={transaction.id}
+            cursor="pointer"
+            _hover={{ bg: "bg.muted" }}
+            onClick={() => setEditing(transaction)}
+            // On a phone each row is a small card: description and amount on top, date, category and person below
+            display={{ base: "grid", md: "table-row" }}
+            gridTemplateColumns="auto minmax(0, 1fr) auto 44px"
+            gridTemplateAreas={'"label label amount menu" "date category person menu"'}
+            alignItems="center"
+            columnGap={2}
+            py={{ base: 1, md: 0 }}
+            borderBottomWidth={{ base: "1px", md: 0 }}
+        >
+            <Table.Cell whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: undefined }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
+            <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: undefined }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: undefined }}>
                 {transaction.label}
                 {merchantsEnabled && merchantName(transaction) && (
                     <Text fontSize="xs" color="fg.muted">{merchantName(transaction)}</Text>
                 )}
             </Table.Cell>
-            <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
-            <Table.Cell width="1%">
+            <Table.Cell color="fg.muted" gridArea="category" fontSize={{ base: "xs", md: "sm" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: undefined }}>{categoryName(transaction)}</Table.Cell>
+            <Table.Cell width="1%" gridArea="person" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: undefined }}>
                 <PersonAvatar person={family.members.find((member) => member.id === transaction.user_id)} />
             </Table.Cell>
-            <Table.Cell textAlign="end" whiteSpace="nowrap" color={transaction.type === "credit" ? "green.400" : undefined}>
+            <Table.Cell textAlign="end" whiteSpace="nowrap" gridArea="amount" borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: undefined }} color={transaction.type === "credit" ? "green.400" : undefined}>
                 {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
             </Table.Cell>
             {/* Clicks here (the menu is rendered elsewhere but still bubbles) must not open the editor */}
-            <Table.Cell textAlign="end" width="1%" onClick={(event) => event.stopPropagation()}>
+            <Table.Cell textAlign="end" width="1%" gridArea="menu" borderBottomWidth={{ base: 0, md: "1px" }} onClick={(event) => event.stopPropagation()}>
                 <Menu.Root positioning={{ placement: "bottom-end" }}>
                     <Menu.Trigger asChild>
-                        <IconButton variant="ghost" size="xs" aria-label={`Ações para ${transaction.label}`}>
+                        <IconButton variant="ghost" size="xs" boxSize={{ base: "44px", md: "auto" }} aria-label={`Ações para ${transaction.label}`}>
                             <LuEllipsisVertical />
                         </IconButton>
                     </Menu.Trigger>
@@ -175,23 +188,23 @@ export default function TransactionsDisplay() {
 
     return(
         <Center>
-            <Stack minHeight="100vh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={10} px={4}>
+            <Stack minHeight="100dvh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={{ base: 6, md: 10 }} px={4}>
                 <TransactionSummary transactions={transactions} />
 
                 {merchantsEnabled && merchants && <MerchantTotals transactions={filtered} merchants={merchants} />}
 
-                <Flex w="full" justify="space-between" align="center">
+                <Flex w="full" justify="space-between" align="center" wrap="wrap" gap={2}>
                     <Text fontSize="lg" fontWeight="bold">Transações</Text>
                     <Flex gap={2}>
                         <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
                             <Popover.Trigger asChild>
-                                <Button size="sm" variant="outline">
+                                <Button size="sm" variant="outline" minH={{ base: "44px", md: "auto" }}>
                                     <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
                                 </Button>
                             </Popover.Trigger>
                             <Portal>
                                 <Popover.Positioner>
-                                    <Popover.Content width="auto">
+                                    <Popover.Content width="auto" maxW="calc(100vw - 2rem)" maxH="calc(100dvh - 8rem)" overflowY="auto">
                                         <Popover.Body>
                                             <TransactionFilters
                                                 filters={filters}
@@ -205,7 +218,7 @@ export default function TransactionsDisplay() {
                                 </Popover.Positioner>
                             </Portal>
                         </Popover.Root>
-                        <Button size="sm" onClick={() => setAdding(true)}>
+                        <Button size="sm" minH={{ base: "44px", md: "auto" }} onClick={() => setAdding(true)}>
                             <LuPlus /> Adicionar
                         </Button>
                     </Flex>
@@ -215,12 +228,12 @@ export default function TransactionsDisplay() {
 
                 {!loading && visibleGroups.length > 0 && (
                     <Table.ScrollArea w="full">
-                        <Table.Root size="sm">
-                            <Table.Body>
+                        <Table.Root size="sm" display={{ base: "block", md: "table" }}>
+                            <Table.Body display={{ base: "block", md: "table-row-group" }}>
                                 {visibleGroups.map((group) => (
                                     <Fragment key={group.title}>
-                                        <Table.Row>
-                                            <Table.Cell colSpan={6} pt={6}>
+                                        <Table.Row display={{ base: "block", md: "table-row" }}>
+                                            <Table.Cell colSpan={6} pt={6} display={{ base: "block", md: "table-cell" }}>
                                                 <Box color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase">
                                                     {group.title}
                                                 </Box>
@@ -236,12 +249,12 @@ export default function TransactionsDisplay() {
 
                 {!loading && pageCount > 1 && (
                     <Flex align="center" gap={3}>
-                        <Button size="xs" variant="outline" disabled={currentPage === 1}
+                        <Button size="sm" minH={{ base: "44px", md: "auto" }} variant="outline" disabled={currentPage === 1}
                             onClick={() => setPage(currentPage - 1)}>
                             Anterior
                         </Button>
                         <Text fontSize="sm">Página {currentPage} de {pageCount}</Text>
-                        <Button size="xs" variant="outline" disabled={currentPage === pageCount}
+                        <Button size="sm" minH={{ base: "44px", md: "auto" }} variant="outline" disabled={currentPage === pageCount}
                             onClick={() => setPage(currentPage + 1)}>
                             Próxima
                         </Button>

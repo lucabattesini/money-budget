@@ -90,7 +90,7 @@ export default function Dashboard() {
 
     return (
         <Center>
-            <Stack minHeight="100vh" gap={6} w="full" py={10} px={8}>
+            <Stack minHeight="100dvh" gap={6} w="full" py={{ base: 6, md: 10 }} px={{ base: 4, md: 8 }}>
                 <HStack justify="space-between" wrap="wrap" gap={4}>
                     {user ? (
                         <Heading size="xl">Olá, {user.name.split(' ')[0]} 👋</Heading>
@@ -98,13 +98,13 @@ export default function Dashboard() {
                         <Box />
                     )}
                     <HStack gap={2}>
-                        <IconButton aria-label="Mês anterior" variant="outline" size="sm" onClick={() => setMonth(shiftMonth(month, -1))}>
+                        <IconButton aria-label="Mês anterior" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} onClick={() => setMonth(shiftMonth(month, -1))}>
                             <LuChevronLeft />
                         </IconButton>
-                        <Heading size="md" minW="10rem" textAlign="center" textTransform="capitalize" aria-live="polite">
+                        <Heading size="md" minW={{ base: "8rem", md: "10rem" }} textAlign="center" textTransform="capitalize" aria-live="polite">
                             {monthLabel(month)}
                         </Heading>
-                        <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= thisMonth} onClick={() => setMonth(shiftMonth(month, 1))}>
+                        <IconButton aria-label="Próximo mês" variant="outline" size="sm" boxSize={{ base: "44px", md: "auto" }} disabled={month >= thisMonth} onClick={() => setMonth(shiftMonth(month, 1))}>
                             <LuChevronRight />
                         </IconButton>
                     </HStack>
@@ -113,7 +113,7 @@ export default function Dashboard() {
                 {loading ? (
                     <SpinnerLoading />
                 ) : (
-                    <Grid templateColumns={{ base: "1fr", lg: "3fr 2fr" }} gap={6} alignItems="start">
+                    <Grid templateColumns={{ base: "minmax(0, 1fr)", lg: "3fr 2fr" }} gap={6} alignItems="start">
                         {/* On a phone the two columns become one list and the chart goes last (order); on a wide screen they are columns */}
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
                             <Box order={{ base: 1, lg: 0 }}><BudgetRing budget={budget} month={month} /></Box>

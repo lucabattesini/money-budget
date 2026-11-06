@@ -15,10 +15,11 @@ export default function Layout() {
     }, []);
 
     return (
-        <Flex direction="column" h="100vh" w="100vw" overflow="hidden">
+        <Flex direction="column" h="100dvh" w="full" overflow="hidden">
             <Header />
             <Toaster />
-            <Box flex="1" overflowY="auto">
+            {/* On a phone the menu is a bar at the bottom of the screen, so the page leaves room for it */}
+            <Box flex="1" overflowY="auto" pb={{ base: "calc(60px + env(safe-area-inset-bottom))", md: 0 }}>
                 <Outlet />
             </Box>
         </Flex>

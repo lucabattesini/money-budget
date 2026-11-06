@@ -7,6 +7,15 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Money-Budget</title>
+    <style>
+      /* iOS zooms into a field whose text is smaller than 16px; keep them at 16px on phones */
+      @media (max-width: 767px) {
+        input, select, textarea { font-size: 16px !important; }
+        /* buttons are at least 44px (a finger), whatever size the page asked for */
+        button { min-height: 44px; min-width: 44px; }
+        input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select { min-height: 44px; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

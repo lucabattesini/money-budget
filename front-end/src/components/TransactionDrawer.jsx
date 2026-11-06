@@ -105,7 +105,7 @@ export default function TransactionDrawer({ open, onClose, categories, members =
     };
 
     return (
-        <Drawer.Root open={open} onOpenChange={(e) => !e.open && onClose()} placement="end" size="sm">
+        <Drawer.Root open={open} onOpenChange={(e) => !e.open && onClose()} placement="end" size={{ base: "full", md: "sm" }}>
             <Portal>
                 <Drawer.Backdrop />
                 <Drawer.Positioner>
@@ -124,7 +124,7 @@ export default function TransactionDrawer({ open, onClose, categories, members =
                                     <RadioGroup.Root value={type} onValueChange={(e) => setType(e.value)}>
                                         <Stack direction="row" gap={6}>
                                             {[["debit", "Débito"], ["credit", "Crédito"]].map(([value, label]) => (
-                                                <RadioGroup.Item key={value} value={value}>
+                                                <RadioGroup.Item key={value} value={value} minH={{ base: "44px", md: "auto" }} pr={2}>
                                                     <RadioGroup.ItemHiddenInput />
                                                     <RadioGroup.ItemIndicator />
                                                     <RadioGroup.ItemText>{label}</RadioGroup.ItemText>
@@ -212,8 +212,8 @@ export default function TransactionDrawer({ open, onClose, categories, members =
                             </Stack>
                         </Drawer.Body>
                         <Drawer.Footer>
-                            <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-                            <Button type="submit" loading={saving}>Salvar</Button>
+                            <Button variant="outline" minH={{ base: "44px", md: "auto" }} onClick={onClose} disabled={saving}>Cancelar</Button>
+                            <Button type="submit" minH={{ base: "44px", md: "auto" }} loading={saving}>Salvar</Button>
                         </Drawer.Footer>
                         <Drawer.CloseTrigger asChild>
                             <CloseButton size="sm" />

@@ -10,7 +10,7 @@ export default function TransactionFilters({ filters, onChange, categories, memb
     const set = (name) => (value) => onChange({ ...filters, [name]: value });
 
     return (
-        <Flex direction="column" gap={3} w="280px" maxW="full">
+        <Flex direction="column" gap={3} w={{ base: "full", md: "280px" }}>
             <Field.Root width="full">
                 <Field.Label>Buscar</Field.Label>
                 <Input

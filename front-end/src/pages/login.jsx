@@ -20,9 +20,11 @@ export default function Login() {
     return(
         <Center>
             <Stack
-                height="100vh"
+                minHeight="100dvh"
                 gap={6}
-                width="35vh"
+                width="full"
+                maxW="sm"
+                px={6}
                 align="center"
                 justify="flex-start"
                 pt={16}
