@@ -54,10 +54,10 @@ const columnLabel = (name, index) => (name ? name : `Coluna ${index + 1} (sem no
 
 const fileDate = (iso) => iso.split("-").reverse().join("/"); // 2026-03-15 -> 15/03/2026, like the file
 
-function StepIndicator({ current }) {
+function StepIndicator({ current, steps = STEPS }) {
     return (
         <HStack as="ol" listStyleType="none" columnGap={5} rowGap={2} flexWrap="wrap" m={0} p={0} aria-label="Passos da importação">
-            {STEPS.map((step, index) => (
+            {steps.map((step, index) => (
                 <HStack as="li" key={step.id} gap={2} aria-current={step.id === current ? "step" : undefined}>
                     <Badge colorPalette={step.id === current ? "blue" : "gray"} variant={step.id === current ? "solid" : "subtle"}>
                         {index + 1}
@@ -743,6 +743,9 @@ export default function ImportDialog({ open, onClose }) {
 
     const taken = usedColumns(choice, formats, merchantsEnabled);
     const columnsReady = job && FIELDS.filter((f) => f.required).every((f) => choice[f.name] !== "" && choice[f.name] !== undefined) && taken.length === new Set(taken).size;
+    // The people step only exists when the file has a Pessoa column with names in it
+    const usesPeople = choice.Pessoa !== undefined && choice.Pessoa !== "" && (job?.people === undefined || job.people.length > 0);
+    const steps = STEPS.filter((item) => item.id !== "people" || usesPeople || step === "people");
     const allPeopleChosen = filePeople.length > 0 && filePeople.every((item) => /^\d+$/.test(peopleChoices[item.name] ?? ""));
     const allChosen = unknown.length > 0 && unknown.every((item) => /^\d+$/.test(rows[item.name]?.value ?? ""));
 
@@ -761,7 +764,7 @@ export default function ImportDialog({ open, onClose }) {
                         <Dialog.Header px={{ base: 4, md: 8 }} pt={{ base: 5, md: 7 }} pb={4}>
                             <Stack gap={4}>
                                 <Dialog.Title>Importar transações</Dialog.Title>
-                                <StepIndicator current={step} />
+                                <StepIndicator current={step} steps={steps} />
                             </Stack>
                         </Dialog.Header>
                         <Dialog.Body px={{ base: 4, md: 8 }} py={5}>

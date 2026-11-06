@@ -344,7 +344,7 @@ describe('import dialog', () => {
       expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Arquivo')
     })
 
-    it('numbers the steps in order: file, formats, columns, check, categories, people, confirm', async () => {
+    it('numbers the steps in order: file, formats, columns, check, categories, confirm (the people step only when the file has a Pessoa column)', async () => {
       mockApi(imports())
       open()
 
@@ -356,8 +356,7 @@ describe('import dialog', () => {
         '3Colunas',
         '4Conferência',
         '5Categorias',
-        '6Pessoas',
-        '7Confirmar',
+        '6Confirmar',
       ])
     })
   })
@@ -868,6 +867,19 @@ describe('import dialog', () => {
       expect(screen.getByText('Se vazio, é quem está importando.')).toBeInTheDocument()
       expect(screen.getByText('Se vazio, é Débito.')).toBeInTheDocument()
       expect(screen.queryByText(/opcional/i)).not.toBeInTheDocument()
+    })
+
+    it('has the Pessoas step in the list only when the file has a Pessoa column', async () => {
+      mockApi({ 'POST /imports': [{ data: uploaded({ columns: [...COLUMNS, 'Pessoa'], suggested_map: { ...SUGGESTED, Pessoa: 5 } }) }, 201] })
+      open()
+      await toColumns()
+
+      const steps = () => within(screen.getByRole('list', { name: 'Passos da importação' })).getAllByRole('listitem').map((s) => s.textContent)
+      expect(steps()).toContain('6Pessoas')
+      await userEvent.selectOptions(screen.getByLabelText('Coluna para Pessoa'), 'Não usar')
+
+      expect(steps()).not.toContain('6Pessoas')
+      expect(steps()).toEqual(['1Arquivo', '2Formatos', '3Colunas', '4Conferência', '5Categorias', '6Confirmar'])
     })
 
     it('goes straight to confirming when the file has no names in the Pessoa column', async () => {
