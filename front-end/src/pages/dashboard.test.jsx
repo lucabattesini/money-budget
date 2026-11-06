@@ -551,15 +551,65 @@ describe('dashboard', () => {
       expect(screen.getByRole('button', { name: 'Próximo mês' })).toBeEnabled()
     })
 
-    it('does not ask for the transactions again', async () => {
+    it('asks for just the month and the one before it, never the whole history', async () => {
       const api = mockApi({ ...ROUTES, [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) } })
       const user = userEvent.setup()
+      const asked = () => api.mock.calls.filter(([, o]) => o.method?.toUpperCase() === 'POST').map(([, o]) => JSON.parse(o.body))
 
       renderApp(<Dashboard />)
       await screen.findByText('Gastos')
-      await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      expect(asked()).toEqual([{ start: '2026-02-01T00:00:00', end: '2026-04-01T00:00:00' }])
 
-      expect(requestsMade(api).filter((r) => r === 'POST /transactions')).toHaveLength(1)
+      await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      await screen.findByRole('heading', { name: 'fevereiro de 2026' })
+      await waitFor(() => expect(asked()).toHaveLength(2))
+      expect(asked()[1]).toEqual({ start: '2026-01-01T00:00:00', end: '2026-03-01T00:00:00' })
+    })
+
+    it('goes across the new year when asking for January', async () => {
+      const api = mockApi({ ...ROUTES, 'GET /budgets?month=2026-01': { data: budgetOf('2026-01', 0, 0) } })
+
+      renderApp(<Dashboard />, { route: '/?month=2026-01' })
+      await screen.findByText('Gastos')
+
+      expect(JSON.parse(api.mock.calls.find(([, o]) => o.method?.toUpperCase() === 'POST')[1].body)).toEqual({
+        start: '2025-12-01T00:00:00',
+        end: '2026-02-01T00:00:00',
+      })
+    })
+
+    it('shows the cards without waiting for the person or the family', async () => {
+      mockApi({ ...ROUTES, 'GET /user/me': () => new Promise(() => {}), 'GET /families/me': () => new Promise(() => {}) })
+
+      renderApp(<Dashboard />)
+
+      expect(await screen.findByText('Gastos')).toBeInTheDocument()
+      expect(monthTotal()).toBe('R$ 125,50')
+      expect(screen.queryByText(/Olá, /)).not.toBeInTheDocument()
+    })
+
+    it('ignores the transactions of a month that is no longer on the page', async () => {
+      let answerMarch
+      let calls = 0
+      mockApi({
+        ...ROUTES,
+        [FEBRUARY]: { data: budgetOf('2026-02', 0, 0) },
+        'POST /transactions': () => {
+          calls += 1
+          if (calls > 1) return jsonResponse({ data: [] })
+          return new Promise((resolve) => (answerMarch = () => resolve(jsonResponse(ROUTES['POST /transactions']))))
+        },
+      })
+      const user = userEvent.setup()
+
+      renderApp(<Dashboard />)
+      await waitFor(() => expect(calls).toBe(1))
+      await screen.findByText('Gastos').catch(() => {}) // still loading: the first answer is held back
+      await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
+      await screen.findByText('Gastos')
+      await act(async () => answerMarch())
+
+      expect(monthTotal()).toBe('R$ 0,00') // February has nothing; March's late answer did not replace it
     })
 
     it('ignores a late answer for a month that is no longer on the page', async () => {

@@ -108,6 +108,62 @@ def test_list_can_be_filtered_by_month_within_one_year(client, user, auth_header
     assert [t["label"] for t in rows] == ["march"]
 
 
+def test_list_can_be_filtered_by_a_range_that_includes_the_start_and_excludes_the_end(
+    client, user, auth_headers, make_transaction, category_ids
+):
+    cat = category_ids["Restaurantes e Bares"]
+    make_transaction(user, cat, label="before", when=datetime(2026, 1, 31, 23, 59))
+    make_transaction(user, cat, label="first day", when=datetime(2026, 2, 1))
+    make_transaction(user, cat, label="last day", when=datetime(2026, 3, 31, 23, 59))
+    make_transaction(user, cat, label="after", when=datetime(2026, 4, 1))
+
+    rows = _list(client, auth_headers, {"start": "2026-02-01T00:00:00", "end": "2026-04-01T00:00:00"})
+
+    assert [t["label"] for t in rows] == ["last day", "first day"]
+
+
+def test_a_range_can_be_open_on_one_side(client, user, auth_headers, make_transaction, category_ids):
+    cat = category_ids["Restaurantes e Bares"]
+    make_transaction(user, cat, label="old", when=datetime(2025, 6, 1))
+    make_transaction(user, cat, label="new", when=datetime(2026, 6, 1))
+
+    assert [t["label"] for t in _list(client, auth_headers, {"start": "2026-01-01T00:00:00"})] == ["new"]
+    assert [t["label"] for t in _list(client, auth_headers, {"end": "2026-01-01T00:00:00"})] == ["old"]
+
+
+def test_a_range_only_lists_the_callers_family(client, user, other_user, auth_headers, make_transaction, category_ids):
+    cat = category_ids["Restaurantes e Bares"]
+    make_transaction(user, cat, label="mine", when=datetime(2026, 3, 5))
+    make_transaction(other_user, cat, label="theirs", when=datetime(2026, 3, 5))
+
+    rows = _list(client, auth_headers, {"start": "2026-03-01T00:00:00", "end": "2026-04-01T00:00:00"})
+
+    assert [t["label"] for t in rows] == ["mine"]
+
+
+def test_a_time_zone_in_the_range_is_ignored_because_transactions_are_wall_clock_times(
+    client, user, auth_headers, make_transaction, category_ids
+):
+    cat = category_ids["Restaurantes e Bares"]
+    make_transaction(user, cat, label="late", when=datetime(2026, 3, 31, 22, 0))
+
+    rows = _list(client, auth_headers, {"start": "2026-03-01T00:00:00Z", "end": "2026-03-31T23:00:00+05:00"})
+
+    assert [t["label"] for t in rows] == ["late"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"start": "2026-04-01T00:00:00", "end": "2026-03-01T00:00:00"},
+        {"start": "2026-03-01T00:00:00", "end": "2026-03-01T00:00:00"},
+        {"organized_by": "month", "date": "2026-03-01T00:00:00", "start": "2026-03-01T00:00:00"},
+    ],
+)
+def test_a_contradictory_range_is_refused(client, auth_headers, body):
+    assert client.post("/transactions", json=body, headers=auth_headers).status_code == 422
+
+
 # --- summed by category ----------------------------------------------------
 
 

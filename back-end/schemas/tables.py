@@ -7,6 +7,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     String,
@@ -39,6 +40,8 @@ class Families(Base):
 
 class TransactionDB(Base):
     __tablename__ = "transactions"
+    # Almost every read is "this family's transactions in this period, newest first"
+    __table_args__ = (Index("ix_transactions_family_date", "family_id", "transactioned_at"),)
 
     id = Column(Uuid, primary_key=True, default=uuid.uuid4)
     family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)

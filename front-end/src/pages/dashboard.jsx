@@ -17,9 +17,10 @@ import TopCategoriesBarList from "../components/TopCategoriesBarList";
 
 export default function Dashboard() {
     const { timezone } = useLocale(); // amounts and the month name follow the family's currency and language; "today" its timezone
-    const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
-    const [transactions, setTransactions] = useState([]);
+    const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+    const [transactions, setTransactions] = useState(null); // null while the month's transactions are on their way
+    const loading = !categoriesLoaded || transactions === null;
     const [user, setUser] = useState(null);
     const [members, setMembers] = useState([]); // the family, to show whose each transaction is
     // eslint-disable-next-line react-hooks/exhaustive-deps -- read again only when the family's timezone arrives or changes
@@ -31,39 +32,48 @@ export default function Dashboard() {
     const requested = monthFromLink(params.get("month"), thisMonth);
     const month = requested > thisMonth ? thisMonth : requested;
     const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key }, { replace: true });
+    // After an expired login the token is gone and the user is on the login page: no message there
+    const tellLoadFailed = () => {
+        if (getToken()) customToaster("Error", "error", "Não foi possível carregar seus dados. Tente novamente mais tarde.");
+    };
     const [budget, setBudget] = useState(undefined); // the plan of the month: undefined while loading, null when it failed
 
+    // What the page needs once: the categories, the person and the family. They are asked for together with the
+    // transactions, and nothing waits for the person or the family (they only add the greeting and the names).
     useEffect(() => {
         const token = getToken();
-        // Request all transactions by passing null date filters
-        const allTransactionsQuery = { organized_by: null, date: null };
-
-        Promise.all([
-            getAllCategories(token),
-            getTransactions(allTransactionsQuery, token),
-            getMe(token),
-            getFamily(token)
-        ]).then(([categoriesData, transactionsData, userData, familyResult]) => {
-            // After an expired login the token is gone and the user is on the login page: no message there
-            if ((!categoriesData || !transactionsData) && getToken()) {
-                customToaster("Error", "error", "Não foi possível carregar seus dados. Tente novamente mais tarde.");
-            }
-            if (categoriesData) {
-                setCategories(categoriesData.data);
-            }
-            if (transactionsData) {
-                setTransactions(transactionsData.data);
-            }
-            if (familyResult?.ok) setMembers(familyResult.data.members ?? []);
-            if (userData?.data) {
-                setUser(userData.data);
-            }
-            setLoading(false);
-        }).catch(err => {
-            console.error(err);
-            setLoading(false);
+        getAllCategories(token).then((data) => {
+            if (data) setCategories(data.data);
+            else tellLoadFailed();
+            setCategoriesLoaded(true);
+        });
+        getMe(token).then((data) => {
+            if (data?.data) setUser(data.data);
+        });
+        getFamily(token).then((result) => {
+            if (result?.ok) setMembers(result.data.members ?? []);
         });
     }, []);
+
+    // The transactions of the month on the page and of the month before it (the spending card compares the two): not the
+    // whole history, which would grow with every month the family uses the app. Written as the family's wall-clock days,
+    // like the transactions themselves. An answer for a month that is no longer on the page is ignored.
+    useEffect(() => {
+        let current = true;
+        setTransactions(null);
+        const query = { start: `${shiftMonth(month, -1)}-01T00:00:00`, end: `${shiftMonth(month, 1)}-01T00:00:00` };
+        getTransactions(query, getToken()).then((data) => {
+            if (!current) return;
+            if (data) setTransactions(data.data);
+            else {
+                setTransactions([]);
+                tellLoadFailed();
+            }
+        });
+        return () => {
+            current = false;
+        };
+    }, [month]);
 
     // The plan of the chosen month. An answer for a month that is no longer on the page is ignored.
     useEffect(() => {
@@ -83,10 +93,10 @@ export default function Dashboard() {
     }, [month]);
 
     // Only money that was really spent: no credits, no transfers between accounts, like the budget
-    const outgoing = useMemo(() => countsAsSpending(transactions, categories), [transactions, categories]);
+    const outgoing = useMemo(() => countsAsSpending(transactions ?? [], categories), [transactions, categories]);
     const spending = useMemo(() => spendingOfMonth(outgoing, month), [outgoing, month]);
     // What came in: credits, but not the other side of a transfer between accounts
-    const entered = useMemo(() => sumCents(transactionsOfMonth(countsAsIncoming(transactions, categories), month)), [transactions, categories, month]);
+    const entered = useMemo(() => sumCents(transactionsOfMonth(countsAsIncoming(transactions ?? [], categories), month)), [transactions, categories, month]);
 
     return (
         <Center>
