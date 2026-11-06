@@ -231,6 +231,7 @@ export const getImport = (id, token) => jsonCall(endpoints.imports + `/${id}`, "
 // Step 3: which category of the family each category name of the file stands for ({ "Pets": 12 }).
 export const chooseImportCategories = (id, mapping, token) => jsonCall(endpoints.imports + `/${id}/categories`, "put", token, { mapping });
 // Step 4: queue the import. It is saved in the background.
+export const chooseImportPeople = (id, mapping, token) => jsonCall(endpoints.imports + `/${id}/people`, "put", token, { mapping });
 export const startImport = (id, token) => jsonCall(endpoints.imports + `/${id}/start`, "post", token);
 export const cancelImport = (id, token) => jsonCall(endpoints.imports + `/${id}`, "delete", token);
 

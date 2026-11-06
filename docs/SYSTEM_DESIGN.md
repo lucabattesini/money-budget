@@ -125,7 +125,7 @@ flowchart TB
   token to every API call (`lib/utils.js` / `api/endpoints.js`).
 - Pages: `dashboard` (fixed panels for one month, chosen with a month switcher: what is left of the month's plan, from the budgets API; what came in and what went out in the month with the balance (entries are the credits, a salary or a refund, but not the other side of a transfer between accounts; exits are the spending below);
   spending day by day against the month before; the latest transactions; and the top categories. Only spending counts: credits are left out, and so are debits in the Receitas and Transferências groups (card-bill payments, moves between accounts), the same groups the budget ignores, so every panel agrees with the plan. The transactions are loaded once and cut by month in the browser; the plan is asked for again for each month, and if it cannot be loaded the other panels still show. The month is kept in the address (`/?month=2026-02`, no parameter for the current month; an invalid or future month means the current one), replacing the entry in the history, so reloading or sharing the page keeps it. The links of the panels carry the month in the address: `/budgets?month=2026-03` opens the plan of that month, and `/transactions?from=2026-03-01&to=2026-03-31&type=debit` opens the list already filtered to its days, debits only for the spending panels), `budgets` (the plan per category, repeated month to month until changed, and how it is going), `report-expense` (manual entry),
-  `transactions-display` (table of history with filters in a menu, 10-per-page
+  `transactions-display` (table of history, with the picture of each row's person, filters in a menu (including one person), 10-per-page
   paging for older entries, a side panel to add a transaction via
   `POST /transactions/create` and to edit one via `PUT /transactions/{id}`, and delete from a row menu), `investments`, `account`
   (a left menu with sections as nested routes: `/account` profile,
@@ -141,12 +141,13 @@ flowchart TB
   checked yet); 2) **formats**: how the file writes dates (DD/MM/AAAA, MM/DD/AAAA, AAAA-MM-DD, or automatic) and amounts
   (`1.234,56`, `1,234.56` or automatic), and what the sign of the amount means (always positive with the type in a
   column, negative is debit, or negative is credit), with the first rows of the file to judge by; 3) **columns**: which
-  column of the file is Data, Descrição, Categoria, Valor and Tipo (those named like the fields come already chosen;
-  Tipo is left out when the sign says the direction); 4) **check**: leaving step 3 sends the choices and checks every
+  column of the file is Data, Descrição, Categoria, Valor, Tipo and Pessoa (those named like the fields come already chosen;
+  Tipo is left out when the sign says the direction; Pessoa is optional); 4) **check**: leaving step 3 sends the choices and checks every
   row the way steps 2 and 3 said, by itself; it shows "tudo certo" or lists all the problems with their row (nothing
   is imported, and the person can go back to change columns or formats); 5) for each category in the file the family does not
   have, pick an existing one or create it (name and group) without leaving the dialog, skipped when nothing is
-  unknown; 6) confirm, with the number of transactions to import, how the dates were read and the list of those the
+  unknown; 6) for each name of the Pessoa column, see the member it was matched to by its name (and change it) or choose one
+  when none matched, skipped when the file has no names; 7) confirm, with the number of transactions to import, how the dates were read and the list of those the
   family already has, which will be skipped. "Importar" queues the job and closes the dialog; `lib/importJobs.js`
   (outside React, like the export) polls it and announces how many rows were imported and skipped. Cancelling throws the checked file away). Toasts are mounted once, in the layout. The logo in the header links home.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
@@ -160,7 +161,7 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   function takes the database session as its first argument.
 - `services/` — logic that is not a request or a query: `whatsapp_service.py`
   (outbound calls to the Meta Cloud API), `export_service.py` (turns a user's
-  transactions into a table of Data / Descrição / Categoria / Valor / Tipo and
+  transactions into a table of Data / Descrição / Categoria / Valor / Tipo / Pessoa and
   asks a document gateway for the file) and `import_service.py` (the reverse: checks every row of a table read
   from a file and collects all the problems, with the row number as the spreadsheet shows it).
 - `gateways/documents/` — the **document gateway**: the only place that knows
@@ -266,7 +267,7 @@ erDiagram
     TRANSACTIONS {
         int id PK
         int family_id FK
-        int user_id FK "the person who entered it"
+        int user_id FK "the person it belongs to (who paid)"
         string label
         int value "cents, always positive"
         string type "debit or credit"
@@ -336,7 +337,7 @@ erDiagram
     FAMILIES ||--o{ IMPORT_JOBS : "owns"
     FAMILIES ||--o{ BUDGETS : "plans"
     FAMILIES ||--o{ FAMILY_INVITES : "hands out"
-    USERS ||--o{ TRANSACTIONS : "created"
+    USERS ||--o{ TRANSACTIONS : "belongs to"
     USERS ||--o{ EXPORT_JOBS : "asked for"
     USERS ||--o{ IMPORT_JOBS : "uploaded"
     CATEGORY_GROUPS ||--|{ CATEGORIES : "groups"
@@ -349,8 +350,11 @@ table). Every new user gets a family of their own on their first login and is it
 owner (`users.role`, `owner` or `member`); people who join with an invite are members. `transactions`,
 `categories`, `export_jobs` and `import_jobs` carry `family_id`, and every list, create, edit,
 delete, export and chatbot action filters by the caller's family. A foreign id
-answers `404`, the same as a missing one. `transactions.user_id` records who
-entered a row (shown later in the UI, never used for permission). A category with no
+answers `404`, the same as a missing one. `transactions.user_id` is the person a
+row belongs to (who paid): the person adding it unless another member of the same family is chosen, shown as a picture on
+each row, and never used for permission. Choosing someone outside the family answers `404`. Known limit: rows entered in a family
+by a person who later returns to the family they left keep that person, who is no longer a member there; they show no
+picture and keep that owner until someone picks another member in the edit form. A category with no
 `family_id` is a default one, visible to everyone; `GET /categories` now requires
 login and returns the defaults plus the family's own, each with its group (`group_id`, `group_name`).
 `GET /categories/groups` lists the groups. Export jobs read the family's
@@ -413,7 +417,7 @@ and in the "today" the recorder and query agents are told. Dates a person types 
 Moving a family to another timezone does not rewrite the transactions it already has.
 
 **Inviting and joining** (`/families`, all require login). `GET /families/me` shows the
-family's people and the caller's role. Only the owner can `POST /families/invites`
+family's people (`members`), the caller's role and the caller's own id (`me`, so pages can pre-select them). Only the owner can `POST /families/invites`
 (answers the code, `201`), `GET /families/invites` (the active codes) and
 `DELETE /families/invites/{id}`; a member gets `403`. A code is 16 characters from an
 alphabet without look-alikes, shown only when created: the table keeps a SHA-256 hash and the last four
@@ -449,6 +453,7 @@ whatever their date says, and a person whose previous family is deleted simply h
 | Column | Meaning |
 |---|---|
 | `value` | Amount in integer cents. Always positive (the API rejects 0, negatives and values over the 32-bit limit on edit); the direction is in `type`, never in the sign. Converted to reais (`/100`) at the API/agent boundary. |
+| `user_id` | The family member the transaction belongs to (who paid). Set to the caller on create unless another member of the same family is sent; changeable through `PUT`. Imports and the WhatsApp assistant use the person importing / whose number wrote. Not a permission. |
 | `type` | `debit` (money out, the default) or `credit` (money in). Not null. Spending totals (the summary at the top of the transactions page, `summed-by-category`) count debits only. |
 | `transactioned_at` | When the money moved. The user can change it (the edit form picks a day and keeps the time of day). Defaults to the moment of creation on the family's clock. Never in the future for entries made in the web app or by the chatbot. This column used to be called `date`. |
 | `created_at` | When the row was first saved. Set by the database, never changed. |
@@ -564,8 +569,8 @@ spreadsheet import) must compare the words only as well.
 
 **Transaction endpoints** (all require login and only see the caller's rows):
 `POST /transactions/` (list), `POST /transactions/summed-by-category`,
-`POST /transactions/create`, `PUT /transactions/{id}` (label, value, category,
-and optionally `type` / `transactioned_at`; omitted fields keep their value) and
+`POST /transactions/create` (optional `user_id`, a member of the family, default the caller), `PUT /transactions/{id}` (label, value, category,
+and optionally `type` / `transactioned_at` / `user_id`, the person it belongs to; omitted fields keep their value) and
 `DELETE /transactions/{id}`. A missing id, another family's id, or an unknown
 category answers `404`, the same for missing and foreign ids so other users' ids
 are not revealed. The two list endpoints take an optional `{organized_by: day|month|year, date}`:
@@ -598,7 +603,16 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    Uploading again throws away the person's previous staged job.
 2. `PUT /imports/{id}/columns {mapping, date_order, amount_style, sign}` says which column holds each field and how the
    file writes things, then checks **every** row before anything is kept. `mapping` is the position of each of Data,
-   Descrição, Categoria, Valor and Tipo (only Tipo may be null; a column serves one field only). `date_order` is
+   Descrição, Categoria, Valor, Tipo and Pessoa (only Tipo and Pessoa may be null; a column serves one field only). Pessoa is
+   the name of a member of the family. A name that is exactly one member's (case and accents ignored) is matched by
+   itself, an empty cell means the person importing, and the check lists every name of the column in `people`
+   (`{name, rows, user_id}`; `user_id` is the member it was matched to, or null when there is none or when two members
+   share the name; `unknown_people` is the null ones; `members` lists the family). The dialog shows all of them,
+   the matched ones already chosen and marked, and `PUT /imports/{id}/people {mapping: {name in file: user id}}`
+   records which member each stands for, changing the matched ones too when the person says so (a name that is not in the
+   file, or a person outside the family, answers `422`; the choice is kept on the job's rows)
+   and `POST /imports/{id}/start` answers `409` while one is left, as it does for categories. The export writes the
+   same column. `date_order` is
    `auto`, `day_first` (15/03/2026), `month_first` (03/15/2026) or `iso` (2026-10-13); separators `/ - .` are accepted,
    and a real Excel date is accepted in any case. `auto` reads the file: a number above 12 in the first place proves
    day first, in the second place month first, and if no date proves it, it is day first, the order of the file the app

@@ -5,9 +5,10 @@ import { latestSpending } from "../lib/dashboard";
 import { formatDate, useLocale } from "../lib/locale";
 import { formatCents } from "../lib/money";
 import DashboardCard from "./DashboardCard";
+import PersonAvatar from "./PersonAvatar";
 
 // The latest spending of the month (`transactions` is already that month's), with the emoji of its category.
-export default function RecentTransactions({ transactions, categories, month }) {
+export default function RecentTransactions({ transactions, categories, month, members = [] }) {
     useLocale(); // amounts and dates follow the family's currency and language
     const latest = latestSpending(transactions);
 
@@ -31,6 +32,7 @@ export default function RecentTransactions({ transactions, categories, month }) 
                                         {formatDate(t.transactioned_at, { day: "numeric", month: "short" })}
                                     </Text>
                                 </Stack>
+                                <PersonAvatar person={members.find((member) => member.id === t.user_id)} />
                                 <Text fontWeight="medium">{formatCents(t.value)}</Text>
                             </HStack>
                         );

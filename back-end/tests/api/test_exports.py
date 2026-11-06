@@ -12,7 +12,7 @@ from openpyxl import load_workbook
 
 from api.controllers import exports_controller
 from api.routers import exports_router
-from schemas.tables import ExportJobDB
+from schemas.tables import ExportJobDB, Families, TransactionDB
 
 
 @pytest.fixture
@@ -117,9 +117,9 @@ def test_csv_file_has_the_documented_columns_and_brazilian_formatting(
     assert response.headers["content-type"].startswith("text/csv")
     assert response.headers["content-disposition"].startswith('attachment; filename="transacoes-')
     assert _csv_rows(response) == [
-        "Data;Descrição;Categoria;Valor;Tipo",
-        "15/03/2026;Almoço;Restaurantes e Bares;1.234,56;Débito",
-        "01/03/2026;Salário;Transporte público;0,05;Crédito",
+        "Data;Descrição;Categoria;Valor;Tipo;Pessoa",
+        "15/03/2026;Almoço;Restaurantes e Bares;1.234,56;Débito;Test User",
+        "01/03/2026;Salário;Transporte público;0,05;Crédito;Test User",
     ]
 
 
@@ -133,14 +133,15 @@ def test_xlsx_file_has_real_dates_and_numbers(client, user, auth_headers, make_t
 
     assert response.headers["content-disposition"].endswith('.xlsx"')
     sheet = load_workbook(io.BytesIO(response.content)).active
-    assert [c.value for c in sheet[1]] == ["Data", "Descrição", "Categoria", "Valor", "Tipo"]
-    when, label, category, amount, kind = sheet[2]
-    assert (when.value, label.value, category.value, amount.value, kind.value) == (
+    assert [c.value for c in sheet[1]] == ["Data", "Descrição", "Categoria", "Valor", "Tipo", "Pessoa"]
+    when, label, category, amount, kind, person = sheet[2]
+    assert (when.value, label.value, category.value, amount.value, kind.value, person.value) == (
         datetime(2026, 3, 15, 12, 0),
         "Almoço",
         "Restaurantes e Bares",
         1234.56,
         "Débito",
+        "Test User",
     )
 
 
@@ -194,7 +195,7 @@ def test_the_file_lists_the_newest_first_and_shows_a_missing_category_as_empty(
 def test_an_export_without_transactions_is_just_the_header(client, auth_headers, queue):
     job_id = _run(client, queue, auth_headers)
 
-    assert _csv_rows(_file(client, auth_headers, job_id)) == ["Data;Descrição;Categoria;Valor;Tipo"]
+    assert _csv_rows(_file(client, auth_headers, job_id)) == ["Data;Descrição;Categoria;Valor;Tipo;Pessoa"]
 
 
 def test_a_description_cannot_run_as_a_formula(client, user, auth_headers, make_transaction, category_ids, queue):
@@ -457,3 +458,26 @@ def test_a_category_name_and_the_excel_file_cannot_run_as_a_formula(client, db, 
 @pytest.mark.parametrize("method, path", [("post", "/exports"), ("get", "/exports/1"), ("get", "/exports/1/file")])
 def test_exports_require_authentication(client, method, path):
     assert getattr(client, method)(path).status_code == 401
+
+
+def test_the_file_says_whose_each_transaction_is(client, db, user, auth_headers, make_user, category_ids, queue):
+    partner = make_user("Bia Souza", family=db.get(Families, user.family_id))
+    food = category_ids["Restaurantes e Bares"]
+    db.add_all(
+        [
+            TransactionDB(
+                family_id=user.family_id,
+                user_id=who.id,
+                label=label,
+                value=100,
+                category_id=food,
+                transactioned_at=datetime(2026, 3, day),
+            )
+            for day, label, who in ((2, "Minha", user), (3, "Dela", partner))
+        ]
+    )
+    db.commit()
+
+    rows = _csv_rows(_file(client, auth_headers, _run(client, queue, auth_headers, "csv")))
+
+    assert [row.split(";")[1::4] for row in rows[1:]] == [["Dela", "Bia Souza"], ["Minha", "Test User"]]

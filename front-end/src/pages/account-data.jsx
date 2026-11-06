@@ -14,6 +14,7 @@ const COLUMNS = [
     { name: "Categoria", required: true, format: "Uma categoria; as que você ainda não tem podem ser criadas na importação", example: "Restaurantes e Bares" },
     { name: "Valor", required: true, format: "Zero ou mais, no máximo duas casas decimais: 1.234,56 ou 1,234.56. Pode vir negativo (veja o sinal)", example: "1.234,56" },
     { name: "Tipo", required: false, format: "Débito ou Crédito (se vazio, Débito). Dispensável se o sinal do valor já diz", example: "Débito" },
+    { name: "Pessoa", required: false, format: "Nome de alguém da sua família (se vazio, quem está importando)", example: "Bia Souza" },
 ];
 
 const EXPORT_FORMATS = [
@@ -114,7 +115,7 @@ export default function AccountData() {
                 <Heading size="md">Exportar</Heading>
                 <Text color="fg.muted">
                     Baixe todas as suas transações, da mais nova para a mais antiga, com as mesmas colunas da
-                    importação. O valor sai sempre positivo; se foi entrada ou saída está na coluna Tipo.
+                    importação. O valor sai sempre positivo; se foi entrada ou saída está na coluna Tipo, e de quem é a transação, na coluna Pessoa.
                     O arquivo é gerado em segundo plano: você pode continuar usando o app e avisamos quando
                     estiver pronto.
                 </Text>

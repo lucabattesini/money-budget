@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Badge, Box, Button, CloseButton, Dialog, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Table, Text } from "@chakra-ui/react";
 import { LuUpload } from "react-icons/lu";
-import { cancelImport, chooseImportCategories, createCategory, getAllCategories, getCategoryGroups, matchImportColumns, uploadImport } from "../api/endpoints";
+import { cancelImport, chooseImportCategories, chooseImportPeople, createCategory, getAllCategories, getCategoryGroups, matchImportColumns, uploadImport } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { followImport, queueImport } from "../lib/importJobs";
@@ -13,18 +13,20 @@ const STEPS = [
     { id: "columns", label: "Colunas" },
     { id: "check", label: "Conferência" },
     { id: "categories", label: "Categorias" },
+    { id: "people", label: "Pessoas" },
     { id: "confirm", label: "Confirmar" },
 ];
 const FALLBACK_GROUP = "Outros";
 const NEW_CATEGORY = "new"; // the value of the "create it" choice in a category's list
 
-// The fields of a transaction, as the page's table of columns names them; the last one may be left out.
+// The fields of a transaction, as the page's table of columns names them; the last two may be left out.
 const FIELDS = [
     { name: "Data", required: true },
     { name: "Descrição", required: true },
     { name: "Categoria", required: true },
     { name: "Valor", required: true },
-    { name: "Tipo", required: false },
+    { name: "Tipo", required: false, ifEmpty: "se vazio é Débito" },
+    { name: "Pessoa", required: false, ifEmpty: "se vazio é quem está importando" },
 ];
 
 // How the file writes dates and amounts, and what the sign of the amount means. "Automático" looks at the file.
@@ -236,7 +238,7 @@ function ColumnsStep({ job, choice, setChoice, formats }) {
     const fields = FIELDS.filter((field) => byType || field.name !== "Tipo");
     const fieldSelect = (field) => (
         <Field.Root key={field.name} required={field.required}>
-            <Field.Label>{field.required ? field.name : `${field.name} (opcional, se vazio é Débito)`}</Field.Label>
+            <Field.Label>{field.required ? field.name : `${field.name} (opcional, ${field.ifEmpty})`}</Field.Label>
             <NativeSelect.Root>
                 <NativeSelect.Field
                     aria-label={`Coluna para ${field.name}`}
@@ -264,7 +266,7 @@ function ColumnsStep({ job, choice, setChoice, formats }) {
             </Section>
 
             {fields.some((field) => !field.required) && (
-                <Section title="Campo opcional" hint="Se o arquivo não diz se é débito ou crédito, tudo entra como débito.">
+                <Section title="Campos opcionais" hint="Sem Tipo, tudo entra como débito. Sem Pessoa, as transações ficam com quem está importando.">
                     <Box {...grid}>{fields.filter((field) => !field.required).map(fieldSelect)}</Box>
                 </Section>
             )}
@@ -436,6 +438,47 @@ function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCate
     );
 }
 
+// Step 6: every name of the Pessoa column and the member it stands for. The ones that match a member's name come
+// already chosen, and any of them can be changed; the others have to be chosen.
+function PeopleStep({ people, members, choices, setChoices, error }) {
+    const unmatched = people.filter((item) => item.user_id == null).length;
+    return (
+        <Stack gap={5}>
+            <Section
+                title="Pessoas do arquivo"
+                hint={`Cada nome da coluna Pessoa precisa de um membro da família. Os que têm o mesmo nome de alguém já vêm escolhidos, mas você pode trocar.${unmatched > 0 ? ` ${unmatched === 1 ? "Um nome" : `${unmatched} nomes`} sem correspondência: escolha a quem pertence.` : ""} Nada é salvo até o último passo.`}
+            >
+                <Stack as="ul" gap={4} m={0} p={0} aria-label="Pessoas do arquivo">
+                    {people.map((item) => (
+                        <Field.Root as="li" key={item.name}>
+                            <Field.Label>
+                                &ldquo;{item.name}&rdquo; ({item.rows === 1 ? "1 linha" : `${item.rows} linhas`})
+                                <Badge colorPalette={item.user_id == null ? "orange" : "green"} variant="subtle">
+                                    {item.user_id == null ? "Sem correspondência" : "Reconhecido pelo nome"}
+                                </Badge>
+                            </Field.Label>
+                            <NativeSelect.Root>
+                                <NativeSelect.Field
+                                    aria-label={`Pessoa para ${item.name}`}
+                                    value={choices[item.name] ?? ""}
+                                    onChange={(e) => setChoices((current) => ({ ...current, [item.name]: e.target.value }))}
+                                >
+                                    <option value="">Escolha...</option>
+                                    {members.map((member) => (
+                                        <option key={member.id} value={String(member.id)}>{member.name}</option>
+                                    ))}
+                                </NativeSelect.Field>
+                                <NativeSelect.Indicator />
+                            </NativeSelect.Root>
+                        </Field.Root>
+                    ))}
+                </Stack>
+                {error && <Text color="fg.error" role="alert">{error}</Text>}
+            </Section>
+        </Stack>
+    );
+}
+
 // Step 5: what is about to happen, before it does.
 function ConfirmStep({ job }) {
     const hidden = job.skipped_count - job.skipped.length;
@@ -505,6 +548,9 @@ export default function ImportDialog({ open, onClose }) {
     const [categories, setCategories] = useState([]);
     const [groups, setGroups] = useState([]);
     const [categoryError, setCategoryError] = useState("");
+    const [filePeople, setFilePeople] = useState([]); // the names of the Pessoa column, with the member each was matched to
+    const [peopleChoices, setPeopleChoices] = useState({}); // the member chosen for each ("" while not chosen)
+    const [peopleError, setPeopleError] = useState("");
     const [busy, setBusy] = useState(false);
 
     // Start from the first step every time the dialog opens
@@ -559,12 +605,22 @@ export default function ImportDialog({ open, onClose }) {
         setStep("formats");
     };
 
+    // After the categories: to the names of the Pessoa column that matched nobody, or to confirming
+    const toPeopleOrConfirm = (current) => {
+        const people = current.people ?? [];
+        setFilePeople(people);
+        // What the server matched by itself is already chosen, and can be changed; the others wait for a choice
+        setPeopleChoices(Object.fromEntries(people.map((item) => [item.name, item.user_id == null ? "" : String(item.user_id)])));
+        setPeopleError("");
+        setStep(people.length > 0 ? "people" : "confirm");
+    };
+
     // Move on once the columns are matched and every row is fine: to the categories the file needs, or to confirming
     const goOn = async (checked) => {
         setJob(checked);
         if (checked.unknown_categories.length === 0) {
             setUnknown([]);
-            setStep("confirm");
+            toPeopleOrConfirm(checked);
             return;
         }
         const groupList = await loadCategories();
@@ -620,18 +676,33 @@ export default function ImportDialog({ open, onClose }) {
             setCategoryError(result.detail || "Não foi possível salvar suas escolhas. Tente novamente.");
             return;
         }
-        setJob({ ...job, ...result.data }); // keeps the sample of the file, for going back to the columns
+        const merged = { ...job, ...result.data }; // keeps the sample of the file, for going back to the columns
+        setJob(merged);
+        toPeopleOrConfirm(merged);
+    };
+
+    const handlePeopleChosen = async () => {
+        setBusy(true);
+        setPeopleError("");
+        const mapping = Object.fromEntries(filePeople.map((item) => [item.name, Number(peopleChoices[item.name])]));
+        const result = await chooseImportPeople(job.id, mapping, getToken());
+        setBusy(false);
+        if (!result.ok) {
+            setPeopleError(result.detail || "Não foi possível salvar suas escolhas. Tente novamente.");
+            return;
+        }
+        setJob({ ...job, ...result.data });
         setStep("confirm");
     };
 
     // One step back: the file stays on the server until another one is sent, so the choices are not lost
-    const BACK = { formats: "file", columns: "formats", check: "columns", categories: "check" };
+    const BACK = { formats: "file", columns: "formats", check: "columns", categories: "check", people: unknown.length > 0 ? "categories" : "check" };
     const goBack = () => {
         if (step === "check") {
             setChecked(false);
             setCheckError(null);
         }
-        setStep(step === "confirm" ? (unknown.length > 0 ? "categories" : "check") : BACK[step]);
+        setStep(step === "confirm" ? (filePeople.length > 0 ? "people" : unknown.length > 0 ? "categories" : "check") : BACK[step]);
     };
 
     const handleStart = async () => {
@@ -646,6 +717,7 @@ export default function ImportDialog({ open, onClose }) {
 
     const taken = usedColumns(choice, formats);
     const columnsReady = job && FIELDS.filter((f) => f.required).every((f) => choice[f.name] !== "" && choice[f.name] !== undefined) && taken.length === new Set(taken).size;
+    const allPeopleChosen = filePeople.length > 0 && filePeople.every((item) => /^\d+$/.test(peopleChoices[item.name] ?? ""));
     const allChosen = unknown.length > 0 && unknown.every((item) => /^\d+$/.test(rows[item.name]?.value ?? ""));
 
     return (
@@ -682,6 +754,15 @@ export default function ImportDialog({ open, onClose }) {
                                     error={categoryError}
                                 />
                             )}
+                            {step === "people" && job && (
+                                <PeopleStep
+                                    people={filePeople}
+                                    members={job.members ?? []}
+                                    choices={peopleChoices}
+                                    setChoices={setPeopleChoices}
+                                    error={peopleError}
+                                />
+                            )}
                             {step === "confirm" && job && <ConfirmStep job={job} />}
                             {checking && <Spinner mt={4} aria-label="Conferindo o arquivo" />}
                         </Dialog.Body>
@@ -702,6 +783,9 @@ export default function ImportDialog({ open, onClose }) {
                             )}
                             {step === "categories" && (
                                 <Button onClick={handleChosen} disabled={!allChosen} loading={busy}>Próximo</Button>
+                            )}
+                            {step === "people" && (
+                                <Button onClick={handlePeopleChosen} disabled={!allPeopleChosen} loading={busy}>Próximo</Button>
                             )}
                             {step === "confirm" && (
                                 <Button onClick={handleStart} disabled={!job || job.to_import === 0} loading={busy}>Importar</Button>

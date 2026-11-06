@@ -15,6 +15,7 @@ class Transaction(BaseModel):
     category_id: int
     type: TransactionType = "debit"
     transactioned_at: Optional[datetime] = None  # empty means now
+    user_id: Optional[int] = None  # a member of the family it belongs to; empty means the person adding it
 
 
 class TransactionUpdate(BaseModel):
@@ -25,6 +26,7 @@ class TransactionUpdate(BaseModel):
     category_id: int
     type: Optional[TransactionType] = None  # None keeps the current type
     transactioned_at: Optional[datetime] = None  # None keeps the current date
+    user_id: Optional[int] = None  # a member of the family it belongs to; None keeps the current person
 
 
 class TransactionFilters(BaseModel):
@@ -60,6 +62,8 @@ class TransactionOut(BaseModel):
     updated_at: Optional[datetime] = None
     category_id: Optional[int] = None
     category_name: Optional[str] = None
+    user_id: Optional[int] = None  # id of the family member it belongs to
+    user_name: Optional[str] = None  # and their name, for the export
 
 
 class TransactionAggregate(BaseModel):
@@ -168,6 +172,12 @@ class ImportColumnsChoice(BaseModel):
 
 class ImportCategoriesChoice(BaseModel):
     """Which of the family's categories each category name in the file stands for: {"Pets": 12}."""
+
+    mapping: dict[str, int] = Field(max_length=500)
+
+
+class ImportPeopleChoice(BaseModel):
+    """Which member of the family each person name in the file stands for: {"Bia": 7}."""
 
     mapping: dict[str, int] = Field(max_length=500)
 

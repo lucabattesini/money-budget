@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Box, Center, Grid, Heading, HStack, IconButton, Stack } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
-import { getAllCategories, getTransactions, getMe, getBudgets } from "../api/endpoints";
+import { getAllCategories, getTransactions, getMe, getBudgets, getFamily } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { countsAsIncoming, countsAsSpending, spendingOfMonth, sumCents, transactionsOfMonth } from "../lib/dashboard";
@@ -21,6 +21,7 @@ export default function Dashboard() {
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [user, setUser] = useState(null);
+    const [members, setMembers] = useState([]); // the family, to show whose each transaction is
     // eslint-disable-next-line react-hooks/exhaustive-deps -- read again only when the family's timezone arrives or changes
     const now = useMemo(() => familyNow(), [timezone]);
     const thisMonth = monthKey(now);
@@ -40,8 +41,9 @@ export default function Dashboard() {
         Promise.all([
             getAllCategories(token),
             getTransactions(allTransactionsQuery, token),
-            getMe(token)
-        ]).then(([categoriesData, transactionsData, userData]) => {
+            getMe(token),
+            getFamily(token)
+        ]).then(([categoriesData, transactionsData, userData, familyResult]) => {
             // After an expired login the token is gone and the user is on the login page: no message there
             if ((!categoriesData || !transactionsData) && getToken()) {
                 customToaster("Error", "error", "Não foi possível carregar seus dados. Tente novamente mais tarde.");
@@ -52,6 +54,7 @@ export default function Dashboard() {
             if (transactionsData) {
                 setTransactions(transactionsData.data);
             }
+            if (familyResult?.ok) setMembers(familyResult.data.members ?? []);
             if (userData?.data) {
                 setUser(userData.data);
             }
@@ -118,7 +121,7 @@ export default function Dashboard() {
                             <Box order={{ base: 5, lg: 0 }}><SpendingCard transactions={outgoing} month={month} now={now} /></Box>
                         </Stack>
                         <Stack gap={6} display={{ base: "contents", lg: "flex" }}>
-                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} month={month} /></Box>
+                            <Box order={{ base: 3, lg: 0 }}><RecentTransactions transactions={spending} categories={categories} month={month} members={members} /></Box>
                             <Box order={{ base: 4, lg: 0 }}><TopCategoriesBarList transactions={spending} categories={categories} /></Box>
                         </Stack>
                     </Grid>

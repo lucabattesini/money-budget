@@ -20,7 +20,7 @@ from api.utils.formatting import (
 )
 
 REQUIRED_FIELDS = ["Data", "Descrição", "Categoria", "Valor"]
-OPTIONAL_FIELDS = ["Tipo"]
+OPTIONAL_FIELDS = ["Tipo", "Pessoa"]
 FIELDS = REQUIRED_FIELDS + OPTIONAL_FIELDS
 MAX_LABEL = 100  # the size of the column
 MAX_CENTS = 2147483647  # must fit the 32-bit column
@@ -42,7 +42,7 @@ class Problem:
     message: str
 
 
-def _simple(name: str) -> str:
+def simple_name(name: str) -> str:
     """A column name as it is compared: no case, no accents, no spaces around it."""
     decomposed = unicodedata.normalize("NFKD", name.strip().casefold())
     return "".join(c for c in decomposed if not unicodedata.combining(c))
@@ -55,7 +55,7 @@ def suggest_mapping(columns: list[str]) -> dict[str, int | None]:
     suggested: dict[str, int | None] = {}
     for field in FIELDS:
         position = next(
-            (i for i, name in enumerate(columns) if i not in taken and _simple(name) == _simple(field)), None
+            (i for i, name in enumerate(columns) if i not in taken and simple_name(name) == simple_name(field)), None
         )
         suggested[field] = position
         if position is not None:
@@ -188,6 +188,7 @@ def check_table(
     amount_style: str = "auto",
     sign: str = TYPE_COLUMN,
     strict_dates: bool = False,
+    members: dict[str, int | None] | None = None,
 ) -> tuple[list[dict], list[Problem]]:
     """The valid rows (as plain dicts, ready to be kept) and every problem found.
 
@@ -196,6 +197,9 @@ def check_table(
     gets when they choose a format instead of leaving it on automatic),
     `amount_style` ("auto", "br" or "us") how amounts are written and `sign` how the sign of the amount is read
     (TYPE_COLUMN: always positive, Tipo says the direction; otherwise the sign says it and Tipo is not used).
+    `members` maps the name of each person of the family (see simple_name) to their id, or to None when two people have
+    that name: a Pessoa that is exactly one member's name is matched by itself, and an empty cell means the person
+    importing.
     Rows that are empty all over are skipped. A category is only checked to be filled in; whether it exists is settled
     in a later step.
     """
@@ -246,6 +250,11 @@ def check_table(
             kind = "debit" if (cents < 0) == out_is_negative else "credit"
             cents = abs(cents)
 
+        person = _text(cell("Pessoa"))
+        # Who the name stands for is settled after the check (see imports_controller), like the categories: a name
+        # of exactly one member is matched by itself, any other is for the person to choose
+        person_id = members.get(simple_name(person)) if person and members else None
+
         if found:
             problems.extend(Problem(number, message[0].upper() + message[1:]) for message in found)
         else:
@@ -257,6 +266,8 @@ def check_table(
                     "value": cents,
                     "type": kind,
                     "category": category,
+                    "person": person,  # the name as the file wrote it ("" when the cell was empty)
+                    "user_id": person_id,  # the member it stands for; None while unsettled (or when the cell was empty)
                 }
             )
     return rows, problems

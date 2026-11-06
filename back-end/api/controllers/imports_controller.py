@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from api.gateways.documents import MAX_FILE_BYTES, UnreadableDocument, get_document_gateway
 from api.repositories.categories_repo import get_all_categories as get_all_categories_repo
 from api.repositories.categories_repo import lock_family
-from api.repositories.families_repo import get_family
+from api.repositories.families_repo import get_family, list_members
 from api.repositories.imports_repo import (
     add_transactions,
     create_import_job,
@@ -25,6 +25,7 @@ from api.repositories.imports_repo import (
     mark_running,
     set_category_map,
     set_checked_rows,
+    set_rows,
 )
 from api.services.import_service import (
     DATE_ORDERS,
@@ -35,6 +36,7 @@ from api.services.import_service import (
     encode_cell,
     mapping_problem,
     resolve_date_order,
+    simple_name,
     suggest_mapping,
     suggest_sign,
 )
@@ -67,6 +69,35 @@ def _unprocessable(message: str) -> HTTPException:
 
 
 # --- categories ----------------------------------------------------------------------------------------------------
+
+
+def _member_names(db: Session, family_id: int) -> dict[str, int | None]:
+    """(name of each person of the family, as simple_name writes it -> their id). Two people with the same name map to
+    None, so a file naming them is refused instead of guessed."""
+    names: dict[str, int | None] = {}
+    for member in list_members(db, family_id):
+        key = simple_name(member.name)
+        names[key] = None if key in names else member.id
+    return names
+
+
+def _file_people(job: ImportJobDB) -> dict[str, dict]:
+    """(name of the file as simple_name writes it -> {name, rows, user_id}) for each person named in the Pessoa column.
+    `user_id` is the member the name was matched to by itself or that the person chose, None while there is none.
+    An empty cell is not a person: it means whoever imports."""
+    people: dict[str, dict] = {}
+    for row in job.rows or []:
+        if row.get("person"):
+            entry = people.setdefault(
+                simple_name(row["person"]), {"name": row["person"], "rows": 0, "user_id": row.get("user_id")}
+            )
+            entry["rows"] += 1
+    return people
+
+
+def _unknown_people(job: ImportJobDB) -> dict[str, dict]:
+    """The names of the file that no member stands for yet: the person has to choose."""
+    return {key: entry for key, entry in _file_people(job).items() if entry["user_id"] is None}
 
 
 def _category_lookup(db: Session, family_id: int) -> tuple[dict[str, int], set[int]]:
@@ -154,6 +185,9 @@ def describe_job(db: Session, job: ImportJobDB) -> dict:
             columns=job.columns,
             column_map=job.column_map,
             unknown_categories=list(unknown.values()),
+            people=list(_file_people(job).values()),
+            unknown_people=list(_unknown_people(job).values()),
+            members=[{"id": m.id, "name": m.name} for m in list_members(db, job.family_id)],
             skipped_count=len(duplicates),
             skipped=duplicates[:MAX_SKIPPED_SHOWN],
             to_import=job.total_rows - len(duplicates),
@@ -242,6 +276,7 @@ def match_columns(
         amount_style,
         sign,
         strict_dates=date_order != "auto",
+        members=_member_names(db, family_id),
     )
     if problems:
         shown = [{"row": p.row, "message": p.message} for p in problems[:MAX_PROBLEMS_SHOWN]]
@@ -265,6 +300,32 @@ def choose_categories(db: Session, job_id: int, family_id: int, user_id: int, ma
             raise _unprocessable("Essa categoria não existe.")
         chosen[name_key(name)] = category_id
     set_category_map(db, job, chosen)
+    return job
+
+
+def choose_people(db: Session, job_id: int, family_id: int, user_id: int, mapping: dict[str, int]) -> ImportJobDB:
+    """Step 3b: say which member of the family each name of the Pessoa column stands for. It can change the ones matched
+    by themselves too: the person always has the last word."""
+    job = _checked(_staged(db, job_id, family_id, user_id))
+    members = {member.id for member in list_members(db, family_id)}
+    in_file = _file_people(job)
+    chosen: dict[str, int] = {}
+    for name, person_id in mapping.items():
+        if simple_name(name) not in in_file:
+            raise _unprocessable(f'A pessoa "{name}" não está no arquivo.')
+        if person_id not in members:
+            raise _unprocessable("Essa pessoa não é da sua família.")
+        chosen[simple_name(name)] = person_id
+    set_rows(
+        db,
+        job,
+        [
+            {**row, "user_id": chosen[simple_name(row["person"])]}
+            if row.get("person") and simple_name(row["person"]) in chosen
+            else row
+            for row in job.rows
+        ],
+    )
     return job
 
 
@@ -293,6 +354,12 @@ def start_import(db: Session, job_id: int, family_id: int, user_id: int) -> Impo
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Ainda há categorias do arquivo sem uma categoria escolhida."
         )
+    if _unknown_people(job):
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ainda há pessoas do arquivo sem uma pessoa da família escolhida.",
+        )
     mark_queued(db, job)
     return job
 
@@ -315,6 +382,12 @@ def run_import_job(job_id: int) -> None:
                 return
             duplicates = _duplicates(db, job, resolved)
             skipped_rows = {row["row"] for row in duplicates}
+            people = {member.id for member in list_members(db, job.family_id)}
+            if any(row.get("user_id") not in (None, *people) for row in job.rows) or _unknown_people(
+                job
+            ):  # someone left
+                mark_failed(db, job, "Uma pessoa do arquivo deixou de ser da família. Comece de novo.")
+                return
             add_transactions(
                 db,
                 job.family_id,

@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
 import { useLocation } from "react-router-dom";
-import { getTransactions, getAllCategories, deleteTransaction } from "../api/endpoints";
+import { getTransactions, getAllCategories, getFamily, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
@@ -12,6 +12,7 @@ import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
 import TransactionDrawer from "../components/TransactionDrawer";
 import TransactionFilters from "../components/TransactionFilters";
+import PersonAvatar from "../components/PersonAvatar";
 import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 // "Todo o Resto" can be long, so it is shown in pages
@@ -22,6 +23,7 @@ export default function TransactionsDisplay() {
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
+    const [family, setFamily] = useState({ members: [], me: null }); // who can be chosen, and who is logged in
     const [trigger, setTrigger] = useState(0);
     const [adding, setAdding] = useState(false);
     const [editing, setEditing] = useState(null); // the transaction being edited
@@ -34,14 +36,17 @@ export default function TransactionsDisplay() {
         const token = getToken();
         Promise.all([
             getAllCategories(token),
-            getTransactions({"organized_by": null, "date": null}, token)
-        ]).then(([categoriesData, transactionsData]) => {
+            getTransactions({"organized_by": null, "date": null}, token),
+            getFamily(token)
+        ]).then(([categoriesData, transactionsData, familyResult]) => {
             // After an expired login the token is gone and the user is on the login page: no message there
             if ((!categoriesData || !transactionsData) && getToken()) {
                 customToaster("Error", "error", "Não foi possível carregar suas transações. Tente novamente mais tarde.");
             }
             if (categoriesData) setCategories(categoriesData.data);
             if (transactionsData) setTransactions(transactionsData.data);
+            // Without the family the page still works: rows just show no picture
+            if (familyResult?.ok) setFamily({ members: familyResult.data.members ?? [], me: familyResult.data.me ?? null });
             setLoading(false);
         });
     }, [trigger]);
@@ -112,6 +117,9 @@ export default function TransactionsDisplay() {
             <Table.Cell whiteSpace="nowrap">{formatDate(transaction.transactioned_at)}</Table.Cell>
             <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
             <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
+            <Table.Cell width="1%">
+                <PersonAvatar person={family.members.find((member) => member.id === transaction.user_id)} />
+            </Table.Cell>
             <Table.Cell textAlign="end" whiteSpace="nowrap" color={transaction.type === "credit" ? "green.400" : undefined}>
                 {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
             </Table.Cell>
@@ -171,6 +179,7 @@ export default function TransactionsDisplay() {
                                                 filters={filters}
                                                 onChange={changeFilters}
                                                 categories={sortedCategories}
+                                                members={family.members}
                                             />
                                         </Popover.Body>
                                     </Popover.Content>
@@ -192,7 +201,7 @@ export default function TransactionsDisplay() {
                                 {visibleGroups.map((group) => (
                                     <Fragment key={group.title}>
                                         <Table.Row>
-                                            <Table.Cell colSpan={5} pt={6}>
+                                            <Table.Cell colSpan={6} pt={6}>
                                                 <Box color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase">
                                                     {group.title}
                                                 </Box>
@@ -231,6 +240,8 @@ export default function TransactionsDisplay() {
                 open={adding}
                 onClose={() => setAdding(false)}
                 categories={sortedCategories}
+                members={family.members}
+                me={family.me}
                 onSaved={reload}
             />
             <TransactionDrawer
@@ -238,6 +249,8 @@ export default function TransactionsDisplay() {
                 transaction={editing}
                 onClose={() => setEditing(null)}
                 categories={sortedCategories}
+                members={family.members}
+                me={family.me}
                 onSaved={reload}
             />
         </Center>

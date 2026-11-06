@@ -5,6 +5,11 @@ import { getToken, saveToken } from '../lib/auth'
 import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
 import TransactionsDisplay from './transactions-display'
 
+// The family the pages ask for, to show whose each transaction is
+const FAMILY = {
+  data: { me: 1, members: [{ id: 1, name: 'Clara Battesini', picture: null }, { id: 2, name: 'Bia Souza', picture: null }] },
+}
+
 // Sunday 15 March 2026, noon: "today" starts 15 March 00:00, "this week" 8 March, "this month" 1 March.
 const CATEGORIES = { data: [{ id: 1, name: 'Alimentação' }, { id: 2, name: 'Transporte' }] }
 const t = (id, label, cents, date, category_id = 1) => ({ id, label, value: cents, transactioned_at: date, category_id })
@@ -21,7 +26,7 @@ const TRANSACTIONS = {
 
 const GROUP_TITLES = ['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto']
 const rowOf = (label) => screen.getByText(label).closest('tr')
-// Rows with transactions have 5 cells; the group headings are one wide cell
+// Rows with transactions have 6 cells; the group headings are one wide cell
 const rowsOnPage = () => [...document.querySelectorAll('tbody tr')].filter((row) => row.children.length > 1)
 // The group of a row is the closest heading row above it
 const groupOf = (label) => {
@@ -42,7 +47,7 @@ const openMenuOf = async (label) => {
 }
 
 const routes = (transactions = TRANSACTIONS) => ({
-  'GET /categories': CATEGORIES,
+  'GET /families/me': FAMILY, 'GET /categories': CATEGORIES,
   'POST /transactions': transactions,
 })
 
@@ -107,7 +112,7 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Almoço')
 
-    expect(requestsMade(api).sort()).toEqual(['GET /categories', 'POST /transactions'])
+    expect(requestsMade(api).sort()).toEqual(['GET /categories', 'GET /families/me', 'POST /transactions'])
     const post = api.mock.calls.find(([, o]) => o.method === 'post')
     expect(JSON.parse(post[1].body)).toEqual({ organized_by: null, date: null })
     expect(post[1].headers.Authorization).toBe('Bearer tok')
@@ -121,7 +126,7 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0) // no header row, just the transactions
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
-    expect(cells.slice(0, 4)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '- R$ 25,50'])
+    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
   })
 
   it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
@@ -135,7 +140,7 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
     await screen.findByText('inteiro')
 
-    const amountOf = (label) => rowOf(label).children[3].textContent
+    const amountOf = (label) => rowOf(label).children[4].textContent
     expect(['inteiro', 'centavos', 'mil', 'milhão'].map(amountOf)).toEqual(
       ['- R$ 18,00', '- R$ 0,05', '- R$ 1.234,56', '- R$ 1.000.000,00'],
     )
@@ -196,7 +201,7 @@ describe('transactions page', () => {
 
     expect(document.querySelector('.chakra-spinner')).toBeInTheDocument()
     await waitFor(() => expect(document.querySelector('.chakra-spinner')).not.toBeInTheDocument())
-    expect(api).toHaveBeenCalledTimes(2) // the data really arrived: this is not just the loading state
+    expect(api).toHaveBeenCalledTimes(3) // the data really arrived: this is not just the loading state
     expect(rowsOnPage()).toHaveLength(0)
     expect(screen.getByText('Nenhuma transação ainda.')).toBeInTheDocument()
     for (const title of ['Esta Semana', 'Todo o Resto']) expect(screen.queryByText(title)).not.toBeInTheDocument()
@@ -229,7 +234,7 @@ describe('transactions page', () => {
   it('deletes a transaction from its menu and then shows the refreshed list', async () => {
     let remaining = TRANSACTIONS.data
     const api = mockApi({
-      'GET /categories': CATEGORIES,
+      'GET /families/me': FAMILY, 'GET /categories': CATEGORIES,
       'POST /transactions': () => jsonResponse({ data: remaining }),
       'DELETE /transactions/1': () => {
         remaining = remaining.filter((x) => x.id !== 1)
@@ -249,7 +254,7 @@ describe('transactions page', () => {
   it('reloads the list only after the delete has finished', async () => {
     let finishDelete
     const api = mockApi({
-      'GET /categories': CATEGORIES,
+      'GET /families/me': FAMILY, 'GET /categories': CATEGORIES,
       'POST /transactions': TRANSACTIONS,
       'DELETE /transactions/1': () => new Promise((resolve) => { finishDelete = () => resolve(new Response('{}', { status: 202 })) }),
     })
@@ -280,7 +285,7 @@ describe('transactions page', () => {
 
   it('survives an expired session instead of showing a blank page', async () => {
     mockApi({
-      'GET /categories': [{ detail: 'Token expired' }, 401],
+      'GET /families/me': FAMILY, 'GET /categories': [{ detail: 'Token expired' }, 401],
       'POST /transactions': [{ detail: 'Token expired' }, 401],
     })
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -310,7 +315,7 @@ describe('transactions page', () => {
     it('saves the new transaction and then shows it in the table', async () => {
       let saved = []
       const api = mockApi({
-        'GET /categories': CATEGORIES,
+        'GET /families/me': FAMILY, 'GET /categories': CATEGORIES,
         'POST /transactions': () => jsonResponse({ data: [...TRANSACTIONS.data, ...saved] }),
         'POST /transactions/create': (_url, options) => {
           const body = JSON.parse(options.body)
@@ -329,7 +334,7 @@ describe('transactions page', () => {
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
       expect(await screen.findByText('Cinema')).toBeInTheDocument()
-      expect(rowOf('Cinema').children[3].textContent).toBe('- R$ 12.345,67')
+      expect(rowOf('Cinema').children[4].textContent).toBe('- R$ 12.345,67')
       expect(within(rowOf('Cinema')).getByText('Transporte')).toBeInTheDocument()
       expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/create'))[1].body).value).toBe(1234567)
       await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
@@ -340,7 +345,7 @@ describe('transactions page', () => {
     const editRoutes = () => {
       let rows = TRANSACTIONS.data
       const api = mockApi({
-        'GET /categories': CATEGORIES,
+        'GET /families/me': FAMILY, 'GET /categories': CATEGORIES,
         'POST /transactions': () => jsonResponse({ data: rows }),
         'PUT /transactions/1': (_url, options) => {
           const body = JSON.parse(options.body)
@@ -429,7 +434,7 @@ describe('transactions page', () => {
       })
       expect(put[1].headers.Authorization).toBe('Bearer tok')
       expect(screen.queryByText('Almoço')).not.toBeInTheDocument()
-      expect(rowOf('Jantar').children[3].textContent).toBe('- R$ 30,99')
+      expect(rowOf('Jantar').children[4].textContent).toBe('- R$ 30,99')
       await waitFor(() => expect(screen.queryByText(/^(Nova|Editar) transação$/)).not.toBeInTheDocument())
     })
 
@@ -468,7 +473,7 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Salário')
 
-    expect(['Salário', 'Mercado', 'Antigo sem tipo'].map((l) => rowOf(l).children[3].textContent)).toEqual(
+    expect(['Salário', 'Mercado', 'Antigo sem tipo'].map((l) => rowOf(l).children[4].textContent)).toEqual(
       ['+ R$ 1.500,00', '- R$ 30,00', '- R$ 10,00'],
     )
   })
@@ -476,7 +481,7 @@ describe('transactions page', () => {
   describe('categories', () => {
     it('are listed alphabetically in the filter and in the form', async () => {
       mockApi({
-        'GET /categories': { data: [{ id: 2, name: 'Transporte' }, { id: 3, name: 'Água' }, { id: 1, name: 'Alimentação' }, { id: 4, name: 'zebra' }] },
+        'GET /families/me': FAMILY, 'GET /categories': { data: [{ id: 2, name: 'Transporte' }, { id: 3, name: 'Água' }, { id: 1, name: 'Alimentação' }, { id: 4, name: 'zebra' }] },
         'POST /transactions': TRANSACTIONS,
       })
       renderApp(<TransactionsDisplay />)
@@ -674,8 +679,112 @@ describe('transactions page', () => {
     })
   })
 
+  describe('who a transaction belongs to', () => {
+    const OWNED = {
+      data: [
+        { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 1 },
+        { ...t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2), user_id: 2 },
+        { ...t(3, 'Mercado', 12000, '2026-03-02T10:00:00', 1), user_id: 2 },
+      ],
+    }
+    const setup = async () => {
+      const api = mockApi({
+        'GET /families/me': FAMILY,
+        'GET /categories': CATEGORIES,
+        'POST /transactions': OWNED,
+        'POST /transactions/create': [{ data: {} }, 201],
+        'PUT /transactions/2': [{ data: {} }, 200],
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      return api
+    }
+    const bodyOf = (api, suffix) => JSON.parse(api.mock.calls.find(([url]) => url.endsWith(suffix))[1].body)
+
+    it('shows the person of each row, with the name for screen readers and on hover', async () => {
+      await setup()
+
+      const bia = within(rowOf('Uber')).getByRole('img', { name: 'Bia Souza' })
+      expect(bia).toHaveAttribute('title', 'Bia Souza')
+      expect(within(rowOf('Almoço')).getByRole('img', { name: 'Clara Battesini' })).toBeInTheDocument()
+    })
+
+    it('has the logged-in person chosen in a new transaction, and sends it', async () => {
+      const api = await setup()
+
+      await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
+      const form = await drawer()
+      expect(form.getByLabelText('Quem')).toHaveValue('1')
+      expect(within(form.getByLabelText('Quem')).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'Clara Battesini',
+        'Bia Souza',
+      ])
+      await userEvent.type(form.getByLabelText('Valor'), '500')
+      await userEvent.type(form.getByLabelText('Descrição'), 'Pão')
+      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await userEvent.selectOptions(form.getByLabelText('Quem'), 'Bia Souza')
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(() => expect(bodyOf(api, '/create').user_id).toBe(2))
+    })
+
+    it('opens an edit with the transaction\'s person, and lets it be changed', async () => {
+      const api = await setup()
+
+      await userEvent.click(rowOf('Uber'))
+      const form = await drawer()
+      expect(form.getByLabelText('Quem')).toHaveValue('2')
+      await userEvent.selectOptions(form.getByLabelText('Quem'), 'Clara Battesini')
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(() => expect(bodyOf(api, '/transactions/2').user_id).toBe(1))
+    })
+
+    it('does not make up a person for one who is no longer in the family', async () => {
+      const api = mockApi({
+        'GET /families/me': FAMILY,
+        'GET /categories': CATEGORIES,
+        'POST /transactions': { data: [{ ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 77 }] },
+        'PUT /transactions/1': [{ data: {} }, 200],
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      expect(within(rowOf('Almoço')).queryByRole('img')).not.toBeInTheDocument()
+      await userEvent.click(rowOf('Almoço'))
+      const form = await drawer()
+      expect(form.getByLabelText('Quem')).toHaveValue('')
+      await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
+      // Nothing is sent for the person, so the server keeps the one it has
+      await waitFor(() => expect(api.mock.calls.some(([url]) => url.endsWith('/transactions/1'))).toBe(true))
+      expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/transactions/1'))[1].body)).not.toHaveProperty('user_id')
+    })
+
+    it('offers the Quem filter even when the family has only one person', async () => {
+      mockApi({
+        'GET /families/me': { data: { me: 1, members: [FAMILY.data.members[0]] } },
+        'GET /categories': CATEGORIES,
+        'POST /transactions': OWNED,
+      })
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await openFilters()
+
+      expect(screen.getByLabelText('Quem')).toBeInTheDocument()
+    })
+
+    it('narrows to one person in the filters', async () => {
+      await setup()
+      await openFilters()
+
+      await userEvent.selectOptions(screen.getByLabelText('Quem'), 'Bia Souza')
+
+      expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['Uber', 'Mercado'])
+    })
+  })
+
   it('tells the user when the transactions could not be loaded', async () => {
-    mockApi({ 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500] })
+    mockApi({ 'GET /families/me': FAMILY, 'GET /categories': [{ detail: 'boom' }, 500], 'POST /transactions': [{ detail: 'boom' }, 500] })
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
     renderApp(<TransactionsDisplay />)

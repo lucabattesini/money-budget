@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from api.repositories.families_repo import get_family
+from api.repositories.families_repo import get_family, is_member
 from api.repositories.transactions_repo import (
     category_exists,
 )
@@ -49,9 +49,16 @@ def _parse_date(transaction: GetTransactionsParams):
     return start, end
 
 
+def _check_person(db: Session, person_id: int | None, family_id: int):
+    """The person a transaction belongs to must be in the family. Same answer for "missing" and "another family's"."""
+    if person_id is not None and not is_member(db, person_id, family_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+
+
 def create_transaction(db: Session, transaction: Transaction, family_id: int, user_id: int):
     if transaction.category_id is not None and not category_exists(db, transaction.category_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    _check_person(db, transaction.user_id, family_id)
     # No date given: "now" on the family's clock, not the server's (TKT-65)
     transaction.transactioned_at = transaction.transactioned_at or family_now(get_family(db, family_id).timezone)
     return create_transaction_repo(db, transaction, family_id, user_id)
@@ -78,6 +85,7 @@ def delete_transaction(db: Session, id, family_id: int):
 def update_transaction(db: Session, id: int, changes: TransactionUpdate, family_id: int):
     if not category_exists(db, changes.category_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    _check_person(db, changes.user_id, family_id)
     # Same answer for "missing" and "another family's", so other families' ids are not revealed
     transaction = update_transaction_repo(db, id, family_id, changes)
     if transaction is None:
@@ -91,4 +99,5 @@ def update_transaction(db: Session, id: int, changes: TransactionUpdate, family_
         "created_at": transaction.created_at,
         "updated_at": transaction.updated_at,
         "category_id": transaction.category_id,
+        "user_id": transaction.user_id,
     }

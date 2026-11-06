@@ -80,6 +80,11 @@ def set_checked_rows(db: Session, job: ImportJobDB, column_map: dict, rows: list
     db.commit()
 
 
+def set_rows(db: Session, job: ImportJobDB, rows: list[dict]) -> None:
+    job.rows = rows  # a new list, so the change is noticed
+    db.commit()
+
+
 def set_category_map(db: Session, job: ImportJobDB, category_map: dict) -> None:
     job.category_map = category_map  # a new dict, so the change is noticed
     db.commit()
@@ -170,7 +175,7 @@ def add_transactions(db: Session, family_id: int, user_id: int, items: list[dict
     db.add_all(
         TransactionDB(
             family_id=family_id,
-            user_id=user_id,
+            user_id=item.get("user_id") or user_id,  # the file may name a person; else whoever imports
             label=item["label"],
             value=item["value"],
             type=item["type"],
