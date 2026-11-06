@@ -1,0 +1,15 @@
+# Keeps secrets and bulk out of the production image (the build context is the repository root)
+.git
+.github
+.env
+.env.*
+!.env.example
+docs
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.venv
+back-end/tests
+**/*.db

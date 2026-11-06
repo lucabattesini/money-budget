@@ -1,0 +1,94 @@
+name: Deploy
+
+# Every push to main (a merged pull request) is tested, linted and then deployed to Google Cloud Run.
+# One-time setup and how to roll back: docs/DEPLOY.md
+on:
+  push:
+    branches: [main]
+
+# One deploy at a time, and never cancel one half way
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
+  lint:
+    name: Lint
+    uses: ./.github/workflows/lint.yml
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: [tests, lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # lets GitHub prove to Google who it is (no key file anywhere)
+
+    env:
+      # Names, not secrets: set under Settings > Secrets and variables > Actions > Variables
+      PROJECT: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      SQL_INSTANCE: ${{ vars.GCP_SQL_INSTANCE }} # project:region:instance
+      RUNTIME_SA: ${{ vars.GCP_RUNTIME_SA }}
+      DB_USER: ${{ vars.DB_USER }}
+      DB_NAME: ${{ vars.DB_NAME }}
+      SERVICE: money-budget
+      MIGRATE_JOB: money-budget-migrate
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/money-budget/app:${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Let Docker push to Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push the image
+        run: |
+          docker build -t "$IMAGE" --build-arg VITE_GOOGLE_CLIENT_ID="${{ vars.GOOGLE_CLIENT_ID }}" .
+          docker push "$IMAGE"
+
+      # The same image and settings as the service. It runs to the end before the service gets the new version, and a
+      # failed migration fails this step, so nothing is deployed on a half-migrated database.
+      - name: Run the database migrations
+        run: |
+          gcloud run jobs deploy "$MIGRATE_JOB" \
+            --image "$IMAGE" --region "$REGION" \
+            --service-account "$RUNTIME_SA" \
+            --set-cloudsql-instances "$SQL_INSTANCE" \
+            --set-env-vars "^|^DB_URL=postgresql+psycopg2://${DB_USER}@/${DB_NAME}?host=/cloudsql/${SQL_INSTANCE}|DB_POOL_SIZE=1|DB_MAX_OVERFLOW=0" \
+            --set-secrets "DB_PASSWORD=mb-db-password:latest" \
+            --command python --args=-m,db.upgrade \
+            --max-retries 0 --task-timeout 10m
+          gcloud run jobs execute "$MIGRATE_JOB" --region "$REGION" --wait
+
+      - name: Deploy the new version
+        run: |
+          PROJECT_NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+          # Cloud Run gives a service this address, so it is known before the first deploy
+          URL="https://${SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" --region "$REGION" \
+            --service-account "$RUNTIME_SA" \
+            --set-cloudsql-instances "$SQL_INSTANCE" \
+            --set-env-vars "^|^DB_URL=postgresql+psycopg2://${DB_USER}@/${DB_NAME}?host=/cloudsql/${SQL_INSTANCE}|DB_POOL_SIZE=2|DB_MAX_OVERFLOW=0|FRONT_URL=${URL}|GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}" \
+            --set-secrets "DB_PASSWORD=mb-db-password:latest,JWT_SECRET=mb-jwt-secret:latest" \
+            --max-instances 2 --min-instances 0 --cpu 1 --memory 512Mi \
+            --no-cpu-throttling \
+            --quiet
+          echo "Deployed: $URL" >> "$GITHUB_STEP_SUMMARY"
