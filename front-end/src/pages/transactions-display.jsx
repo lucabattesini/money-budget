@@ -244,7 +244,7 @@ export default function TransactionsDisplay() {
                 {loading && <SpinnerLoading/>}
 
                 {!loading && visibleGroups.length > 0 && (
-                    <Table.ScrollArea w="full" overflowX={{ base: "hidden", md: "auto" }} borderWidth={{ base: 0, md: "1px" }}>
+                    <Table.ScrollArea w="full" overflowX={{ base: "hidden", md: "auto" }} borderWidth={0}>
                         <Table.Root size="sm" display={{ base: "block", md: "table" }}>
                             <Table.Body display={{ base: "block", md: "table-row-group" }}>
                                 {visibleGroups.map((group) => (
