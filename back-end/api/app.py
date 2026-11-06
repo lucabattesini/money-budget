@@ -25,7 +25,14 @@ from api.routers import (
 )
 from config import FRONT_URL, STATIC_DIR
 
-app = FastAPI()
+# The generated API pages list every address and are of no use to the people of a deployed app, so they are only served
+# in development (where the web app is not served by this server)
+_serving_web_app = bool(STATIC_DIR and Path(STATIC_DIR).is_dir())
+app = FastAPI(
+    docs_url=None if _serving_web_app else "/docs",
+    redoc_url=None if _serving_web_app else "/redoc",
+    openapi_url=None if _serving_web_app else "/openapi.json",
+)
 
 UPLOAD_OVERHEAD = 1024 * 1024  # the rest of the form around the file
 
@@ -63,5 +70,5 @@ app.include_router(whatsapp_router.router)
 
 # In production the same server serves the web app (a hash-routed single page, so every address is "/" plus files).
 # Mounted last: every API address above wins over a file of the same name.
-if STATIC_DIR and Path(STATIC_DIR).is_dir():
+if _serving_web_app:
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="web")

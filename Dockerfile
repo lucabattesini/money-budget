@@ -34,6 +34,7 @@ RUN useradd --system --no-create-home app
 USER app
 
 EXPOSE 8080
-# No --reload; the host (Cloud Run) says which port with $PORT. Migrations are NOT run here: they are a separate step
-# of the deploy (python -m db.upgrade), so a failed one stops the release before it gets traffic.
-CMD ["sh", "-c", "exec uvicorn api.app:app --host 0.0.0.0 --port ${PORT}"]
+# No --reload. The host (Cloud Run) says which port with $PORT, and terminates HTTPS in front (--proxy-headers keeps
+# redirects on https). Migrations are NOT run here: they are a separate step of the deploy (python -m db.upgrade), so a
+# failed one stops the release before it gets traffic.
+CMD ["sh", "-c", "exec uvicorn api.app:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips=*"]
