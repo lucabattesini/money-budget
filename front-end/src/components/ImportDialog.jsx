@@ -438,19 +438,24 @@ function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCate
     );
 }
 
-// Step 5: for each name of the Pessoa column that no member of the family was matched to, choose who it stands for.
-function PeopleStep({ unknown, members, choices, setChoices, error }) {
+// Step 6: every name of the Pessoa column and the member it stands for. The ones that match a member's name come
+// already chosen, and any of them can be changed; the others have to be chosen.
+function PeopleStep({ people, members, choices, setChoices, error }) {
+    const unmatched = people.filter((item) => item.user_id == null).length;
     return (
         <Stack gap={5}>
             <Section
                 title="Pessoas do arquivo"
-                hint={`O arquivo tem ${unknown.length === 1 ? "um nome que não é de ninguém da sua família" : `${unknown.length} nomes que não são de ninguém da sua família`}. Para cada um, escolha a quem as transações dele pertencem. Nada é salvo até o último passo.`}
+                hint={`Cada nome da coluna Pessoa precisa de um membro da família. Os que têm o mesmo nome de alguém já vêm escolhidos, mas você pode trocar.${unmatched > 0 ? ` ${unmatched === 1 ? "Um nome" : `${unmatched} nomes`} sem correspondência: escolha a quem pertence.` : ""} Nada é salvo até o último passo.`}
             >
-                <Stack as="ul" gap={4} m={0} p={0} aria-label="Pessoas do arquivo sem correspondência">
-                    {unknown.map((item) => (
+                <Stack as="ul" gap={4} m={0} p={0} aria-label="Pessoas do arquivo">
+                    {people.map((item) => (
                         <Field.Root as="li" key={item.name}>
                             <Field.Label>
                                 &ldquo;{item.name}&rdquo; ({item.rows === 1 ? "1 linha" : `${item.rows} linhas`})
+                                <Badge colorPalette={item.user_id == null ? "orange" : "green"} variant="subtle">
+                                    {item.user_id == null ? "Sem correspondência" : "Reconhecido pelo nome"}
+                                </Badge>
                             </Field.Label>
                             <NativeSelect.Root>
                                 <NativeSelect.Field
@@ -543,7 +548,7 @@ export default function ImportDialog({ open, onClose }) {
     const [categories, setCategories] = useState([]);
     const [groups, setGroups] = useState([]);
     const [categoryError, setCategoryError] = useState("");
-    const [unknownPeople, setUnknownPeople] = useState([]); // the names of the Pessoa column to settle
+    const [filePeople, setFilePeople] = useState([]); // the names of the Pessoa column, with the member each was matched to
     const [peopleChoices, setPeopleChoices] = useState({}); // the member chosen for each ("" while not chosen)
     const [peopleError, setPeopleError] = useState("");
     const [busy, setBusy] = useState(false);
@@ -602,9 +607,10 @@ export default function ImportDialog({ open, onClose }) {
 
     // After the categories: to the names of the Pessoa column that matched nobody, or to confirming
     const toPeopleOrConfirm = (current) => {
-        const people = current.unknown_people ?? [];
-        setUnknownPeople(people);
-        setPeopleChoices(Object.fromEntries(people.map((item) => [item.name, ""])));
+        const people = current.people ?? [];
+        setFilePeople(people);
+        // What the server matched by itself is already chosen, and can be changed; the others wait for a choice
+        setPeopleChoices(Object.fromEntries(people.map((item) => [item.name, item.user_id == null ? "" : String(item.user_id)])));
         setPeopleError("");
         setStep(people.length > 0 ? "people" : "confirm");
     };
@@ -678,7 +684,7 @@ export default function ImportDialog({ open, onClose }) {
     const handlePeopleChosen = async () => {
         setBusy(true);
         setPeopleError("");
-        const mapping = Object.fromEntries(unknownPeople.map((item) => [item.name, Number(peopleChoices[item.name])]));
+        const mapping = Object.fromEntries(filePeople.map((item) => [item.name, Number(peopleChoices[item.name])]));
         const result = await chooseImportPeople(job.id, mapping, getToken());
         setBusy(false);
         if (!result.ok) {
@@ -696,7 +702,7 @@ export default function ImportDialog({ open, onClose }) {
             setChecked(false);
             setCheckError(null);
         }
-        setStep(step === "confirm" ? (unknownPeople.length > 0 ? "people" : unknown.length > 0 ? "categories" : "check") : BACK[step]);
+        setStep(step === "confirm" ? (filePeople.length > 0 ? "people" : unknown.length > 0 ? "categories" : "check") : BACK[step]);
     };
 
     const handleStart = async () => {
@@ -711,7 +717,7 @@ export default function ImportDialog({ open, onClose }) {
 
     const taken = usedColumns(choice, formats);
     const columnsReady = job && FIELDS.filter((f) => f.required).every((f) => choice[f.name] !== "" && choice[f.name] !== undefined) && taken.length === new Set(taken).size;
-    const allPeopleChosen = unknownPeople.length > 0 && unknownPeople.every((item) => /^\d+$/.test(peopleChoices[item.name] ?? ""));
+    const allPeopleChosen = filePeople.length > 0 && filePeople.every((item) => /^\d+$/.test(peopleChoices[item.name] ?? ""));
     const allChosen = unknown.length > 0 && unknown.every((item) => /^\d+$/.test(rows[item.name]?.value ?? ""));
 
     return (
@@ -750,7 +756,7 @@ export default function ImportDialog({ open, onClose }) {
                             )}
                             {step === "people" && job && (
                                 <PeopleStep
-                                    unknown={unknownPeople}
+                                    people={filePeople}
                                     members={job.members ?? []}
                                     choices={peopleChoices}
                                     setChoices={setPeopleChoices}

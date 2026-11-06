@@ -779,12 +779,14 @@ describe('import dialog', () => {
 
   describe('the people of the file', () => {
     const MEMBERS = [{ id: 1, name: 'Clara' }, { id: 2, name: 'Bia Souza' }]
-    const BIA = { name: 'Bia', rows: 2 }
-    const withPeople = (unknown_people, extra = {}) => ({
-      ...imports({ unknown_people, members: MEMBERS }),
+    const BIA = { name: 'Bia', rows: 2, user_id: null } // matched nobody
+    const MATCHED = { name: 'Bia Souza', rows: 1, user_id: 2 } // matched a member by its name
+    const withPeople = (people, extra = {}) => ({
+      ...imports({ people, unknown_people: people.filter((p) => p.user_id == null), members: MEMBERS }),
       ...extra,
     })
     const putPeople = (api) => JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/people'))[1].body)
+    const saved = { 'PUT /imports/5/people': [{ data: job({ people: [], unknown_people: [], members: MEMBERS }) }, 200] }
 
     it('says what an empty Pessoa means, and does not say Débito for it', async () => {
       mockApi(imports())
@@ -796,7 +798,7 @@ describe('import dialog', () => {
       expect(screen.getByText('Tipo (opcional, se vazio é Débito)')).toBeInTheDocument()
     })
 
-    it('goes straight to confirming when every name matched a member', async () => {
+    it('goes straight to confirming when the file has no names in the Pessoa column', async () => {
       mockApi(withPeople([]))
       open()
 
@@ -806,26 +808,54 @@ describe('import dialog', () => {
       expect(screen.queryByText('Pessoas do arquivo')).not.toBeInTheDocument()
     })
 
-    it('asks, for each name that matched nobody, which member it stands for, and cannot go on until all are chosen', async () => {
-      const api = mockApi(
-        withPeople([BIA], { 'PUT /imports/5/people': [{ data: job({ unknown_people: [], members: MEMBERS }) }, 200] }),
-      )
+    it('shows the member a name was matched to, already chosen and saying so, and lets the person change it', async () => {
+      const api = mockApi(withPeople([MATCHED], saved))
       open()
+      await check()
 
+      expect(await screen.findByText('Pessoas do arquivo')).toBeInTheDocument()
+      expect(screen.getByText('Reconhecido pelo nome')).toBeInTheDocument()
+      const select = screen.getByLabelText('Pessoa para Bia Souza')
+      expect(select).toHaveValue('2')
+      expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled() // nothing is left to choose
+
+      await userEvent.selectOptions(select, 'Clara')
+      await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+
+      expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
+      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': 1 } })
+    })
+
+    it('keeps the matched ones as they are when the person does not change them', async () => {
+      const api = mockApi(withPeople([MATCHED], saved))
+      open()
+      await check()
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Próximo' }))
+
+      await screen.findByText('3 transações serão importadas')
+      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': 2 } })
+    })
+
+    it('asks for a choice for each name that matched nobody, and cannot go on until all are chosen', async () => {
+      const api = mockApi(withPeople([MATCHED, BIA], saved))
+      open()
       await check()
 
       expect(await screen.findByText('Pessoas do arquivo')).toBeInTheDocument()
       expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Pessoas')
+      expect(screen.getByText('Sem correspondência')).toBeInTheDocument()
       expect(screen.getByText(/“Bia” \(2 linhas\)/)).toBeInTheDocument()
       const select = screen.getByLabelText('Pessoa para Bia')
       expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Escolha...', 'Clara', 'Bia Souza'])
+      expect(select).toHaveValue('')
       expect(screen.getByRole('button', { name: 'Próximo' })).toBeDisabled()
 
       await userEvent.selectOptions(select, 'Bia Souza')
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
 
       expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
-      expect(putPeople(api)).toEqual({ mapping: { Bia: 2 } })
+      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': 2, Bia: 2 } })
     })
 
     it('shows the message of the server when the choice is refused and stays on the step', async () => {
@@ -843,9 +873,9 @@ describe('import dialog', () => {
     it('comes after the categories when the file also has unknown ones, and going back returns to them', async () => {
       mockApi({
         ...withPeople([BIA], {
-          'PUT /imports/5/categories': [{ data: job({ unknown_people: [BIA], members: MEMBERS }) }, 200],
+          'PUT /imports/5/categories': [{ data: job({ people: [BIA], unknown_people: [BIA], members: MEMBERS }) }, 200],
         }),
-        'PUT /imports/5/columns': [{ data: job({ unknown_categories: [PETS], unknown_people: [BIA], members: MEMBERS }) }, 200],
+        'PUT /imports/5/columns': [{ data: job({ unknown_categories: [PETS], people: [BIA], unknown_people: [BIA], members: MEMBERS }) }, 200],
         'GET /categories': CATEGORIES,
         'GET /categories/groups': GROUPS,
       })

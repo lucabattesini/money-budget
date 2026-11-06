@@ -146,8 +146,8 @@ flowchart TB
   row the way steps 2 and 3 said, by itself; it shows "tudo certo" or lists all the problems with their row (nothing
   is imported, and the person can go back to change columns or formats); 5) for each category in the file the family does not
   have, pick an existing one or create it (name and group) without leaving the dialog, skipped when nothing is
-  unknown; 6) for each name of the Pessoa column that matched no member, choose which member it stands for, skipped when
-  there is none; 7) confirm, with the number of transactions to import, how the dates were read and the list of those the
+  unknown; 6) for each name of the Pessoa column, see the member it was matched to by its name (and change it) or choose one
+  when none matched, skipped when the file has no names; 7) confirm, with the number of transactions to import, how the dates were read and the list of those the
   family already has, which will be skipped. "Importar" queues the job and closes the dialog; `lib/importJobs.js`
   (outside React, like the export) polls it and announces how many rows were imported and skipped. Cancelling throws the checked file away). Toasts are mounted once, in the layout. The logo in the header links home.
 - `components/Chatbot.jsx` gives the same conversational flow as WhatsApp
@@ -605,10 +605,12 @@ server between them. The job goes `staged -> queued -> running -> done | failed`
    file writes things, then checks **every** row before anything is kept. `mapping` is the position of each of Data,
    Descrição, Categoria, Valor, Tipo and Pessoa (only Tipo and Pessoa may be null; a column serves one field only). Pessoa is
    the name of a member of the family. A name that is exactly one member's (case and accents ignored) is matched by
-   itself and an empty cell means the person importing; any other name (not a member, or shared by two members) is not
-   a problem of the row but a choice: the check lists these in `unknown_people` (`{name, rows}`, with the family's
-   `members`), `PUT /imports/{id}/people {mapping: {name in file: user id}}` records which member each stands for (a
-   name that is not in the file, or a person outside the family, answers `422`; the choice is kept on the job's rows)
+   itself, an empty cell means the person importing, and the check lists every name of the column in `people`
+   (`{name, rows, user_id}`; `user_id` is the member it was matched to, or null when there is none or when two members
+   share the name; `unknown_people` is the null ones; `members` lists the family). The dialog shows all of them,
+   the matched ones already chosen and marked, and `PUT /imports/{id}/people {mapping: {name in file: user id}}`
+   records which member each stands for, changing the matched ones too when the person says so (a name that is not in the
+   file, or a person outside the family, answers `422`; the choice is kept on the job's rows)
    and `POST /imports/{id}/start` answers `409` while one is left, as it does for categories. The export writes the
    same column. `date_order` is
    `auto`, `day_first` (15/03/2026), `month_first` (03/15/2026) or `iso` (2026-10-13); separators `/ - .` are accepted,
