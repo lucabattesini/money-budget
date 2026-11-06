@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { renderApp } from '../test/helpers'
 import TopCategoriesBarList from './TopCategoriesBarList'
@@ -52,5 +53,33 @@ describe('TopCategoriesBarList', () => {
 
     expect(screen.getByText('Nenhum gasto registrado.')).toBeInTheDocument()
     expect(screen.queryByText('Categoria 1')).not.toBeInTheDocument()
+  })
+
+  it('has a button to see every category when there are more than five, and one to go back', async () => {
+    const transactions = [1, 2, 3, 4, 5, 6, 7].map((id) => tx(id, id * 1000))
+    renderApp(<TopCategoriesBarList categories={categories} transactions={transactions} />)
+    const button = screen.getByRole('button', { name: 'Ver todas (7)' })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(button)
+
+    for (const id of [1, 2, 3, 4, 5, 6, 7]) expect(screen.getByText(`Categoria ${id}`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mostrar menos' })).toHaveAttribute('aria-expanded', 'true')
+    // still biggest first, all the way down
+    const last = screen.getByText('Categoria 1')
+    expect(screen.getByText('Categoria 3').compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mostrar menos' }))
+
+    expect(screen.queryByText('Categoria 1')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver todas (7)' })).toBeInTheDocument()
+  })
+
+  it('has no button when five categories or fewer fit already', () => {
+    const transactions = [1, 2, 3, 4, 5].map((id) => tx(id, id * 1000))
+
+    renderApp(<TopCategoriesBarList categories={categories} transactions={transactions} />)
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })
