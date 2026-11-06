@@ -141,7 +141,7 @@ def test_the_recorder_is_told_which_language_to_reply_in(db, user, monkeypatch, 
 
     result = ask(user)
 
-    assert seen == {"language": "en", "timezone": "America/Sao_Paulo"}
+    assert seen == {"language": "en", "timezone": "America/Sao_Paulo", "merchants_enabled": False}
     assert result["final_response"].startswith("I couldn't find any expense")
 
 

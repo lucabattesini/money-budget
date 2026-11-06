@@ -25,11 +25,11 @@ beforeEach(() => saveToken('tok'))
 
 describe('layout', () => {
   it('forgets the family\'s settings when the person logs out', async () => {
-    setLocale({ currency: 'USD', language: 'en' })
+    setLocale({ currency: 'USD', language: 'en', merchants_enabled: true })
 
     removeToken()
 
-    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo' })
+    expect(getLocale()).toEqual({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo', merchantsEnabled: false })
   })
 
   it('loads the currency and language of the family and every page shows them', async () => {

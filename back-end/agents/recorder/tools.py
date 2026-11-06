@@ -1,3 +1,4 @@
+import copy
 from typing import get_args
 
 from schemas.agents_schemas import CategoryType
@@ -45,3 +46,20 @@ RECORDER_TOOLS = {
         }
     ]
 }
+
+
+MERCHANT_PROPERTY = {
+    "type": "string",
+    "description": 'The place or company the money went to, only when the user names one (e.g. "Uber", "iFood", "Netflix"). Omit it otherwise.',
+}
+
+
+def recorder_tools(merchants_enabled: bool = False) -> dict:
+    """The tool the recorder is given. The merchant is only offered while the family has merchants on."""
+    if not merchants_enabled:
+        return RECORDER_TOOLS
+    tools = copy.deepcopy(RECORDER_TOOLS)
+    tools["function_declarations"][0]["parameters"]["properties"]["items"]["items"]["properties"]["merchant"] = (
+        MERCHANT_PROPERTY
+    )
+    return tools

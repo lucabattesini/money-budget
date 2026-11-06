@@ -12,7 +12,7 @@ from openpyxl import Workbook
 from api.controllers import imports_controller
 from api.routers import imports_router
 from api.utils.clock import family_today
-from schemas.tables import Categories, Families, ImportJobDB, TransactionDB
+from schemas.tables import Categories, Families, ImportJobDB, Merchants, TransactionDB
 
 HEADER = "Data;Descrição;Categoria;Valor;Tipo"
 GOOD_ROW = "15/03/2026;Almoço;Restaurantes e Bares;1.234,56;Débito"
@@ -222,13 +222,29 @@ def test_uploading_only_reads_the_file_so_even_a_file_full_of_mistakes_gets_to_t
 def test_the_columns_named_like_the_fields_are_suggested_even_with_other_case_or_no_accents(client, auth_headers):
     job = _upload(client, auth_headers, _csv("1;2;3;4;5", header="valor;DESCRICAO;Banco;data;categoria")).json()["data"]
 
-    assert job["suggested_map"] == {"Data": 3, "Descrição": 1, "Categoria": 4, "Valor": 0, "Tipo": None, "Pessoa": None}
+    assert job["suggested_map"] == {
+        "Data": 3,
+        "Descrição": 1,
+        "Categoria": 4,
+        "Valor": 0,
+        "Tipo": None,
+        "Pessoa": None,
+        "Estabelecimento": None,
+    }
 
 
 def test_a_file_from_the_export_has_every_column_suggested(client, auth_headers):
     job = _upload(client, auth_headers, _csv(GOOD_ROW)).json()["data"]
 
-    assert job["suggested_map"] == {"Data": 0, "Descrição": 1, "Categoria": 2, "Valor": 3, "Tipo": 4, "Pessoa": None}
+    assert job["suggested_map"] == {
+        "Data": 0,
+        "Descrição": 1,
+        "Categoria": 2,
+        "Valor": 3,
+        "Tipo": 4,
+        "Pessoa": None,
+        "Estabelecimento": None,
+    }
 
 
 def test_a_column_is_suggested_for_one_field_only(client, auth_headers):
@@ -267,6 +283,7 @@ def test_the_person_can_say_which_column_is_which_when_the_names_do_not_match(cl
         "Valor": None,
         "Tipo": None,
         "Pessoa": None,
+        "Estabelecimento": None,
     }
 
     response = _match(client, auth_headers, uploaded["id"], OTHER_MAPPING)
@@ -344,14 +361,47 @@ def test_rows_that_do_not_fit_the_chosen_columns_are_listed_and_the_person_can_c
     assert _match(client, auth_headers, uploaded["id"], OTHER_MAPPING).status_code == 200
 
 
-def test_matching_again_starts_the_categories_over(client, db, auth_headers, category_ids):
+def test_matching_again_without_changes_leaves_the_choices_alone(client, db, user, auth_headers, category_ids):
     job = _stage(client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito")
+    assert job["new_categories"] == [{"name": "Pets", "rows": 1, "category_id": None}]
     _choose(client, auth_headers, job["id"], {"Pets": category_ids["Aluguel"]})
-    assert client.get(f"/imports/{job['id']}", headers=auth_headers).json()["data"]["unknown_categories"] == []
+    before = db.query(ImportJobDB).one().rows
 
     again = _match(client, auth_headers, job["id"], job["column_map"]).json()["data"]
 
-    assert [c["name"] for c in again["unknown_categories"]] == ["Pets"]
+    assert again["unknown_categories"] == []  # still settled
+    assert again["new_categories"] == [{"name": "Pets", "rows": 1, "category_id": category_ids["Aluguel"]}]
+    db.expire_all()
+    assert db.query(ImportJobDB).one().rows == before
+
+
+def test_matching_again_with_other_columns_keeps_the_choices_about_names_still_in_the_file(
+    client, db, auth_headers, category_ids
+):
+    job = _stage(client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito")
+    _choose(client, auth_headers, job["id"], {"Pets": category_ids["Aluguel"]})
+
+    again = _match(client, auth_headers, job["id"], {**job["column_map"], "Tipo": None}, sign="negative_debit").json()[
+        "data"
+    ]
+
+    assert [r["type"] for r in db.query(ImportJobDB).one().rows] == ["credit"]  # the rows really changed
+    assert again["unknown_categories"] == []
+    assert again["new_categories"][0]["category_id"] == category_ids["Aluguel"]
+
+
+def test_matching_again_keeps_who_the_person_chose_for_a_name(client, db, user, auth_headers, make_user):
+    partner = _partner(db, user, make_user)
+    job = _stage_people(client, auth_headers, "15/03/2026;Mercado;Aluguel;10,00;Débito;Apelido")
+    _choose_people(client, auth_headers, job["id"], {"Apelido": partner.id})
+
+    same = _match(client, auth_headers, job["id"], job["column_map"]).json()["data"]
+    changed = _match(
+        client, auth_headers, job["id"], {**job["column_map"], "Tipo": None}, sign="negative_debit"
+    ).json()["data"]
+
+    assert same["people"] == [{"name": "Apelido", "rows": 1, "user_id": partner.id}]
+    assert changed["people"] == [{"name": "Apelido", "rows": 1, "user_id": partner.id}]
 
 
 def test_categories_and_starting_wait_for_the_columns(client, db, auth_headers, category_ids):
@@ -1504,3 +1554,97 @@ def test_a_file_without_unknown_people_asks_nothing(client, auth_headers):
     )
 
     assert job["unknown_people"] == []
+
+
+# --- the merchant (TKT-58) -------------------------------------------------------------------------------------------
+
+MERCHANT_HEADER = "Data;Descrição;Categoria;Valor;Tipo;Estabelecimento"
+
+
+def _turn_merchants(client, headers, on=True):
+    assert client.patch("/families/me/settings", json={"merchants_enabled": on}, headers=headers).status_code == 200
+
+
+def _import_merchants(client, queue, headers, *lines):
+    return _import_with_header(client, queue, headers, MERCHANT_HEADER, *lines)
+
+
+def _import_with_header(client, queue, headers, header, *lines):
+    uploaded = _upload(client, headers, _csv(*lines, header=header)).json()["data"]
+    assert uploaded["suggested_map"]["Estabelecimento"] == 5
+    assert _match(client, headers, uploaded["id"], uploaded["suggested_map"]).status_code == 200
+    assert _start(client, headers, uploaded["id"]).status_code == 202
+    queue.run()
+    return client.get(f"/imports/{uploaded['id']}", headers=headers).json()["data"]
+
+
+def _merchant_names(db, user):
+    return {t.label: (db.get(Merchants, t.merchant_id).name if t.merchant_id else None) for t in _saved(db, user)}
+
+
+def test_the_merchant_column_uses_the_merchants_the_family_has_and_creates_the_others(
+    client, db, user, auth_headers, queue
+):
+    _turn_merchants(client, auth_headers)
+    uber = Merchants(family_id=user.family_id, name="Uber")
+    db.add(uber)
+    db.commit()
+
+    job = _import_merchants(
+        client,
+        queue,
+        auth_headers,
+        "15/03/2026;Corrida;Aluguel;10,00;Débito;  🚗 uber ",
+        "16/03/2026;Pizza;Aluguel;20,00;Débito;iFood",
+        "17/03/2026;Doce;Aluguel;5,00;Débito;IFOOD",
+        "18/03/2026;Pão;Aluguel;1,00;Débito;",
+    )
+
+    assert job["status"] == "done"
+    assert _merchant_names(db, user) == {"Corrida": "Uber", "Pizza": "iFood", "Doce": "iFood", "Pão": None}
+    assert sorted(m.name for m in db.query(Merchants).filter_by(family_id=user.family_id)) == [
+        "Uber",
+        "iFood",
+    ]  # one iFood
+    assert {t.label: t.merchant_id for t in _saved(db, user)}["Corrida"] == uber.id  # the family's own was reused
+
+
+def test_the_merchant_column_is_ignored_while_the_family_has_merchants_off(client, db, user, auth_headers, queue):
+    job = _import_merchants(client, queue, auth_headers, "15/03/2026;Corrida;Aluguel;10,00;Débito;Uber")
+
+    assert job["status"] == "done"
+    assert _merchant_names(db, user) == {"Corrida": None}
+    assert db.query(Merchants).count() == 0
+
+
+def test_merchants_are_never_taken_from_or_created_in_another_family(
+    client, db, user, other_user, auth_headers, headers_for, queue
+):
+    _turn_merchants(client, auth_headers)
+    theirs = Merchants(family_id=other_user.family_id, name="Uber")
+    db.add(theirs)
+    db.commit()
+
+    _import_merchants(client, queue, auth_headers, "15/03/2026;Corrida;Aluguel;10,00;Débito;Uber")
+
+    [row] = _saved(db, user)
+    assert row.merchant_id != theirs.id
+    assert db.get(Merchants, row.merchant_id).family_id == user.family_id
+
+
+def test_a_merchant_that_is_too_long_or_has_no_words_is_a_problem_of_its_row(client, db, user, auth_headers):
+    uploaded = _upload(
+        client,
+        auth_headers,
+        _csv(
+            f"15/03/2026;Corrida;Aluguel;10,00;Débito;{'x' * 101}",
+            "16/03/2026;Pizza;Aluguel;10,00;Débito;🍕",
+            header=MERCHANT_HEADER,
+        ),
+    ).json()["data"]
+
+    response = _match(client, auth_headers, uploaded["id"], uploaded["suggested_map"])
+
+    assert response.status_code == 422
+    assert [row for row, _message in _problems(response)] == [2, 3]
+    assert db.query(Merchants).count() == 0

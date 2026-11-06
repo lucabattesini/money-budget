@@ -38,7 +38,7 @@ export const TIMEZONES = [
   { code: 'UTC', label: 'UTC' },
 ]
 
-const DEFAULT = Object.freeze({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo' })
+const DEFAULT = Object.freeze({ currency: 'BRL', language: 'pt', timezone: 'America/Sao_Paulo', merchantsEnabled: false })
 const BCP47 = { pt: 'pt-BR', en: 'en-US' } // the language tag each language is formatted with
 
 let current = DEFAULT
@@ -47,13 +47,14 @@ const listeners = new Set()
 export const getLocale = () => current
 
 /** Use what the family chose. A value that is not offered is ignored, so a bad answer never breaks the page. */
-export function setLocale({ currency, language, timezone } = {}) {
+export function setLocale({ currency, language, timezone, merchants_enabled: merchantsEnabled } = {}) {
   const next = {
     currency: CURRENCIES.some((c) => c.code === currency) ? currency : current.currency,
     language: LANGUAGES.some((l) => l.code === language) ? language : current.language,
     timezone: TIMEZONES.some((z) => z.code === timezone) ? timezone : current.timezone,
+    merchantsEnabled: typeof merchantsEnabled === 'boolean' ? merchantsEnabled : current.merchantsEnabled,
   }
-  if (next.currency === current.currency && next.language === current.language && next.timezone === current.timezone) return
+  if (Object.keys(next).every((key) => next[key] === current[key])) return
   current = Object.freeze(next)
   listeners.forEach((listener) => listener())
 }
@@ -68,7 +69,7 @@ const subscribe = (listener) => {
   return () => listeners.delete(listener)
 }
 
-/** The family's { currency, language, timezone }; the component shows the new format as soon as it changes. */
+/** The family's { currency, language, timezone, merchantsEnabled }; the component shows the new format as soon as it changes. */
 export const useLocale = () => useSyncExternalStore(subscribe, getLocale)
 
 /** The language tag for Intl and toLocale...String: "pt-BR" or "en-US". */

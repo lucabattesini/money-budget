@@ -72,11 +72,12 @@ def delete_job(db: Session, job: ImportJobDB) -> None:
 
 
 def set_checked_rows(db: Session, job: ImportJobDB, column_map: dict, rows: list[dict]) -> None:
-    """The columns were matched and every row is fine. Choices about categories start over: they were about other rows."""
+    """The columns were matched and every row is fine. The choices about categories stay: they are about names, and a
+    name that is no longer in the file is simply never looked at."""
     job.column_map = column_map
     job.rows = rows
     job.total_rows = len(rows)
-    job.category_map = {}
+    job.category_map = job.category_map or {}
     db.commit()
 
 
@@ -175,6 +176,7 @@ def add_transactions(db: Session, family_id: int, user_id: int, items: list[dict
     db.add_all(
         TransactionDB(
             family_id=family_id,
+            merchant_id=item.get("merchant_id"),
             user_id=item.get("user_id") or user_id,  # the file may name a person; else whoever imports
             label=item["label"],
             value=item["value"],

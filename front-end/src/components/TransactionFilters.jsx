@@ -5,7 +5,7 @@ import { useLocale } from "../lib/locale";
 import AmountInput from "./AmountInput";
 
 // The filter bar above the table. `filters` is controlled by the page.
-export default function TransactionFilters({ filters, onChange, categories, members = [] }) {
+export default function TransactionFilters({ filters, onChange, categories, members = [], merchants = [] }) {
     useLocale(); // the amount fields are written in the family's language
     const set = (name) => (value) => onChange({ ...filters, [name]: value });
 
@@ -33,6 +33,21 @@ export default function TransactionFilters({ filters, onChange, categories, memb
                     <NativeSelect.Indicator />
                 </NativeSelect.Root>
             </Field.Root>
+
+            {merchants.length > 0 && (
+                <Field.Root width="full">
+                    <Field.Label>Estabelecimento</Field.Label>
+                    <NativeSelect.Root size="sm">
+                        <NativeSelect.Field value={filters.merchant} onChange={(e) => set("merchant")(e.target.value)}>
+                            <option value="">Todos</option>
+                            {merchants.map((merchant) => (
+                                <option key={merchant.id} value={merchant.id}>{merchant.name}</option>
+                            ))}
+                        </NativeSelect.Field>
+                        <NativeSelect.Indicator />
+                    </NativeSelect.Root>
+                </Field.Root>
+            )}
 
             {members.length > 0 && (
                 <Field.Root width="full">

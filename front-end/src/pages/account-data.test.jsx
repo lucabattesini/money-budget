@@ -26,10 +26,10 @@ describe('import and export page', () => {
       ['Valor', 'Sim'],
       ['Tipo', 'Não'],
       ['Pessoa', 'Não'],
+      ['Estabelecimento', 'Não'],
     ])
     expect(rows[0][3]).toBe('15/03/2026') // an example for each column
     expect(rows[3][3]).toBe('1.234,56')
-    expect(await screen.findByText('Água')).toBeInTheDocument() // wait for the page to settle
   })
 
   it('explains the file type and the header row', async () => {
@@ -41,38 +41,16 @@ describe('import and export page', () => {
     expect(screen.getByText(/primeira linha tem os nomes das colunas/i)).toBeInTheDocument()
     expect(screen.getByText('.xlsx')).toBeInTheDocument()
     expect(screen.getByText('.csv')).toBeInTheDocument()
-    await screen.findByText('Água')
   })
 
-  it('lists the real categories, alphabetically, as the ones the family already has', async () => {
+  it('makes no request to show the format, and does not list the family\'s categories', () => {
     saveToken('tok')
-    const api = mockApi({ 'GET /categories': CATEGORIES })
-
-    renderApp(<AccountData />)
-
-    const list = within(await screen.findByLabelText('Categorias que você já tem'))
-    expect(list.getAllByText(/./).map((tag) => tag.textContent)).toEqual(['Água', 'Alimentação', 'Transporte'])
-    expect(api.mock.calls[0][1].headers.Authorization).toBe('Bearer tok')
-  })
-
-  it('still shows the format when the categories cannot be loaded', async () => {
-    saveToken('tok')
-    const api = mockApi({ 'GET /categories': [{ detail: 'boom' }, 500] })
-
-    renderApp(<AccountData />)
-
-    expect(screen.getByRole('table', { name: 'Colunas da planilha de importação' })).toBeInTheDocument()
-    await Promise.resolve()
-    expect(requestsMade(api)).toEqual(['GET /categories'])
-    expect(screen.queryByLabelText('Categorias que você já tem')).not.toBeInTheDocument()
-  })
-
-  it('does not ask for categories without a login', () => {
     const api = mockApi({})
 
     renderApp(<AccountData />)
 
     expect(requestsMade(api)).toEqual([])
+    expect(screen.queryByText('Categorias que você já tem')).not.toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Colunas da planilha de importação' })).toBeInTheDocument()
   })
 })
@@ -100,7 +78,6 @@ describe('importing', () => {
     expect(screen.queryByText(/em breve/i)).not.toBeInTheDocument()
     expect(screen.getByText(/nada é importado/i)).toBeInTheDocument()
     expect(screen.getByText(/não duplica nada/i)).toBeInTheDocument()
-    await screen.findByText('Água')
   })
 })
 

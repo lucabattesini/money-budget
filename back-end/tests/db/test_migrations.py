@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0017"
+LATEST = "0018"
 
 
 def _version(engine):
@@ -46,6 +46,7 @@ def test_a_new_database_gets_every_table_and_ends_on_the_latest_revision(url, en
         "export_jobs",
         "budgets",
         "import_jobs",
+        "merchants",
     }
     assert _version(engine) == LATEST
 
@@ -183,6 +184,7 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         ("0015", "0015"),
         ("0016", "0016"),
         ("0017", "0017"),
+        ("0018", "0018"),
     ],
 )
 def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engine, revision, expected_detection):
@@ -1088,3 +1090,35 @@ def test_undoing_the_timezone_revision_drops_only_that_column(url, engine):
     columns = {c["name"] for c in inspect(engine).get_columns("families")}
     assert "timezone" not in columns
     assert {"currency", "language"} <= columns
+
+
+# --- 0018: merchants (TKT-58) --------------------------------------------------------------------------------------------
+
+
+def test_existing_families_have_merchants_off_and_existing_transactions_none(url, engine):
+    upgrade_database(url)
+    command.downgrade(alembic_config(url), "0017")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(
+            text("INSERT INTO users (id, family_id, google_id, name, email) VALUES (1, 1, 'g1', 'Ana', 'a@x.com')")
+        )
+        conn.execute(text("INSERT INTO transactions (family_id, user_id, label, value) VALUES (1, 1, 'a', 10)"))
+
+    command.upgrade(alembic_config(url), "0018")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT merchants_enabled FROM families")).scalar() is False
+        assert conn.execute(text("SELECT merchant_id FROM transactions")).scalar() is None
+        assert conn.execute(text("SELECT count(*) FROM merchants")).scalar() == 0
+
+
+def test_undoing_the_merchants_revision_drops_only_what_it_added(url, engine):
+    upgrade_database(url)
+
+    command.downgrade(alembic_config(url), "0017")
+
+    assert "merchants" not in inspect(engine).get_table_names()
+    assert "merchant_id" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
+    assert "merchants_enabled" not in {c["name"] for c in inspect(engine).get_columns("families")}
+    assert "timezone" in {c["name"] for c in inspect(engine).get_columns("families")}

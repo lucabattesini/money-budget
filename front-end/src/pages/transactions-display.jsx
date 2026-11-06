@@ -1,11 +1,11 @@
 import { Fragment, useState, useEffect } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal } from "@chakra-ui/react";
 import { useLocation } from "react-router-dom";
-import { getTransactions, getAllCategories, getFamily, deleteTransaction } from "../api/endpoints";
+import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
-import { familyNow, formatDate, useLocale } from "../lib/locale";
+import { familyNow, formatDate, setLocale, useLocale } from "../lib/locale";
 import { applyFilters, countActiveFilters, filtersFromLink, hasActiveFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
@@ -13,13 +13,15 @@ import TransactionSummary from "../components/TransactionSummary";
 import TransactionDrawer from "../components/TransactionDrawer";
 import TransactionFilters from "../components/TransactionFilters";
 import PersonAvatar from "../components/PersonAvatar";
+import MerchantTotals from "../components/MerchantTotals";
 import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 // "Todo o Resto" can be long, so it is shown in pages
 const PAGE_SIZE = 10;
 
 export default function TransactionsDisplay() {
-    useLocale(); // amounts and dates follow the family's currency and language
+    const { merchantsEnabled } = useLocale(); // amounts and dates follow the family's currency and language
+    const [merchants, setMerchants] = useState(null); // null: off, or the list could not be loaded (an edit must not touch merchants then)
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [transactions, setTransactions] = useState([]);
@@ -38,7 +40,7 @@ export default function TransactionsDisplay() {
             getAllCategories(token),
             getTransactions({"organized_by": null, "date": null}, token),
             getFamily(token)
-        ]).then(([categoriesData, transactionsData, familyResult]) => {
+        ]).then(async ([categoriesData, transactionsData, familyResult]) => {
             // After an expired login the token is gone and the user is on the login page: no message there
             if ((!categoriesData || !transactionsData) && getToken()) {
                 customToaster("Error", "error", "Não foi possível carregar suas transações. Tente novamente mais tarde.");
@@ -46,6 +48,13 @@ export default function TransactionsDisplay() {
             if (categoriesData) setCategories(categoriesData.data);
             if (transactionsData) setTransactions(transactionsData.data);
             // Without the family the page still works: rows just show no picture
+            if (familyResult?.ok) setLocale(familyResult.data); // the merchants switch
+            if (familyResult?.ok && familyResult.data.merchants_enabled) {
+                const merchantsResult = await getMerchants(token);
+                setMerchants(merchantsResult.ok ? merchantsResult.data : null);
+            } else {
+                setMerchants(null);
+            }
             if (familyResult?.ok) setFamily({ members: familyResult.data.members ?? [], me: familyResult.data.me ?? null });
             setLoading(false);
         });
@@ -112,10 +121,17 @@ export default function TransactionsDisplay() {
     const categoryName = (transaction) =>
         categories?.find((category) => category.id === transaction.category_id)?.name ?? "Categoria não encontrada";
 
+    const merchantName = (transaction) => merchants?.find((merchant) => merchant.id === transaction.merchant_id)?.name;
+
     const renderRow = (transaction) => (
         <Table.Row key={transaction.id} cursor="pointer" _hover={{ bg: "bg.muted" }} onClick={() => setEditing(transaction)}>
             <Table.Cell whiteSpace="nowrap">{formatDate(transaction.transactioned_at)}</Table.Cell>
-            <Table.Cell wordBreak="break-word">{transaction.label}</Table.Cell>
+            <Table.Cell wordBreak="break-word">
+                {transaction.label}
+                {merchantsEnabled && merchantName(transaction) && (
+                    <Text fontSize="xs" color="fg.muted">{merchantName(transaction)}</Text>
+                )}
+            </Table.Cell>
             <Table.Cell color="fg.muted">{categoryName(transaction)}</Table.Cell>
             <Table.Cell width="1%">
                 <PersonAvatar person={family.members.find((member) => member.id === transaction.user_id)} />
@@ -162,6 +178,8 @@ export default function TransactionsDisplay() {
             <Stack minHeight="100vh" gap={6} w="full" maxW="4xl" align="center" justify="flex-start" py={10} px={4}>
                 <TransactionSummary transactions={transactions} />
 
+                {merchantsEnabled && merchants && <MerchantTotals transactions={filtered} merchants={merchants} />}
+
                 <Flex w="full" justify="space-between" align="center">
                     <Text fontSize="lg" fontWeight="bold">Transações</Text>
                     <Flex gap={2}>
@@ -180,6 +198,7 @@ export default function TransactionsDisplay() {
                                                 onChange={changeFilters}
                                                 categories={sortedCategories}
                                                 members={family.members}
+                                                merchants={merchants ?? []}
                                             />
                                         </Popover.Body>
                                     </Popover.Content>
@@ -242,6 +261,7 @@ export default function TransactionsDisplay() {
                 categories={sortedCategories}
                 members={family.members}
                 me={family.me}
+                merchants={merchantsEnabled ? merchants : null}
                 onSaved={reload}
             />
             <TransactionDrawer
@@ -251,6 +271,7 @@ export default function TransactionsDisplay() {
                 categories={sortedCategories}
                 members={family.members}
                 me={family.me}
+                merchants={merchantsEnabled ? merchants : null}
                 onSaved={reload}
             />
         </Center>

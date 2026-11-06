@@ -8,6 +8,7 @@ import { CURRENCIES, familyNow, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
 const MAX_LABEL = 25;
+const MAX_MERCHANT = 100; // the size of the database column
 
 // A label with a red asterisk. The asterisk is drawn by CSS, so the label text stays just the name.
 function RequiredLabel({ children }) {
@@ -28,7 +29,7 @@ const nowTime = () => {
 
 // Side panel with the form for a transaction: a new one, or `transaction` to edit it.
 // Calls onSaved() after the API accepted it.
-export default function TransactionDrawer({ open, onClose, categories, members = [], me = null, onSaved, transaction = null }) {
+export default function TransactionDrawer({ open, onClose, categories, members = [], me = null, merchants = null, onSaved, transaction = null }) {
     const { currency } = useLocale(); // the amount is typed in the family's currency
     const unit = CURRENCIES.find((c) => c.code === currency);
     const editing = transaction !== null;
@@ -38,6 +39,7 @@ export default function TransactionDrawer({ open, onClose, categories, members =
     const [description, setDescription] = useState("");
     const [categoryId, setCategoryId] = useState("");
     const [personId, setPersonId] = useState(""); // who it belongs to
+    const [merchant, setMerchant] = useState(""); // the name typed or picked; only while the family has merchants (a list)
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
 
@@ -53,6 +55,7 @@ export default function TransactionDrawer({ open, onClose, categories, members =
             // A new one belongs to the logged-in person; an edited one to its person (empty if they left the family)
             const person = editing ? transaction.user_id : me;
             setPersonId(members.some((member) => member.id === person) ? String(person) : "");
+            setMerchant(editing ? merchants?.find((m) => m.id === transaction.merchant_id)?.name ?? "" : "");
             setErrors({});
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,6 +87,8 @@ export default function TransactionDrawer({ open, onClose, categories, members =
             transactioned_at: `${date}T${time}`,
             // Left out when unknown: the server then keeps the person (edit) or uses the logged-in one (new)
             ...(personId ? { user_id: Number(personId) } : {}),
+            // "" takes the merchant off an edited transaction; a new one without it simply has none
+            ...(merchants ? { merchant: merchant.trim() } : {}),
         };
         const result = editing
             ? await updateTransaction(transaction.id, payload, getToken())
@@ -173,6 +178,24 @@ export default function TransactionDrawer({ open, onClose, categories, members =
                                     </NativeSelect.Root>
                                     <Field.ErrorText>{errors.category}</Field.ErrorText>
                                 </Field.Root>
+
+                                {merchants && (
+                                    <Field.Root>
+                                        <Field.Label>Estabelecimento</Field.Label>
+                                        <Input
+                                            list="merchant-options"
+                                            maxLength={MAX_MERCHANT}
+                                            value={merchant}
+                                            onChange={(e) => setMerchant(e.target.value)}
+                                            placeholder="Escolha ou digite um novo"
+                                        />
+                                        <datalist id="merchant-options">
+                                            {merchants.map((m) => (
+                                                <option key={m.id} value={m.name} />
+                                            ))}
+                                        </datalist>
+                                    </Field.Root>
+                                )}
 
                                 <Field.Root>
                                     <Field.Label>Quem</Field.Label>

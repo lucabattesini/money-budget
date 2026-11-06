@@ -14,7 +14,7 @@ load_dotenv(os.path.join(backend_dir, ".env"))
 
 from agents.common import extract_tool_calls, today_context
 from agents.recorder.prompt import RECORDER_SYSTEM_PROMPT
-from agents.recorder.tools import RECORD_EXPENSES, RECORDER_TOOLS
+from agents.recorder.tools import RECORD_EXPENSES, recorder_tools
 from config import GEMINI_MODEL
 from schemas.agents_schemas import RecorderResponse, RecordExpensesArgs
 from schemas.family_settings import DEFAULT_TIMEZONE, LANGUAGE_NAMES
@@ -36,8 +36,16 @@ NUMBER_RULES = {
 }
 
 
-def run_recorder(user_input: str, language: str = "pt", timezone: str = DEFAULT_TIMEZONE) -> RecorderResponse:
-    model = genai.GenerativeModel(GEMINI_MODEL, tools=[RECORDER_TOOLS])
+MERCHANT_RULE = (
+    '8. merchant: when the user names the place or company the money went to (e.g. "Uber", "iFood", "Netflix"), '
+    "fill `merchant` with its name as the user wrote it. Do not guess one from the description. Omit it otherwise.\n"
+)
+
+
+def run_recorder(
+    user_input: str, language: str = "pt", timezone: str = DEFAULT_TIMEZONE, merchants_enabled: bool = False
+) -> RecorderResponse:
+    model = genai.GenerativeModel(GEMINI_MODEL, tools=[recorder_tools(merchants_enabled)])
 
     generation_config = genai.GenerationConfig(temperature=0.0)
 
@@ -48,6 +56,7 @@ def run_recorder(user_input: str, language: str = "pt", timezone: str = DEFAULT_
         user_message=user_input,
         language_name=LANGUAGE_NAMES[language],
         number_rule=NUMBER_RULES[language],
+        merchant_rule=MERCHANT_RULE if merchants_enabled else "",
         **today_context(timezone),
     )
 

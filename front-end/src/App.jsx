@@ -16,6 +16,7 @@ import AccountData from './pages/account-data';
 import AccountFamily from './pages/account-family';
 import AccountCategories from './pages/account-categories';
 import AccountPreferences from './pages/account-preferences';
+import AccountMerchants from './pages/account-merchants';
 import { isAuthenticated } from './lib/auth';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
@@ -48,6 +49,7 @@ function App() {
               <Route index element={<Account/>}/>
               <Route path='family' element={<AccountFamily/>}/>
               <Route path='categories' element={<AccountCategories/>}/>
+              <Route path='merchants' element={<AccountMerchants/>}/>
               <Route path='preferences' element={<AccountPreferences/>}/>
               <Route path='data' element={<AccountData/>}/>
             </Route>

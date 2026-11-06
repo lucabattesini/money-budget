@@ -16,6 +16,9 @@ class Transaction(BaseModel):
     type: TransactionType = "debit"
     transactioned_at: Optional[datetime] = None  # empty means now
     user_id: Optional[int] = None  # a member of the family it belongs to; empty means the person adding it
+    merchant: Optional[str] = Field(
+        None, max_length=100
+    )  # the place or company; only while the family has merchants on
 
 
 class TransactionUpdate(BaseModel):
@@ -27,6 +30,7 @@ class TransactionUpdate(BaseModel):
     type: Optional[TransactionType] = None  # None keeps the current type
     transactioned_at: Optional[datetime] = None  # None keeps the current date
     user_id: Optional[int] = None  # a member of the family it belongs to; None keeps the current person
+    merchant: Optional[str] = Field(None, max_length=100)  # None keeps the merchant, "" takes it off
 
 
 class TransactionFilters(BaseModel):
@@ -40,6 +44,7 @@ class TransactionFilters(BaseModel):
     min_value: Optional[int] = Field(None, ge=0)  # cents
     max_value: Optional[int] = Field(None, ge=0)  # cents
     weekdays: Optional[List[int]] = None  # 0 = Sunday ... 6 = Saturday
+    merchant_ids: Optional[List[int]] = None
 
     @model_validator(mode="after")
     def check_ranges(self):
@@ -64,12 +69,16 @@ class TransactionOut(BaseModel):
     category_name: Optional[str] = None
     user_id: Optional[int] = None  # id of the family member it belongs to
     user_name: Optional[str] = None  # and their name, for the export
+    merchant_id: Optional[int] = None
+    merchant_name: Optional[str] = None
 
 
 class TransactionAggregate(BaseModel):
     # Only the key matching the group_by used is filled
     category_id: Optional[int] = None
     category_name: Optional[str] = None
+    merchant_id: Optional[int] = None
+    merchant_name: Optional[str] = None
     period: Optional[str] = None  # "2026", "2026-10" or "2026-10-25"
     weekday: Optional[int] = None  # 0 = Sunday ... 6 = Saturday
     total: int  # cents
@@ -97,6 +106,10 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MerchantName(BaseModel):
+    name: str
 
 
 class CategoryCreate(BaseModel):
@@ -132,6 +145,7 @@ class FamilySettings(BaseModel):
     currency: Optional[Currency] = None
     language: Optional[Language] = None
     timezone: Optional[Timezone] = None
+    merchants_enabled: Optional[bool] = None
 
 
 MONTH_PATTERN = r"^20\d\d-(0[1-9]|1[0-2])$"  # "2026-11"; the years 2000-2099, so every month is a valid date

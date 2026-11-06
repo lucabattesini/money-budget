@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Badge, Box, Button, CloseButton, Dialog, Field, HStack, Heading, Input, NativeSelect, Portal, Spinner, Stack, Table, Text } from "@chakra-ui/react";
-import { LuUpload } from "react-icons/lu";
+import { LuChevronDown, LuChevronUp, LuUpload } from "react-icons/lu";
 import { cancelImport, chooseImportCategories, chooseImportPeople, createCategory, getAllCategories, getCategoryGroups, matchImportColumns, uploadImport } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { followImport, queueImport } from "../lib/importJobs";
-import { formatMoney } from "../lib/locale";
+import { formatMoney, useLocale } from "../lib/locale";
 
 const STEPS = [
     { id: "file", label: "Arquivo" },
@@ -25,8 +25,9 @@ const FIELDS = [
     { name: "Descrição", required: true },
     { name: "Categoria", required: true },
     { name: "Valor", required: true },
-    { name: "Tipo", required: false, ifEmpty: "se vazio é Débito" },
-    { name: "Pessoa", required: false, ifEmpty: "se vazio é quem está importando" },
+    { name: "Tipo", required: false, help: "Se vazio, é Débito." },
+    { name: "Pessoa", required: false, help: "Se vazio, é quem está importando." },
+    { name: "Estabelecimento", required: false, merchants: true, help: "Se vazio, fica sem estabelecimento. Os que você ainda não tem são criados." },
 ];
 
 // How the file writes dates and amounts, and what the sign of the amount means. "Automático" looks at the file.
@@ -53,10 +54,10 @@ const columnLabel = (name, index) => (name ? name : `Coluna ${index + 1} (sem no
 
 const fileDate = (iso) => iso.split("-").reverse().join("/"); // 2026-03-15 -> 15/03/2026, like the file
 
-function StepIndicator({ current }) {
+function StepIndicator({ current, steps = STEPS }) {
     return (
         <HStack as="ol" listStyleType="none" columnGap={5} rowGap={2} flexWrap="wrap" m={0} p={0} aria-label="Passos da importação">
-            {STEPS.map((step, index) => (
+            {steps.map((step, index) => (
                 <HStack as="li" key={step.id} gap={2} aria-current={step.id === current ? "step" : undefined}>
                     <Badge colorPalette={step.id === current ? "blue" : "gray"} variant={step.id === current ? "solid" : "subtle"}>
                         {index + 1}
@@ -74,7 +75,7 @@ function StepIndicator({ current }) {
 function Section({ title, hint, children }) {
     return (
         <Box as="section" borderWidth="1px" borderRadius="lg" p={{ base: 4, md: 5 }}>
-            <Stack gap={4}>
+            <Stack gap={6}>
                 <Stack gap={1}>
                     <Heading as="h3" size="sm">{title}</Heading>
                     {hint && <Text fontSize="sm" color="fg.muted">{hint}</Text>}
@@ -85,9 +86,17 @@ function Section({ title, hint, children }) {
     );
 }
 
-// The positions of the columns in use. The Tipo column is not used when the sign of the amount says the direction.
-function usedColumns(choice, formats) {
-    return FIELDS.filter((field) => formats.sign === "type_column" || field.name !== "Tipo")
+// The fields in use: Tipo is not used when the sign of the amount says the direction, and Estabelecimento only exists
+// while the family has merchants on.
+function fieldsInUse(formats, merchantsEnabled) {
+    return FIELDS.filter(
+        (field) => (formats.sign === "type_column" || field.name !== "Tipo") && (merchantsEnabled || !field.merchants),
+    );
+}
+
+// The positions of the columns in use.
+function usedColumns(choice, formats, merchantsEnabled) {
+    return fieldsInUse(formats, merchantsEnabled)
         .map((field) => choice[field.name])
         .filter((value) => value !== undefined && value !== "");
 }
@@ -136,7 +145,7 @@ function FileStep({ file, setFile, checking, error }) {
         <Stack gap={5}>
             <Section
                 title="Planilha"
-                hint="Escolha o arquivo (.xlsx ou .csv, até 5 MB). Em planilhas, fórmulas precisam ter sido calculadas e salvas no Excel. Nos próximos passos você diz como ele escreve datas e valores e qual coluna é qual, e conferimos o arquivo inteiro antes de salvar qualquer coisa."
+                hint="Arquivo .xlsx ou .csv, até 5 MB. Fórmulas devem estar calculadas e salvas no Excel."
             >
                 <Field.Root invalid={!!error}>
                     <Field.Label>Arquivo</Field.Label>
@@ -206,15 +215,38 @@ function SampleTable({ job }) {
 }
 
 const SAMPLE_TITLE = "Primeiras linhas do arquivo";
-const SAMPLE_HINT = "Use estas linhas para reconhecer as colunas e o jeito de escrever datas e valores.";
+const SAMPLE_HINT = "Confira as colunas, as datas e os valores.";
+
+// The first rows of the file, in a block that can be folded away (open at first), so a step is not crowded.
+function CollapsibleSample({ job }) {
+    const [open, setOpen] = useState(true);
+    return (
+        <Box as="section" borderWidth="1px" borderRadius="lg" p={{ base: 4, md: 5 }}>
+            <Stack gap={4}>
+                <HStack justify="space-between" align="start" gap={3}>
+                    <Stack gap={1}>
+                        <Heading as="h3" size="sm">{SAMPLE_TITLE}</Heading>
+                        <Text fontSize="sm" color="fg.muted">{SAMPLE_HINT}</Text>
+                    </Stack>
+                    <Button size="xs" variant="ghost" aria-expanded={open} aria-controls="import-sample" onClick={() => setOpen((current) => !current)}>
+                        {open ? <LuChevronUp /> : <LuChevronDown />} {open ? "Recolher" : "Mostrar"}
+                    </Button>
+                </HStack>
+                <Box id="import-sample" hidden={!open}>
+                    {open && <SampleTable job={job} />}
+                </Box>
+            </Stack>
+        </Box>
+    );
+}
 
 // Step 2: how the file writes dates and amounts, and what the sign of the amount means; each row is then checked that way.
 function FormatsStep({ job, formats, setFormats }) {
     return (
         <Stack gap={5}>
             <Section
-                title="Como o arquivo escreve os valores"
-                hint="Conferimos cada linha pelo formato que você escolher. No automático, olhamos o arquivo todo; uma data como 05/03/2026, que pode ser dos dois jeitos, é lida como dia/mês/ano, o formato do arquivo que o app exporta."
+                title="Formatos do arquivo"
+                hint="Cada linha é conferida por estes formatos. No automático, o app lê o arquivo; uma data ambígua como 05/03/2026 é dia/mês/ano."
             >
                 <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={5}>
                     <FormatSelect label="Formato das datas" value={formats.dateOrder} options={DATE_FORMATS} onChange={(dateOrder) => setFormats((c) => ({ ...c, dateOrder }))} />
@@ -223,57 +255,50 @@ function FormatsStep({ job, formats, setFormats }) {
                 </Box>
             </Section>
 
-            <Section title={SAMPLE_TITLE} hint={SAMPLE_HINT}>
-                <SampleTable job={job} />
-            </Section>
+            <CollapsibleSample job={job} />
         </Stack>
     );
 }
 
-// Step 3: which column of the file is which field. What has the same name as the field is already chosen.
+// Step 3: which column of the file is which field. What has the same name as the field is already chosen. Required
+// fields have a *; what an empty cell means is written under the field it is about. The sample of the file can be
+// folded away, so the step is not crowded.
 function ColumnsStep({ job, choice, setChoice, formats }) {
-    const taken = usedColumns(choice, formats);
+    const { merchantsEnabled } = useLocale();
+    const taken = usedColumns(choice, formats, merchantsEnabled);
     const repeated = taken.length !== new Set(taken).size;
-    const byType = formats.sign === "type_column"; // otherwise the sign of the amount says it and there is no Tipo column
-    const fields = FIELDS.filter((field) => byType || field.name !== "Tipo");
-    const fieldSelect = (field) => (
-        <Field.Root key={field.name} required={field.required}>
-            <Field.Label>{field.required ? field.name : `${field.name} (opcional, ${field.ifEmpty})`}</Field.Label>
-            <NativeSelect.Root>
-                <NativeSelect.Field
-                    aria-label={`Coluna para ${field.name}`}
-                    value={choice[field.name]}
-                    onChange={(e) => setChoice((current) => ({ ...current, [field.name]: e.target.value }))}
-                >
-                    <option value="">{field.required ? "Escolha..." : "Não usar"}</option>
-                    {job.columns.map((name, index) => (
-                        <option key={index} value={String(index)}>{columnLabel(name, index)}</option>
-                    ))}
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-            </NativeSelect.Root>
-        </Field.Root>
-    );
-    const grid = { display: "grid", gridTemplateColumns: { base: "1fr", md: "repeat(2, 1fr)" }, gap: 5 };
+    const fields = fieldsInUse(formats, merchantsEnabled);
     return (
         <Stack gap={5}>
-            <Section
-                title="Campos obrigatórios"
-                hint="Diga qual coluna do arquivo é cada informação da transação. Depois conferimos todas as linhas; se alguma tiver problema, nada é importado."
-            >
-                <Box {...grid}>{fields.filter((field) => field.required).map(fieldSelect)}</Box>
-                {repeated && <Text color="fg.error" role="alert">Uma mesma coluna não pode ser usada para dois campos.</Text>}
+            <Section title="Colunas do arquivo" hint="Escolha a coluna de cada informação. * obrigatório.">
+            <Box display="grid" gridTemplateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={5}>
+                {fields.map((field) => (
+                    <Field.Root key={field.name} required={field.required}>
+                        <Field.Label>
+                            {field.name}
+                            {field.required && <Field.RequiredIndicator />}
+                        </Field.Label>
+                        <NativeSelect.Root>
+                            <NativeSelect.Field
+                                aria-label={`Coluna para ${field.name}`}
+                                value={choice[field.name]}
+                                onChange={(e) => setChoice((current) => ({ ...current, [field.name]: e.target.value }))}
+                            >
+                                <option value="">{field.required ? "Escolha..." : "Não usar"}</option>
+                                {job.columns.map((name, index) => (
+                                    <option key={index} value={String(index)}>{columnLabel(name, index)}</option>
+                                ))}
+                            </NativeSelect.Field>
+                            <NativeSelect.Indicator />
+                        </NativeSelect.Root>
+                        {field.help && <Field.HelperText>{field.help}</Field.HelperText>}
+                    </Field.Root>
+                ))}
+            </Box>
+            {repeated && <Text color="fg.error" role="alert">Uma mesma coluna não pode ser usada para dois campos.</Text>}
             </Section>
 
-            {fields.some((field) => !field.required) && (
-                <Section title="Campos opcionais" hint="Sem Tipo, tudo entra como débito. Sem Pessoa, as transações ficam com quem está importando.">
-                    <Box {...grid}>{fields.filter((field) => !field.required).map(fieldSelect)}</Box>
-                </Section>
-            )}
-
-            <Section title={SAMPLE_TITLE} hint={SAMPLE_HINT}>
-                <SampleTable job={job} />
-            </Section>
+            <CollapsibleSample job={job} />
         </Stack>
     );
 }
@@ -294,7 +319,7 @@ function HowRead({ job }) {
 function CheckStep({ job, running, error }) {
     return (
         <Stack gap={5}>
-            <Section title="Resultado da conferência" hint="Cada linha do arquivo é conferida pelos formatos e colunas que você escolheu.">
+            <Section title="Resultado da conferência" hint="Cada linha é conferida pelos formatos e colunas escolhidos.">
                 {running && (
                     <HStack>
                         <Spinner size="sm" />
@@ -416,8 +441,8 @@ function CategoriesStep({ unknown, rows, setRows, categories, groups, reloadCate
     return (
         <Stack gap={5}>
             <Section
-                title="Categorias que você ainda não tem"
-                hint={`O arquivo usa ${unknown.length === 1 ? "uma categoria que você ainda não tem" : `${unknown.length} categorias que você ainda não tem`}. Para cada uma, escolha uma categoria que já existe ou crie uma nova. Nada é salvo até o último passo.`}
+                title="Categorias novas"
+                hint={`${unknown.length === 1 ? "1 categoria do arquivo não existe" : `${unknown.length} categorias do arquivo não existem`}. Escolha uma existente ou crie uma nova.`}
             >
                 <Stack as="ul" gap={4} m={0} p={0} aria-label="Categorias do arquivo que não existem">
                     {unknown.map((item) => (
@@ -446,7 +471,7 @@ function PeopleStep({ people, members, choices, setChoices, error }) {
         <Stack gap={5}>
             <Section
                 title="Pessoas do arquivo"
-                hint={`Cada nome da coluna Pessoa precisa de um membro da família. Os que têm o mesmo nome de alguém já vêm escolhidos, mas você pode trocar.${unmatched > 0 ? ` ${unmatched === 1 ? "Um nome" : `${unmatched} nomes`} sem correspondência: escolha a quem pertence.` : ""} Nada é salvo até o último passo.`}
+                hint={`Escolha o membro de cada nome. Nomes iguais aos de um membro já vêm escolhidos.${unmatched > 0 ? ` ${unmatched} sem correspondência.` : ""}`}
             >
                 <Stack as="ul" gap={4} m={0} p={0} aria-label="Pessoas do arquivo">
                     {people.map((item) => (
@@ -502,7 +527,7 @@ function ConfirmStep({ job }) {
             </Section>
 
             {job.skipped_count > 0 && (
-                <Section title="Já existem e serão ignoradas" hint="Mesmo dia, descrição, valor, categoria e tipo de uma transação que você já tem.">
+                <Section title="Já existem e serão ignoradas" hint="Iguais a transações que você já tem (dia, descrição, valor, categoria e tipo).">
                     <Box maxH="48" overflowY="auto">
                         <Table.Root size="sm" aria-label="Transações que serão ignoradas">
                             <Table.Header>
@@ -534,6 +559,7 @@ function ConfirmStep({ job }) {
 
 /** The import in steps: choose the file, settle the categories it mentions, confirm. */
 export default function ImportDialog({ open, onClose }) {
+    const { merchantsEnabled } = useLocale();
     const [step, setStep] = useState("file");
     const [file, setFile] = useState(null);
     const [checking, setChecking] = useState(false);
@@ -618,17 +644,23 @@ export default function ImportDialog({ open, onClose }) {
     // Move on once the columns are matched and every row is fine: to the categories the file needs, or to confirming
     const goOn = async (checked) => {
         setJob(checked);
-        if (checked.unknown_categories.length === 0) {
+        // Every category of the file the family does not have, with the choice already made (the server keeps it, also
+        // when the person comes back and the columns are matched again)
+        const toSettle = checked.new_categories ?? checked.unknown_categories;
+        if (toSettle.length === 0) {
             setUnknown([]);
             toPeopleOrConfirm(checked);
             return;
         }
         const groupList = await loadCategories();
         const fallback = groupList.find((group) => group.name === FALLBACK_GROUP) ?? groupList[0];
-        setUnknown(checked.unknown_categories);
+        setUnknown(toSettle);
         setRows(
             Object.fromEntries(
-                checked.unknown_categories.map((item) => [item.name, { value: "", newName: item.name, groupId: String(fallback?.id ?? "") }]),
+                toSettle.map((item) => [
+                    item.name,
+                    { value: item.category_id == null ? "" : String(item.category_id), newName: item.name, groupId: String(fallback?.id ?? "") },
+                ]),
             ),
         );
         setCategoryError("");
@@ -641,9 +673,9 @@ export default function ImportDialog({ open, onClose }) {
         setBusy(true);
         setCheckError(null);
         setChecked(false);
-        const byType = formats.sign === "type_column";
+        const inUse = fieldsInUse(formats, merchantsEnabled).map((field) => field.name);
         const mapping = Object.fromEntries(
-            FIELDS.map((field) => [field.name, !byType && field.name === "Tipo" ? null : choice[field.name] === "" ? null : Number(choice[field.name])]),
+            FIELDS.map((field) => [field.name, !inUse.includes(field.name) || choice[field.name] === "" ? null : Number(choice[field.name])]),
         );
         const result = await matchImportColumns(job.id, mapping, formats, getToken());
         if (result.ok) {
@@ -715,8 +747,11 @@ export default function ImportDialog({ open, onClose }) {
         followImport(queued); // not awaited: the result is announced even if the user goes elsewhere
     };
 
-    const taken = usedColumns(choice, formats);
+    const taken = usedColumns(choice, formats, merchantsEnabled);
     const columnsReady = job && FIELDS.filter((f) => f.required).every((f) => choice[f.name] !== "" && choice[f.name] !== undefined) && taken.length === new Set(taken).size;
+    // The people step only exists when the file has a Pessoa column with names in it
+    const usesPeople = choice.Pessoa !== undefined && choice.Pessoa !== "" && (job?.people === undefined || job.people.length > 0);
+    const steps = STEPS.filter((item) => item.id !== "people" || usesPeople || step === "people");
     const allPeopleChosen = filePeople.length > 0 && filePeople.every((item) => /^\d+$/.test(peopleChoices[item.name] ?? ""));
     const allChosen = unknown.length > 0 && unknown.every((item) => /^\d+$/.test(rows[item.name]?.value ?? ""));
 
@@ -735,7 +770,7 @@ export default function ImportDialog({ open, onClose }) {
                         <Dialog.Header px={{ base: 4, md: 8 }} pt={{ base: 5, md: 7 }} pb={4}>
                             <Stack gap={4}>
                                 <Dialog.Title>Importar transações</Dialog.Title>
-                                <StepIndicator current={step} />
+                                <StepIndicator current={step} steps={steps} />
                             </Stack>
                         </Dialog.Header>
                         <Dialog.Body px={{ base: 4, md: 8 }} py={5}>

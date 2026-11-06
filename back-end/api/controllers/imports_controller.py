@@ -44,7 +44,7 @@ from api.utils.category_names import name_key
 from api.utils.clock import family_today
 from api.utils.formatting import AMOUNT_STYLES
 from db.connection import session_scope
-from schemas.tables import ImportJobDB
+from schemas.tables import ImportJobDB, Merchants
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +95,32 @@ def _file_people(job: ImportJobDB) -> dict[str, dict]:
     return people
 
 
+def _same_rows(old: list[dict], new: list[dict]) -> bool:
+    """True if the checked rows say the same thing, whoever the person chose for a name since."""
+
+    def plain(rows):
+        return [{key: value for key, value in row.items() if key != "user_id"} for row in rows]
+
+    return plain(old) == plain(new)
+
+
 def _unknown_people(job: ImportJobDB) -> dict[str, dict]:
     """The names of the file that no member stands for yet: the person has to choose."""
     return {key: entry for key, entry in _file_people(job).items() if entry["user_id"] is None}
+
+
+def _merchant_ids(db: Session, family_id: int, names: set[str]) -> dict[str, int]:
+    """(words of the name -> merchant id) for each merchant of the file: the family's own when one has the same words
+    (ignoring case, spaces and emoji), otherwise a new one, created here. Not committed: it goes with the import, so
+    either everything is saved or nothing is."""
+    lookup = {name_key(m.name): m.id for m in db.query(Merchants).filter(Merchants.family_id == family_id)}
+    for name in sorted(names):  # in a fixed order, so the same file always creates them in the same order
+        if name_key(name) not in lookup:
+            merchant = Merchants(family_id=family_id, name=name)
+            db.add(merchant)
+            db.flush()
+            lookup[name_key(name)] = merchant.id
+    return lookup
 
 
 def _category_lookup(db: Session, family_id: int) -> tuple[dict[str, int], set[int]]:
@@ -130,6 +153,27 @@ def _resolve(job: ImportJobDB, lookup: dict[str, int], visible: set[int]) -> tup
         if key in unknown:
             unknown[key]["rows"] += 1
     return resolved, unknown
+
+
+def _new_categories(job: ImportJobDB, lookup: dict[str, int], visible: set[int]) -> list[dict]:
+    """Every category of the file the family does not have by that name, with the category the person chose for it
+    (`category_id`, None while there is none). The step lists all of them, so choices can be seen and changed."""
+    chosen = job.category_map or {}
+    found: dict[str, dict] = {}
+    for row in job.rows or []:
+        key = name_key(row["category"])
+        if key in lookup:
+            continue
+        entry = found.setdefault(
+            key,
+            {
+                "name": row["category"],
+                "rows": 0,
+                "category_id": chosen.get(key) if chosen.get(key) in visible else None,
+            },
+        )
+        entry["rows"] += 1
+    return list(found.values())
 
 
 def _duplicates(db: Session, job: ImportJobDB, resolved: dict[str, int]) -> list[dict]:
@@ -185,6 +229,7 @@ def describe_job(db: Session, job: ImportJobDB) -> dict:
             columns=job.columns,
             column_map=job.column_map,
             unknown_categories=list(unknown.values()),
+            new_categories=_new_categories(job, lookup, visible),
             people=list(_file_people(job).values()),
             unknown_people=list(_unknown_people(job).values()),
             members=[{"id": m.id, "name": m.name} for m in list_members(db, job.family_id)],
@@ -283,7 +328,23 @@ def match_columns(
         raise ImportRejected("O arquivo tem problemas. Nada foi importado.", shown, len(problems))
     if not rows:
         raise _unprocessable("O arquivo não tem nenhuma transação.")
-    set_checked_rows(db, job, {field: mapping.get(field) for field in mapping}, rows)
+    column_map = {field: mapping.get(field) for field in mapping}
+    if job.rows is not None and job.column_map == column_map and _same_rows(job.rows, rows):
+        return job, order  # nothing changed: what the person chose about categories and people stays as it is
+    members = {member.id for member in list_members(db, family_id)}
+    chosen = {
+        simple_name(row["person"]): row["user_id"]
+        for row in job.rows or []
+        if row.get("person") and row.get("user_id") in members
+    }
+    # A name the person already settled keeps its member, even if the columns changed
+    rows = [
+        {**row, "user_id": chosen[simple_name(row["person"])]}
+        if row.get("person") and simple_name(row["person"]) in chosen
+        else row
+        for row in rows
+    ]
+    set_checked_rows(db, job, column_map, rows)
     return job, order
 
 
@@ -388,14 +449,27 @@ def run_import_job(job_id: int) -> None:
             ):  # someone left
                 mark_failed(db, job, "Uma pessoa do arquivo deixou de ser da família. Comece de novo.")
                 return
+            kept = [row for row in job.rows if row["row"] not in skipped_rows]
+            # A merchant column counts only while the family has merchants on; a name the family has is reused, a new one
+            # is created
+            merchants = {}
+            if get_family(db, job.family_id).merchants_enabled:
+                first_spelling: dict[str, str] = {}
+                for row in kept:
+                    if row.get("merchant"):
+                        first_spelling.setdefault(name_key(row["merchant"]), row["merchant"])
+                merchants = _merchant_ids(db, job.family_id, set(first_spelling.values()))
             add_transactions(
                 db,
                 job.family_id,
                 job.requested_by,
                 [
-                    {**row, "category_id": resolved[name_key(row["category"])]}
-                    for row in job.rows
-                    if row["row"] not in skipped_rows
+                    {
+                        **row,
+                        "category_id": resolved[name_key(row["category"])],
+                        "merchant_id": merchants.get(name_key(row["merchant"])) if row.get("merchant") else None,
+                    }
+                    for row in kept
                 ],
             )
             mark_done(db, job, len(job.rows) - len(duplicates), duplicates)

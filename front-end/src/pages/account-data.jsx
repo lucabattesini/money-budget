@@ -1,9 +1,6 @@
-import { useEffect, useState } from "react";
-import { Button, Code, Heading, List, RadioGroup, Separator, Stack, Table, Tag, Text, Wrap } from "@chakra-ui/react";
+import { useState } from "react";
+import { Button, Code, Heading, List, RadioGroup, Separator, Stack, Table, Text } from "@chakra-ui/react";
 import { LuDownload, LuUpload } from "react-icons/lu";
-import { getAllCategories } from "../api/endpoints";
-import { getToken } from "../lib/auth";
-import { compareNames } from "../lib/categoryName";
 import ImportDialog from "../components/ImportDialog";
 import { enqueueExport, followExport } from "../lib/exportJobs";
 
@@ -15,6 +12,7 @@ const COLUMNS = [
     { name: "Valor", required: true, format: "Zero ou mais, no máximo duas casas decimais: 1.234,56 ou 1,234.56. Pode vir negativo (veja o sinal)", example: "1.234,56" },
     { name: "Tipo", required: false, format: "Débito ou Crédito (se vazio, Débito). Dispensável se o sinal do valor já diz", example: "Débito" },
     { name: "Pessoa", required: false, format: "Nome de alguém da sua família (se vazio, quem está importando)", example: "Bia Souza" },
+    { name: "Estabelecimento", required: false, format: "Só com estabelecimentos ligados. Um que a família já tem é reaproveitado; um novo é criado na importação (se vazio, sem estabelecimento)", example: "Uber" },
 ];
 
 const EXPORT_FORMATS = [
@@ -24,18 +22,9 @@ const EXPORT_FORMATS = [
 
 // Bring transactions in from a spreadsheet (in steps, in a dialog) and take them out as a file.
 export default function AccountData() {
-    const [categories, setCategories] = useState([]);
     const [exportFormat, setExportFormat] = useState("xlsx");
     const [queueing, setQueueing] = useState(false);
     const [importing, setImporting] = useState(false); // the import dialog is open
-
-    useEffect(() => {
-        const token = getToken();
-        if (!token) return;
-        getAllCategories(token).then((data) => {
-            if (data && data.data) setCategories(data.data);
-        });
-    }, []);
 
     // Queue the export and move on: the file is built in the background and downloaded when it is ready,
     // even if the user goes to another page meanwhile.
@@ -45,8 +34,6 @@ export default function AccountData() {
         setQueueing(false);
         if (job) followExport(job);
     };
-
-    const categoryNames = categories.map((category) => category.name).sort(compareNames);
 
     return (
         <Stack gap={6} maxW="3xl">
@@ -96,17 +83,6 @@ export default function AccountData() {
                     <LuUpload /> Importar planilha
                 </Button>
                 <ImportDialog open={importing} onClose={() => setImporting(false)} />
-
-                {categoryNames.length > 0 && (
-                    <Stack gap={2}>
-                        <Text fontSize="sm" fontWeight="semibold">Categorias que você já tem</Text>
-                        <Wrap aria-label="Categorias que você já tem">
-                            {categoryNames.map((name) => (
-                                <Tag.Root key={name}><Tag.Label>{name}</Tag.Label></Tag.Root>
-                            ))}
-                        </Wrap>
-                    </Stack>
-                )}
             </Stack>
 
             <Separator />

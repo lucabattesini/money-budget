@@ -1,5 +1,6 @@
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     Date,
     DateTime,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     func,
     select,
 )
+from sqlalchemy.sql import expression
 
 from db.connection import Base
 
@@ -28,6 +30,8 @@ class Families(Base):
     language = Column(String(2), nullable=False, default="pt", server_default="pt")
     # Where the family lives: "now" is read on this clock, and a transaction's time is the wall-clock time there (TKT-65)
     timezone = Column(String(40), nullable=False, default="America/Sao_Paulo", server_default="America/Sao_Paulo")
+    # Whether transactions can have a merchant (TKT-58). Off hides merchants everywhere but keeps their data.
+    merchants_enabled = Column(Boolean, nullable=False, default=False, server_default=expression.false())
 
 
 class TransactionDB(Base):
@@ -45,6 +49,18 @@ class TransactionDB(Base):
     created_at = Column(DateTime, server_default=func.now())  # when the row was first saved
     updated_at = Column(DateTime)  # when the row was last edited; empty if never edited
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    merchant_id = Column(Integer, ForeignKey("merchants.id"), nullable=True)  # the place or company the money went to
+
+
+class Merchants(Base):
+    """A place or company the family spends at (Uber, iFood). Belongs to one family; names are unique per family
+    when compared by their words (see api/utils/category_names.py)."""
+
+    __tablename__ = "merchants"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    name = Column(String(100), nullable=False)
 
 
 class Users(Base):
