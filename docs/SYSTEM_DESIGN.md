@@ -16,6 +16,7 @@ flowchart TB
     subgraph Client["Clients"]
         Web["React SPA (Vite + Chakra UI)\nGoogle OAuth login"]
         WA["WhatsApp user"]
+        Claude["Claude app (phone)\ncustom connector"]
     end
 
     subgraph Meta["Meta Cloud API"]
@@ -32,6 +33,8 @@ flowchart TB
         FamR["families_router"]
         BudR["budgets_router"]
         WAR["whatsapp_router\n(/webhook)"]
+        OAuthR["oauth_router\n(/.well-known, /oauth, /connections)"]
+        McpR["mcp_router\n(POST /mcp)"]
 
         AuthC["auth_controller\n(verify Google token, issue JWT)"]
         UsersC["users_controller"]
@@ -42,6 +45,9 @@ flowchart TB
         BudC["budgets_controller"]
         FamC["families_controller\n(invite codes, joining)"]
         WAC["whatsapp_controller"]
+        OAuthC["oauth_controller\n(clients, codes, tokens)"]
+        ConC["connector_controller\n(preview / add rows)"]
+        McpS["mcp_service\n(JSON-RPC, tool list)"]
         WAS["whatsapp_service\n(send message via Meta API)"]
 
         Repos["repositories\n(users_repo, categories_repo,\ntransactions_repo, budgets_repo,\nexports_repo, imports_repo,\nfamilies_repo)"]
@@ -60,7 +66,7 @@ flowchart TB
         end
     end
 
-    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / merchants / transactions / budgets / export_jobs / import_jobs")]
+    DB[("PostgreSQL\nfamilies / family_invites / users / category_groups / categories / merchants / transactions / budgets / export_jobs / import_jobs / oauth_clients / oauth_codes / oauth_grants")]
     Gemini["Google Gemini\n(google-generativeai)"]
     GoogleOAuth["Google OAuth2\n(id token verification)"]
 
@@ -71,6 +77,15 @@ flowchart TB
     Web -- "queue, poll, download" --> ExR
     Web -- "upload, categories, start, poll" --> ImR
     Web -- "members, invites, join" --> FamR
+
+    Claude -- "OAuth sign-in" --> OAuthR
+    Claude -- "MCP tools (Bearer connector token)" --> McpR
+    Web -- "consent page, connections" --> OAuthR
+    OAuthR --> OAuthC
+    McpR --> OAuthC
+    McpR --> McpS
+    McpS --> ConC
+    ConC --> ImS
 
     WA <--> WAAPI
     WAAPI -- "POST /webhook" --> WAR
@@ -113,6 +128,8 @@ flowchart TB
     ExC --> Repos
     ImC --> Repos
     FamC --> Repos
+    OAuthC --> Repos
+    ConC --> Repos
 
     Repos --> DB
 ```
@@ -217,6 +234,53 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   family decides where the assistant saves and reads. The number is stored as
   digits only and is unique (a database constraint); claiming one that belongs
   to another account, from the login or `PATCH /user/me/phone`, answers `409`.
+
+### 3.3.1 Claude connector sign-in (TKT-72)
+A second, separate way to sign in, for AI apps (the Claude app on a phone) that add transactions through `POST /mcp`. It is
+OAuth 2.1 with PKCE, in front of the existing Google login; it does not replace it and the two never open each other's door.
+- The app discovers the server from `GET /.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`
+  (the address in them is `PUBLIC_URL`, or the address of the request), registers itself with `POST /oauth/register`
+  (dynamic client registration, public client: no secret; only `https` return addresses, or `http` for localhost; at most 5;
+  apps nobody signed in with are forgotten after a day) and sends the person to `GET /oauth/authorize`.
+- That checks the request (registered return address, `code_challenge_method=S256` mandatory) and redirects to the web app's
+  `#/connect` page. An invalid request is shown as an error and **never redirected**: the return address is not trusted
+  until it matches the registration. The page needs the normal Google login (an unauthenticated visitor is sent to the login
+  and brought back), tells the person what the app may do and asks. The answer is `POST /oauth/authorize` with the person's
+  normal JWT, which answers with where to send the browser: the app's return address with a one-time `code` (5 minutes,
+  stored as a hash, spent when tried) or with `error=access_denied`.
+- `POST /oauth/token` swaps the code (checking PKCE, the app and the return address) for an **access token** (1 hour) and a
+  **refresh token** (30 days), random strings stored only as SHA-256 hashes in `oauth_grants`. Refreshing replaces both
+  (the old refresh token stops working). `POST /oauth/revoke` (RFC 7009) forgets a token.
+- A *grant* is one person's connection with one app. `GET /connections` lists the signed-in person's, and
+  `DELETE /connections/{id}` removes one (a foreign id answers `404`); both need the normal JWT, which is how a person
+  disconnects from Account -> "Assistentes de IA". Removing the row ends access at once.
+- A connector token only opens `/mcp` and the normal JWT does not open `/mcp`; both lookups are by different means (a hash
+  in the table versus a signed token), so one cannot be mistaken for the other.
+
+### 3.3.2 The connector tools (`POST /mcp`)
+A stateless Model Context Protocol server (JSON-RPC over HTTP, written directly instead of with the MCP SDK: three tools
+need `initialize`, `ping`, `tools/list` and `tools/call` only, nothing is streamed or kept between calls, so it works on any
+number of instances and scaled to zero). `GET`/`DELETE /mcp` answer `405`. Without a valid token the answer is `401` with a
+`WWW-Authenticate` header pointing at the protected-resource page. It lives in its own routers and controller so a bug there
+cannot break the rest of the API, and it is limited to 1 MB per request and 60 calls a minute per connection (counted in
+memory, per instance: a brake against a runaway chat, not a quota).
+Claude reads the photo or PDF; the server only receives rows and calls no LLM. Everything runs as the signed-in person in
+their family: rows get that family and that `user_id`.
+- `list_categories`: the family's categories (name and group). Read-only.
+- `preview_transactions(rows)`: checks up to 200 rows `{date YYYY-MM-DD, description, amount_cents (positive integer),
+  type debit|credit, category}` with the same rules as the spreadsheet import (a real date, not in the future by the family's
+  clock, description up to 100 characters, positive amount up to the 32-bit limit, a known category found the way the import
+  finds it, including English and unaccented names). Nothing is saved. It says per row whether it is `new` or
+  `already_exists` (same day, description, amount, category and type, as in the import), lists every problem, and returns a
+  `preview_id` only when all rows are valid. Read-only.
+- `add_transactions(rows, preview_id)`: the **only tool that writes, and it can only add**: there is no tool to change,
+  delete or read transactions. The `preview_id` is an HMAC (with the server secret) of the person and the exact normalised
+  rows, so only rows that were previewed, by that person, can be added; changed rows are refused. Rows the family already has
+  are skipped, so sending the same statement twice adds nothing twice. The family row is locked while checking and adding, and
+  it is all or nothing.
+- The tool descriptions tell the AI to show the preview and add only after the person confirms. Text inside a document is
+  untrusted: the narrow tools, the preview binding and the Claude app's own approval of tool calls are what limit what it can
+  make the connector do.
 
 ### 3.4 WhatsApp agent pipeline (`agents/`, `graph/`)
 A LangGraph `StateGraph` (`graph/graph.py`) over `AssistantState`
@@ -526,7 +590,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are), `0018` the `merchants` table, `transactions.merchant_id` (empty for every existing transaction) and `families.merchants_enabled` (off for every existing family), `0019` UUID identifiers for every table (every link is kept; imports in progress are dropped; old login tokens stop working).
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are), `0018` the `merchants` table, `transactions.merchant_id` (empty for every existing transaction) and `families.merchants_enabled` (off for every existing family), `0019` UUID identifiers for every table (every link is kept; imports in progress are dropped; old login tokens stop working), `0020` the `oauth_clients`, `oauth_codes` and `oauth_grants` tables for the Claude connector (new tables only).
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de
@@ -640,6 +704,12 @@ the server restarts would stay `running`: a job queued or running for over five
 minutes is marked failed the next time it is read or the user queues an export,
 and the page gives up after two minutes. Times come from the database clock. A
 separate worker would be the next step if exports ever get large.
+
+**Connector sign-in tables** (TKT-72, migration `0020`; see 3.3.1). `oauth_clients` (`id` is the client id, `name`,
+`redirect_uris` JSON, `created_at`) are the registered apps; `oauth_codes` (`code_hash` unique, `client_id`, `user_id`,
+`redirect_uri`, `code_challenge`, `expires_at`) are the one-time codes; `oauth_grants` (`client_id`, `user_id`,
+`access_hash` and `refresh_hash` unique with their expiry, `created_at`, `last_used_at`) are the connections. Only hashes
+of codes and tokens are stored. They hold no budget data, and expired codes and grants are deleted when new ones are made.
 
 **Import jobs** (`import_jobs` table, `/imports`): importing is a conversation in steps, so the file waits on the
 server between them. The job goes `staged -> queued -> running -> done | failed`.
@@ -772,6 +842,29 @@ sequenceDiagram
     Meta->>WA: delivers reply
 ```
 
+### 4.3 Adding transactions from the Claude app (TKT-72)
+```mermaid
+sequenceDiagram
+    participant C as Claude app
+    participant FE as React SPA (#/connect)
+    participant API as FastAPI
+    participant DB as Postgres
+
+    C->>API: GET /.well-known/..., POST /oauth/register
+    C->>API: GET /oauth/authorize (PKCE)
+    API-->>FE: redirect to #/connect (after Google login if needed)
+    FE->>API: POST /oauth/authorize { allow } as the person (JWT)
+    API-->>C: redirect to the app with a one-time code
+    C->>API: POST /oauth/token (code + verifier)
+    API-->>C: access + refresh token
+    C->>API: POST /mcp tools/call preview_transactions (rows read from the photo)
+    API->>DB: read categories, existing transactions
+    API-->>C: rows new / already_exists + preview_id
+    Note over C: shows the preview, the person confirms
+    C->>API: POST /mcp tools/call add_transactions (rows + preview_id)
+    API->>DB: add the new rows for the person's family
+```
+
 ## 5. Deployment / runtime notes
 - Backend: `uvicorn api.app:app --reload`, FastAPI with CORS restricted to the
   `FRONT_URL` origin (the same address is used for the WhatsApp sign-up link).
@@ -779,7 +872,7 @@ sequenceDiagram
   `VITE_API_URL`.
 - Config: one `.env` at the repo root (see `.env.example`) feeds compose, the
   back-end (`find_dotenv` walks up to it) and Vite (`envDir: '..'`). Back-end
-  settings (`FRONT_URL`, `GEMINI_MODEL`, `SQL_ECHO`, `STATIC_DIR`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`) are read once in
+  settings (`FRONT_URL`, `PUBLIC_URL`, `GEMINI_MODEL`, `SQL_ECHO`, `STATIC_DIR`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`) are read once in
   `back-end/config.py`.
 - Database migrations: Alembic (`back-end/alembic.ini`, `back-end/migrations/`).
   `python -m db.upgrade` applies them and is safe to run any number of times. A database

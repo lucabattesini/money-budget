@@ -62,6 +62,25 @@ describe('login with Google', () => {
     expect(JSON.parse(api.mock.calls[0][1].body)).toEqual({ id_token: 'google-id-token', whatsapp_phone: null })
   })
 
+  it('goes back to the question of an AI app that was waiting for the login', async () => {
+    mockApi({ 'POST /auth/google': { data: { token: 'app-token' } } })
+    sessionStorage.setItem('pending_connect', '?client_id=abc')
+    const { default: LoginGoogle } = await import('./login-google')
+    renderApp(
+      <Routes>
+        <Route path="/login-google" element={<LoginGoogle />} />
+        <Route path="/connect" element={<p>Connect page</p>} />
+        <Route path="/" element={<p>Dashboard page</p>} />
+      </Routes>,
+      { route: '/login-google' },
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+
+    await waitFor(() => expect(screen.getByText('Connect page')).toBeInTheDocument())
+    expect(screen.getByTestId('location')).toHaveTextContent('/connect?client_id=abc')
+  })
+
   it('passes the phone from the sign-up link to the back-end', async () => {
     const api = mockApi({ 'POST /auth/google': { data: { token: 'app-token' } } })
     await renderLogin('/login-google?phone=5511999990000')

@@ -35,3 +35,8 @@ DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 
 # Print every SQL statement to the log (noisy; for debugging only)
 SQL_ECHO = env_flag("SQL_ECHO")
+
+# Public address of this server as the Claude app reaches it (https, no trailing slash). The sign-in for the Claude
+# connector tells the app where to find its pieces; when empty, the address of the request is used, which is right
+# behind a proxy that passes the original address on (the production image does)
+PUBLIC_URL = os.getenv("PUBLIC_URL", "").strip().rstrip("/")

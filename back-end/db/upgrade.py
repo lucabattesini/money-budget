@@ -71,7 +71,9 @@ def detect_revision(inspector) -> str | None:
         return "0017"
     if not any("UUID" in str(c["type"]).upper() for c in inspector.get_columns("families") if c["name"] == "id"):
         return "0018"
-    return "0019"
+    if not inspector.has_table("oauth_grants"):
+        return "0019"
+    return "0020"
 
 
 def upgrade_database(url: str = DATABASE_URL, revision: str = "head") -> None:
