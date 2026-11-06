@@ -20,10 +20,10 @@ from api.controllers.imports_controller import _category_lookup
 from api.repositories.categories_repo import get_all_categories as get_all_categories_repo
 from api.repositories.categories_repo import lock_family
 from api.repositories.families_repo import get_family
-from api.repositories.imports_repo import add_transactions, existing_transaction_keys
+from api.repositories.imports_repo import add_transactions, count_recent_additions, existing_transaction_keys
 from api.services.import_service import FIRST_YEAR, MAX_CENTS, MAX_LABEL
 from api.utils.category_names import name_key
-from api.utils.clock import family_today
+from api.utils.clock import family_today, utc_now
 from schemas.tables import Users
 
 MAX_ROWS = 200  # a chat can send a lot at once; longer statements are sent in pieces
@@ -99,11 +99,26 @@ def _read_row(raw, today: date, lookup: dict[str, str]) -> tuple[dict | None, li
     return {"date": day.isoformat(), "label": label, "value": cents, "type": kind, "category_id": category_id}, []
 
 
-def _preview_id(user_id: UUID, rows: list[dict]) -> str:
+PREVIEW_MINUTES = 15  # a preview is for the person to look at and answer; an old one is made again
+MAX_ROWS_PER_HOUR = 1000  # of one person, however many calls: a brake on a chat that runs away
+_PREVIEW_KEY = hashlib.sha256(b"money-budget-preview-v1" + JWT_SECRET.encode()).digest()  # not the login key itself
+
+
+def _preview_id(user_id: UUID, rows: list[dict], expires: int) -> str:
     """Proves the rows were previewed: it covers exactly what would be saved and who for, and cannot be made without
     the server's secret. So the rows that get added are the ones that were shown."""
-    body = json.dumps(["money-budget-preview", user_id.hex, rows], sort_keys=True, separators=(",", ":"))
-    return hmac.new(JWT_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
+    body = json.dumps([user_id.hex, rows, expires], sort_keys=True, separators=(",", ":"))
+    return f"{expires}.{hmac.new(_PREVIEW_KEY, body.encode(), hashlib.sha256).hexdigest()}"
+
+
+def _preview_is_valid(preview_id, user_id: UUID, rows: list[dict]) -> bool:
+    if not isinstance(preview_id, str):
+        return False
+    stamp, _, _signature = preview_id.partition(".")
+    if not stamp.isascii() or not stamp.isdigit() or int(stamp) < int(utc_now().timestamp()):
+        return False
+    expected = _preview_id(user_id, rows, int(stamp))
+    return hmac.compare_digest(preview_id.encode("utf-8", "replace"), expected.encode())
 
 
 def _check(db: Session, user: Users, rows) -> tuple[list[dict], list[dict], list[dict]]:
@@ -174,7 +189,7 @@ def preview_rows(db: Session, user: Users, rows) -> dict:
         "ok": True,
         "summary": {"new": new, "already_exist": len(duplicate) - new},
         "rows": out_rows,
-        "preview_id": _preview_id(user.id, checked),
+        "preview_id": _preview_id(user.id, checked, int(utc_now().timestamp()) + PREVIEW_MINUTES * 60),
         "next_step": "Show these rows to the person. Only after they confirm, call add_transactions with the same "
         "rows and this preview_id. Rows marked already_exists are skipped.",
     }
@@ -188,15 +203,21 @@ def add_rows(db: Session, user: Users, rows, preview_id) -> dict:
     if problems:
         db.rollback()
         return {"ok": False, "message": "Nothing was added: some rows are not valid.", **_problems_out(problems)}
-    if not isinstance(preview_id, str) or not hmac.compare_digest(preview_id, _preview_id(user.id, checked)):
+    if not _preview_is_valid(preview_id, user.id, checked):
         db.rollback()
         return {
             "ok": False,
-            "message": "Nothing was added: these rows were not previewed. Call preview_transactions with exactly "
+            "message": "Nothing was added: these rows were not previewed (or the preview is more than 15 minutes old). Call preview_transactions with exactly "
             "these rows, show the result to the person and ask for their confirmation first.",
         }
     duplicate = _split_duplicates(db, user, checked)
     new = [row for row, is_duplicate in zip(checked, duplicate) if not is_duplicate]
+    if count_recent_additions(db, user.id) + len(new) > MAX_ROWS_PER_HOUR:
+        db.rollback()
+        return {
+            "ok": False,
+            "message": f"Nothing was added: at most {MAX_ROWS_PER_HOUR} transactions an hour can be added. Try later.",
+        }
     # The transaction belongs to the person who is signed in (add_transactions gives it to them)
     add_transactions(db, user.family_id, user.id, new)
     db.commit()

@@ -6,12 +6,15 @@ what the AI reads to know how to behave, so they say plainly that adding needs t
 """
 
 import json
+import logging
 
 from sqlalchemy.orm import Session
 
 from api.controllers import connector_controller as connector
 from api.services.import_service import MAX_LABEL
 from schemas.tables import Users
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"]
 SERVER_INFO = {"name": "money-budget", "version": "1.0.0"}
@@ -136,4 +139,8 @@ def handle_message(db: Session, user: Users, message) -> dict | None:
             return _result(request_id, _tool_answer(_run_tool(db, user, name, arguments)))
         except connector.ConnectorError as error:
             return _result(request_id, _tool_answer({"ok": False, "message": str(error)}, is_error=True))
+        except Exception:
+            logger.exception("Connector tool %s failed", name)
+            db.rollback()
+            return _error(request_id, -32603, "Internal error")
     return _error(request_id, -32601, "Method not found")

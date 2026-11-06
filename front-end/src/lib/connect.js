@@ -47,6 +47,11 @@ export function readConnectRequest(search) {
 }
 
 // Leave this page for the address the app is waiting at. (A function of its own so tests can see where it goes.)
+// Where the Claude app itself sends people back to. Anyone can register an app under any name (even "Claude"), so an
+// address that is not one of these is shown as unverified.
+const KNOWN_RETURN_HOSTS = ["claude.ai", "claude.com"];
+export const isKnownApp = (host) => KNOWN_RETURN_HOSTS.some((known) => host === known || host.endsWith("." + known));
+
 export function leaveTo(url) {
     window.location.assign(url);
 }

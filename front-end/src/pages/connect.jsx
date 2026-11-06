@@ -3,7 +3,7 @@ import { Alert, Button, Center, Heading, List, Stack, Text } from "@chakra-ui/re
 import { Navigate, useLocation } from "react-router-dom";
 import { decideConnection } from "../api/endpoints";
 import { getToken, isAuthenticated } from "../lib/auth";
-import { leaveTo, readConnectRequest, rememberPendingConnect } from "../lib/connect";
+import { isKnownApp, leaveTo, readConnectRequest, rememberPendingConnect } from "../lib/connect";
 
 // Where an AI app (the Claude app) asks the person to let it add transactions for them. The person signs in as usual,
 // then says yes or no; either way they are sent back to the app.
@@ -55,13 +55,24 @@ export default function Connect() {
                 </Stack>
                 <List.Root gap={1} ps={5}>
                     <List.Item>ver as categorias da sua família;</List.Item>
-                    <List.Item>mostrar as transações que ele leu de uma foto ou extrato e adicioná-las depois que você confirmar.</List.Item>
+                    <List.Item>checar se uma transação já existe e mostrar as transações que ele leu de uma foto ou extrato e adicioná-las depois que você confirmar.</List.Item>
                 </List.Root>
+                {isKnownApp(asked.returnHost) ? (
+                    <Text fontSize="sm" color="fg.muted">
+                        Depois de responder, você volta para <strong>{asked.returnHost}</strong>.
+                    </Text>
+                ) : (
+                    <Alert.Root status="warning" borderRadius="lg">
+                        <Alert.Indicator />
+                        <Alert.Description>
+                            Aplicativo não verificado: depois de responder, você volta para <strong>{asked.returnHost}</strong>, que não é
+                            um endereço do Claude. Qualquer um pode escolher o nome de um aplicativo. Só permita se você mesmo está conectando
+                            algo nesse endereço.
+                        </Alert.Description>
+                    </Alert.Root>
+                )}
                 <Text fontSize="sm" color="fg.muted">
-                    Depois de responder, você volta para <strong>{asked.returnHost}</strong>. Só permita se esse endereço for do aplicativo que você está usando.
-                </Text>
-                <Text fontSize="sm" color="fg.muted">
-                    Ele não consegue apagar nem alterar nada, nem ver suas transações. Você pode desconectar quando quiser em
+                    Ele não consegue apagar nem alterar nada, nem listar suas transações (só consegue checar se uma transação que ele descreve já existe). Você pode desconectar quando quiser em
                     Conta → Assistentes de IA.
                 </Text>
                 {failed && (

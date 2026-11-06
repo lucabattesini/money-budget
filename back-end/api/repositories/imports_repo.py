@@ -1,7 +1,7 @@
 from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from schemas.tables import ImportJobDB, TransactionDB
@@ -187,4 +187,13 @@ def add_transactions(db: Session, family_id: UUID, user_id: UUID, items: list[di
             transactioned_at=datetime.combine(date.fromisoformat(item["date"]), time(12, 0)),
         )
         for item in items
+    )
+
+
+def count_recent_additions(db: Session, user_id: UUID) -> int:
+    """How many transactions the person added in the last hour (by any means)."""
+    return (
+        db.query(func.count(TransactionDB.id))
+        .filter(TransactionDB.user_id == user_id, TransactionDB.created_at > func.now() - text("interval '1 hour'"))
+        .scalar()
     )

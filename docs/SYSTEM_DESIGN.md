@@ -282,7 +282,14 @@ their family: rows get that family and that `user_id`.
   person to approve tool calls. The server itself cannot see that confirmation: `preview_id` proves the rows were previewed,
   not that the person said yes. Text inside a document is untrusted, so what limits a manipulated chat is that the tools are
   narrow: it can only add valid rows (at most 200 per call, 60 calls a minute), never read, change or delete anything.
-- The consent page shows the address the person returns to, because anyone can register an app under any name.
+- The consent page shows the address the person returns to, because anyone can register an app under any name; any address
+  other than the Claude app's (`claude.ai`, `claude.com`) is shown with an "unverified app" warning.
+- `preview_id` is `<expiry>.<HMAC>`: it expires after 15 minutes and uses a key derived from `JWT_SECRET`, not the login key.
+  A person can add at most 1,000 transactions an hour (by any means), however many calls. The preview also tells whether a
+  described transaction exists, which is the one thing it reveals about existing data.
+- Responses carry `X-Frame-Options: DENY` / `frame-ancestors 'none'` (so the consent page cannot be framed) and `nosniff`;
+  `/mcp` answers are `no-store`. `/oauth/*` bodies are limited to 16 KB and only `application/x-www-form-urlencoded` is read
+  at the token and revoke addresses. An unexpected error in a tool answers a generic JSON-RPC error, never details.
 
 ### 3.4 WhatsApp agent pipeline (`agents/`, `graph/`)
 A LangGraph `StateGraph` (`graph/graph.py`) over `AssistantState`

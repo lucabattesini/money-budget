@@ -42,6 +42,15 @@ describe('connecting an AI app', () => {
     renderConnect()
 
     expect(screen.getByText('claude.ai')).toBeInTheDocument()
+    expect(screen.queryByText(/Aplicativo não verificado/)).not.toBeInTheDocument()
+  })
+
+  it('warns that an app returning anywhere but to Claude is unverified, whatever it calls itself', () => {
+    saveToken('tok')
+    renderConnect(QUERY.replace('claude.ai', 'evil.example'))
+
+    expect(screen.getByText(/Aplicativo não verificado/)).toBeInTheDocument()
+    expect(screen.getByText('evil.example')).toBeInTheDocument()
   })
 
   it('sends the answer as the signed-in person and goes where the server says', async () => {

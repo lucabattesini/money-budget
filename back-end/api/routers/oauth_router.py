@@ -5,7 +5,7 @@ The app discovers these addresses from the two `.well-known` pages, registers it
 no). Then the app swaps the code for its tokens at `/oauth/token`.
 """
 
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -30,6 +30,7 @@ from db.connection import get_db
 
 router = APIRouter(tags=["connector"])
 
+MAX_OAUTH_BODY = 16 * 1024
 NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 
 
@@ -151,9 +152,18 @@ async def decide_authorization(
     return {"data": {"redirect_to": target}}
 
 
+async def _urlencoded(request: Request) -> dict[str, str]:
+    """The fields of a small `application/x-www-form-urlencoded` body (what OAuth clients send). Multipart is not read:
+    these addresses are open to anyone."""
+    body = await request.body()
+    if len(body) > MAX_OAUTH_BODY or "multipart" in request.headers.get("content-type", ""):
+        return {}
+    return dict(parse_qsl(body.decode("utf-8", "replace")))
+
+
 @router.post("/oauth/token")
 async def token(request: Request, db: Session = Depends(get_db)):
-    form = {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
+    form = await _urlencoded(request)
     try:
         return JSONResponse(exchange_token(db, form), headers=NO_STORE)
     except OAuthError as error:
@@ -162,8 +172,8 @@ async def token(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/oauth/revoke")
 async def revoke(request: Request, db: Session = Depends(get_db)):
-    form = await request.form()
-    revoke_token(db, str(form.get("token") or ""), form.get("client_id"))
+    form = await _urlencoded(request)
+    revoke_token(db, form.get("token") or "", form.get("client_id"))
     return Response(status_code=200, headers=NO_STORE)
 
 

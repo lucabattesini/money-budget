@@ -530,3 +530,84 @@ def test_a_huge_request_is_refused(client, connect, user):
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
     assert answer.status_code == 413
+
+
+# --- found in the security review --------------------------------------------------------------------------------
+
+
+def test_a_preview_id_that_is_not_plain_ascii_is_refused_not_a_crash(client, connect, user, db):
+    token = connect(user)[0]["access_token"]
+    for bad in ("é", "é.é", "123456789999.é", ".", "-1.x", "x" * 5000):
+        refused = _tool(client, token, "add_transactions", {"rows": [_row()], "preview_id": bad})
+        assert refused["ok"] is False
+    assert db.query(TransactionDB).count() == 0
+
+
+def test_a_preview_expires(client, connect, user, db, monkeypatch):
+    from api.controllers import connector_controller
+
+    token = connect(user)[0]["access_token"]
+    preview = _tool(client, token, "preview_transactions", {"rows": [_row()]})
+    real = connector_controller.utc_now
+    monkeypatch.setattr(
+        connector_controller, "utc_now", lambda: real() + timedelta(minutes=connector_controller.PREVIEW_MINUTES + 1)
+    )
+    refused = _tool(client, token, "add_transactions", {"rows": [_row()], "preview_id": preview["preview_id"]})
+    assert refused["ok"] is False
+    assert db.query(TransactionDB).count() == 0
+
+
+def test_a_preview_id_cannot_be_given_a_later_expiry(client, connect, user, db):
+    token = connect(user)[0]["access_token"]
+    preview = _tool(client, token, "preview_transactions", {"rows": [_row()]})
+    stamp, _, signature = preview["preview_id"].partition(".")
+    forged = f"{int(stamp) + 86400}.{signature}"
+    assert _tool(client, token, "add_transactions", {"rows": [_row()], "preview_id": forged})["ok"] is False
+
+
+def test_a_person_can_add_only_so_many_transactions_an_hour(client, connect, user, db, monkeypatch):
+    from api.controllers import connector_controller
+
+    monkeypatch.setattr(connector_controller, "MAX_ROWS_PER_HOUR", 3)
+    token = connect(user)[0]["access_token"]
+    first = [_row(description=f"A{n}") for n in range(3)]
+    preview = _tool(client, token, "preview_transactions", {"rows": first})
+    assert _tool(client, token, "add_transactions", {"rows": first, "preview_id": preview["preview_id"]})["added"] == 3
+    more = [_row(description="B")]
+    preview = _tool(client, token, "preview_transactions", {"rows": more})
+    refused = _tool(client, token, "add_transactions", {"rows": more, "preview_id": preview["preview_id"]})
+    assert refused["ok"] is False and "an hour" in refused["message"]
+    assert db.query(TransactionDB).count() == 3
+
+
+def test_an_unexpected_error_in_a_tool_gives_a_generic_answer(client, connect, user, monkeypatch):
+    from api.controllers import connector_controller
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("secret detail")
+
+    monkeypatch.setattr(connector_controller, "list_categories", boom)
+    answer = _call(client, connect(user)[0]["access_token"], "tools/call", {"name": "list_categories"})
+    assert answer.json()["error"]["code"] == -32603
+    assert "secret detail" not in answer.text
+
+
+def test_the_token_address_does_not_read_multipart_or_big_bodies(client, auth_headers):
+    client_id = _register(client).json()["client_id"]
+    code = _code_for(client, auth_headers, client_id)["code"][0]
+    form = _token_form(client_id, code)
+    refused = client.post("/oauth/token", files={k: (None, v) for k, v in form.items()})
+    assert refused.status_code == 401 and refused.json()["error"] == "invalid_client"  # no field was read
+    big = client.post(
+        "/oauth/token", content=b"a=" + b"x" * 20000, headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+    assert big.status_code in (401, 413)
+    assert client.post("/oauth/token", data=form).status_code == 200  # the code was not spent by the refused tries
+
+
+def test_nothing_can_put_the_app_in_a_frame_and_the_connector_is_not_cached(client, connect, user):
+    answer = client.get("/.well-known/oauth-authorization-server")
+    assert answer.headers["x-frame-options"] == "DENY"
+    assert "frame-ancestors 'none'" in answer.headers["content-security-policy"]
+    ping = _call(client, connect(user)[0]["access_token"], "ping")
+    assert ping.headers["cache-control"] == "no-store"
