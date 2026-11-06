@@ -13,6 +13,7 @@ from api.controllers.transactions_controller import get_transactions
 from api.repositories.transactions_repo import list_transactions
 from schemas.tables import TransactionDB
 from schemas.tables_schemas import GetTransactionsParams, TransactionFilters
+from tests.conftest import MISSING_ID
 
 
 @pytest.fixture
@@ -101,7 +102,7 @@ def test_exclude_categories(db, user, seeded, category_ids):
 
 
 def test_unknown_category_id_matches_nothing(db, user, seeded):
-    assert run(db, user, category_ids=[-1]) == []
+    assert run(db, user, category_ids=[MISSING_ID]) == []
 
 
 def test_rows_carry_their_category_name(db, user, seeded):
@@ -167,17 +168,20 @@ def test_order_by_value(db, user, seeded):
     assert [r.value for r in run(db, user, order_by="value", order_dir="desc")][0] == 150000
 
 
-def test_ties_are_broken_by_newest_id_first(db, user, make_transaction, category_ids):
+def test_ties_are_broken_the_same_way_every_time_so_pages_never_repeat_or_lose_a_row(
+    db, user, make_transaction, category_ids
+):
+    """Ids are random UUIDs, so a tie has no "newest": it only has to come out in the same order on every call."""
     cat = category_ids["Sem categoria"]
     same_time = datetime(2026, 1, 1, 12)
-    first = make_transaction(user, cat, "first", 100, same_time)
-    second = make_transaction(user, cat, "second", 100, same_time)
+    rows = {make_transaction(user, cat, f"row {n}", 100, same_time).id for n in range(5)}
 
-    by_date = run(db, user)
-    by_value = run(db, user, order_by="value")
+    for order_by in ("date", "value"):
+        whole = [r.id for r in run(db, user, order_by=order_by)]
+        pages = [run(db, user, order_by=order_by, limit=2, offset=offset) for offset in (0, 2, 4)]
 
-    assert [r.id for r in by_date] == [second.id, first.id]
-    assert [r.id for r in by_value] == [second.id, first.id]
+        assert set(whole) == rows and len(whole) == 5
+        assert [r.id for page in pages for r in page] == whole  # the same order, each row on exactly one page
 
 
 def test_limit_and_offset(db, user, seeded):

@@ -122,7 +122,7 @@ def test_going_back_returns_the_person_to_their_old_data_as_its_owner(
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert (data["id"], data["role"], data["previous_family"]) == (old, "owner", None)
+    assert (data["id"], data["role"], data["previous_family"]) == (str(old), "owner", None)
     assert [t["label"] for t in client.post("/transactions/", json={}, headers=mine).json()["data"]] == ["Joiner's old"]
     assert "Plantas" in {c["name"] for c in client.get("/categories/", headers=mine).json()["data"]}
     db.expire_all()
@@ -150,7 +150,7 @@ def test_what_was_entered_in_the_new_family_stays_in_it(
     assert seen_by_owner == ["Entered while in the family"]
     assert seen_by_joiner == ["Joiner's old"]
     assert [m["id"] for m in _me(client, auth_headers)["members"]] == [
-        user.id
+        str(user.id)
     ]  # the family they left has no trace of them
 
 

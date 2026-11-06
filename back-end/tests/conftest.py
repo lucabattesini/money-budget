@@ -24,9 +24,11 @@ os.environ["WHATSAPP_PHONE_ID"] = ""
 os.environ.pop("APP_ENV", None)
 
 import socket
+import uuid
 from datetime import datetime
 
 import pytest
+from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
@@ -34,6 +36,9 @@ from sqlalchemy.engine import make_url
 from db import connection
 from db.seed import DEFAULT_GROUPS
 from schemas.tables import Categories, CategoryGroups, Families, TransactionDB, Users
+
+# A well-formed id that no row has: asking for it is "not found" (an id that is not a UUID is rejected as invalid)
+MISSING_ID = uuid.UUID(int=1)
 
 # "Pets" is deliberately NOT seeded: it is a valid category name in the agents'
 # schemas, so it lets tests exercise the "known name, missing from the database" path.
@@ -145,11 +150,21 @@ def db():
         yield session
 
 
+class _Client(TestClient):
+    """A test client that sends ids (UUIDs) in JSON bodies and query strings the way a browser would: as text."""
+
+    def request(self, method, url, **kwargs):
+        for key in ("json", "params"):
+            if kwargs.get(key) is not None:
+                kwargs[key] = jsonable_encoder(kwargs[key])
+        return super().request(method, url, **kwargs)
+
+
 @pytest.fixture
 def client():
     from api.app import app
 
-    return TestClient(app)
+    return _Client(app)
 
 
 @pytest.fixture

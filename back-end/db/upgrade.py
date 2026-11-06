@@ -69,11 +69,13 @@ def detect_revision(inspector) -> str | None:
         return "0016"
     if not inspector.has_table("merchants"):
         return "0017"
-    return "0018"
+    if not any("UUID" in str(c["type"]).upper() for c in inspector.get_columns("families") if c["name"] == "id"):
+        return "0018"
+    return "0019"
 
 
-def upgrade_database(url: str = DATABASE_URL) -> None:
-    """Bring the database at `url` to the latest revision.
+def upgrade_database(url: str = DATABASE_URL, revision: str = "head") -> None:
+    """Bring the database at `url` to the latest revision (or to `revision`, which the tests use to stop early).
 
     Two processes can start at once (two API containers). A lock held for the whole run makes the second
     wait until the first is done, and then find nothing left to do.
@@ -90,7 +92,7 @@ def upgrade_database(url: str = DATABASE_URL) -> None:
                     if current is not None:
                         print(f"Existing database without migration history: recording revision {current}")
                         command.stamp(config, current)
-                command.upgrade(config, "head")
+                command.upgrade(config, revision)
             finally:
                 lock_connection.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": MIGRATION_LOCK_ID})
                 lock_connection.commit()

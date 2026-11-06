@@ -116,7 +116,7 @@ describe('categories page: adding', () => {
     await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() => expect(requestsMade(api)).toContain('POST /categories'))
-    expect(bodyOf(api, 'POST')).toEqual({ name: 'Jogos', group_id: 2 })
+    expect(bodyOf(api, 'POST')).toEqual({ name: 'Jogos', group_id: '2' })
     expect(await screen.findByText('A categoria foi criada!')).toBeInTheDocument()
     await waitFor(() => expect(names('Lazer')).toContain('Jogos'))
   })
@@ -130,7 +130,7 @@ describe('categories page: adding', () => {
     await userEvent.type(dialog.getByLabelText(/nome/i), 'Renda fixa')
     await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
 
-    await waitFor(() => expect(bodyOf(api, 'POST')).toEqual({ name: 'Renda fixa', group_id: 3 }))
+    await waitFor(() => expect(bodyOf(api, 'POST')).toEqual({ name: 'Renda fixa', group_id: '3' }))
   })
 
   it('still lets the person pick another group in the panel', async () => {
@@ -142,7 +142,7 @@ describe('categories page: adding', () => {
     await userEvent.selectOptions(dialog.getByLabelText(/grupo/i), 'Lazer')
     await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
 
-    await waitFor(() => expect(bodyOf(api, 'POST')).toEqual({ name: 'Jogos', group_id: 2 }))
+    await waitFor(() => expect(bodyOf(api, 'POST')).toEqual({ name: 'Jogos', group_id: '2' }))
   })
 
   it('starts empty and in the new group every time the panel is opened again', async () => {
@@ -199,7 +199,7 @@ describe('categories page: emoji', () => {
     await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() => expect(requestsMade(api)).toContain('POST /categories'))
-    expect(bodyOf(api, 'POST')).toEqual({ name: '🌱 Plantas', group_id: 4 })
+    expect(bodyOf(api, 'POST')).toEqual({ name: '🌱 Plantas', group_id: '4' })
   })
 
   it('has an emoji only when one is chosen, and none selected at first', async () => {
@@ -367,7 +367,7 @@ describe('categories page: editing', () => {
     await userEvent.click(dialog.getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() => expect(requestsMade(api)).toContain('PATCH /categories/12'))
-    expect(bodyOf(api, 'PATCH')).toEqual({ name: 'Jardim', group_id: 2 })
+    expect(bodyOf(api, 'PATCH')).toEqual({ name: 'Jardim', group_id: '2' })
     expect(await screen.findByText('A categoria foi atualizada!')).toBeInTheDocument()
   })
 

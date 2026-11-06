@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -9,6 +11,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     UniqueConstraint,
+    Uuid,
     func,
     select,
 )
@@ -22,7 +25,7 @@ class Families(Base):
 
     __tablename__ = "families"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
     created_at = Column(DateTime, server_default=func.now())
     abandoned_at = Column(DateTime, nullable=True)  # when its last person left; it is deleted 30 days later
     # How the family sees amounts and dates, and the language the assistant answers in (see schemas/family_settings.py)
@@ -37,19 +40,18 @@ class Families(Base):
 class TransactionDB(Base):
     __tablename__ = "transactions"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
-    user_id = Column(
-        Integer, ForeignKey("users.id"), nullable=False
-    )  # who it belongs to (who paid): a member of the family, whoever added it unless changed; not a permission
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)
+    # who it belongs to (who paid): a member of the family, whoever added it unless changed; not a permission
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False)
     label = Column(String(100))
     value = Column(Integer)  # always positive, in cents; `type` says which way the money went
     type = Column(String(6), nullable=False, default="debit", server_default="debit")  # "debit" | "credit"
     transactioned_at = Column(DateTime)  # when the money moved (the user may change it)
     created_at = Column(DateTime, server_default=func.now())  # when the row was first saved
     updated_at = Column(DateTime)  # when the row was last edited; empty if never edited
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
-    merchant_id = Column(Integer, ForeignKey("merchants.id"), nullable=True)  # the place or company the money went to
+    category_id = Column(Uuid, ForeignKey("categories.id"), nullable=True)
+    merchant_id = Column(Uuid, ForeignKey("merchants.id"), nullable=True)  # the place or company the money went to
 
 
 class Merchants(Base):
@@ -58,8 +60,8 @@ class Merchants(Base):
 
     __tablename__ = "merchants"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)
     name = Column(String(100), nullable=False)
 
 
@@ -68,11 +70,11 @@ class Users(Base):
     # One WhatsApp number belongs to one account (several users may have no number: NULLs do not clash)
     __table_args__ = (UniqueConstraint("whatsapp_phone", name="uq_users_whatsapp_phone"),)
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # a person is in exactly one family
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)  # a person is in exactly one family
     role = Column(String(10), nullable=False, default="owner", server_default="owner")  # "owner" | "member"
     # The family left behind when joining another one with the data kept there: the person can go back for 30 days
-    previous_family_id = Column(Integer, ForeignKey("families.id"), nullable=True)
+    previous_family_id = Column(Uuid, ForeignKey("families.id"), nullable=True)
     google_id = Column(String(100), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
@@ -88,14 +90,14 @@ class FamilyInvites(Base):
 
     __tablename__ = "family_invites"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)
+    created_by = Column(Uuid, ForeignKey("users.id"), nullable=False)
     code_hash = Column(String(64), nullable=False, unique=True)  # the code itself is shown once and never stored
     code_hint = Column(String(4), nullable=False)  # its last characters, to tell codes apart in a list
     created_at = Column(DateTime, server_default=func.now())
     expires_at = Column(DateTime, nullable=False)
-    used_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    used_by = Column(Uuid, ForeignKey("users.id"), nullable=True)
     used_at = Column(DateTime, nullable=True)
 
 
@@ -107,13 +109,13 @@ class CategoryGroups(Base):
 
     __tablename__ = "category_groups"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False, unique=True)
     # The place of the group in every list (1 is first). The order is data, not the order the rows were created in
     position = Column(Integer, nullable=False)
 
 
-def _fallback_group_id(context) -> int:
+def _fallback_group_id(context) -> uuid.UUID:
     """The default group of a new category: "Outros". Runs inside the insert, on its own connection."""
     group_id = context.connection.execute(
         select(CategoryGroups.id).where(CategoryGroups.name == FALLBACK_GROUP)
@@ -129,11 +131,11 @@ def _fallback_group_id(context) -> int:
 class Categories(Base):
     __tablename__ = "categories"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=True)  # NULL = default category, shared by all
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=True)  # NULL = default category, shared by all
     name = Column(String(100))
     # Every category has exactly one group; without one it goes to "Outros"
-    group_id = Column(Integer, ForeignKey("category_groups.id"), nullable=False, default=_fallback_group_id)
+    group_id = Column(Uuid, ForeignKey("category_groups.id"), nullable=False, default=_fallback_group_id)
 
 
 class Budgets(Base):
@@ -145,9 +147,9 @@ class Budgets(Base):
     __tablename__ = "budgets"
     __table_args__ = (UniqueConstraint("family_id", "category_id", "month", name="uq_budgets_family_category_month"),)
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)
+    category_id = Column(Uuid, ForeignKey("categories.id"), nullable=False)
     month = Column(Date, nullable=False)  # always the first day of the month
     amount = Column(Integer, nullable=False)  # cents; 0 stops the plan from this month on
 
@@ -162,9 +164,9 @@ class ImportJobDB(Base):
 
     __tablename__ = "import_jobs"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # where the transactions go
-    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # who uploaded it; only they can follow it
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)  # where the transactions go
+    requested_by = Column(Uuid, ForeignKey("users.id"), nullable=False)  # who uploaded it; only they can follow it
     status = Column(String(10), nullable=False, default="staged")  # staged -> queued -> running -> done | failed
     filename = Column(String(255))  # the name of the uploaded file, to talk about it
     columns = Column(JSON)  # the names in the first row of the file, in order
@@ -188,9 +190,9 @@ class ExportJobDB(Base):
 
     __tablename__ = "export_jobs"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)  # whose data goes in the file
-    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # only this person can get the file
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)  # whose data goes in the file
+    requested_by = Column(Uuid, ForeignKey("users.id"), nullable=False)  # only this person can get the file
     format = Column(String(10), nullable=False)  # "csv" | "xlsx"
     status = Column(String(10), nullable=False, default="queued")  # queued -> running -> done | failed
     filename = Column(String(100))

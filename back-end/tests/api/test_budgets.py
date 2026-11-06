@@ -7,6 +7,7 @@ from sqlalchemy import func
 
 from api.repositories import families_repo
 from schemas.tables import Budgets, Categories, CategoryGroups, Families, TransactionDB, Users
+from tests.conftest import MISSING_ID
 
 NOV = "2026-11"
 
@@ -24,7 +25,7 @@ def _plan(client, headers, category_id, amount, month=NOV):
 def _row(data, category_id):
     for group in data["groups"]:
         for category in group["categories"]:
-            if category["id"] == category_id:
+            if category["id"] == str(category_id):
                 return category
     raise AssertionError(f"category {category_id} is not on the page")
 
@@ -53,7 +54,13 @@ def test_an_empty_month_lists_the_spending_categories_under_their_groups_with_no
     assert data["month"] == NOV
     assert data["totals"] == {"budgeted": 0, "spent": 0, "unbudgeted_spent": 0, "remaining": 0}
     assert "Restaurantes e Bares" in [c["name"] for g in data["groups"] for c in g["categories"]]
-    assert _row(data, food) == {"id": food, "name": "Restaurantes e Bares", "budgeted": None, "since": None, "spent": 0}
+    assert _row(data, food) == {
+        "id": str(food),
+        "name": "Restaurantes e Bares",
+        "budgeted": None,
+        "since": None,
+        "spent": 0,
+    }
     assert [g["name"] for g in data["groups"] if g["name"] == "Alimentação"] == ["Alimentação"]
 
 
@@ -71,7 +78,7 @@ def test_income_and_transfer_categories_are_not_offered_a_budget(client, db, aut
 def test_the_groups_come_in_the_order_they_are_shown_everywhere(client, db, auth_headers):
     data = _month(client, auth_headers)
 
-    order = [g.name for g in db.query(CategoryGroups).order_by(CategoryGroups.id)]
+    order = [g.name for g in db.query(CategoryGroups).order_by(CategoryGroups.position)]
     shown = [g["name"] for g in data["groups"]]
     assert shown == [name for name in order if name in shown]
 
@@ -164,7 +171,7 @@ def test_a_category_that_is_not_the_familys_or_has_no_budget_answers_404(
     db.add(theirs)
     db.commit()
 
-    for category_id in (theirs.id, salary.id, 999999):
+    for category_id in (theirs.id, salary.id, MISSING_ID):
         assert _plan(client, auth_headers, category_id, 100).status_code == 404
     assert db.query(Budgets).count() == 0
 
@@ -225,7 +232,7 @@ def test_totals_compare_what_was_planned_with_what_was_spent_in_those_categories
     assert (by_group["Moradia"]["budgeted"], by_group["Moradia"]["spent"]) == (180000, 180000)
     assert (by_group["Auto e Transporte"]["budgeted"], by_group["Auto e Transporte"]["spent"]) == (0, 0)
     assert _row(data, transport) == {
-        "id": transport,
+        "id": str(transport),
         "name": "Transporte público",
         "budgeted": None,
         "since": None,
@@ -418,7 +425,7 @@ def test_a_category_moved_to_another_spending_group_keeps_its_budgets(client, db
 
     assert _row(_month(client, auth_headers), plants.id)["budgeted"] == 5000
     groups = {g["name"]: [c["id"] for c in g["categories"]] for g in _month(client, auth_headers)["groups"]}
-    assert plants.id in groups["Moradia"]
+    assert str(plants.id) in groups["Moradia"]
 
 
 def test_planning_takes_the_familys_lock_like_the_categories_do(client, auth_headers, food, monkeypatch):

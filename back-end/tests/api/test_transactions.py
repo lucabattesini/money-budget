@@ -4,6 +4,7 @@ import pytest
 
 from api.utils.clock import family_now
 from schemas.tables import Families, TransactionDB
+from tests.conftest import MISSING_ID
 
 
 def _create(client, headers, category_id, label="Almoço", value=2500):
@@ -118,7 +119,7 @@ def test_summed_groups_totals_per_category(client, user, auth_headers, make_tran
 
     rows = _summed(client, auth_headers)
 
-    assert {r["category_id"]: r["total"] for r in rows} == {food: 3500, transport: 700}
+    assert {r["category_id"]: r["total"] for r in rows} == {str(food): 3500, str(transport): 700}
 
 
 def test_summed_ignores_other_users(client, user, other_user, auth_headers, make_transaction, category_ids):
@@ -126,7 +127,7 @@ def test_summed_ignores_other_users(client, user, other_user, auth_headers, make
     make_transaction(user, cat, value=1000)
     make_transaction(other_user, cat, value=50_000)
 
-    assert _summed(client, auth_headers) == [{"category_id": cat, "total": 1000}]
+    assert _summed(client, auth_headers) == [{"category_id": str(cat), "total": 1000}]
 
 
 def test_summed_is_empty_without_transactions(client, auth_headers):
@@ -157,7 +158,7 @@ def test_delete_cannot_remove_another_users_transaction(
 
 
 def test_delete_of_an_unknown_id_reports_not_found(client, auth_headers):
-    response = client.delete("/transactions/999999", headers=auth_headers)
+    response = client.delete(f"/transactions/{MISSING_ID}", headers=auth_headers)
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Transaction not found"
@@ -214,7 +215,7 @@ def test_spending_totals_by_category_ignore_credits(client, user, auth_headers, 
     make_transaction(user, food, value=300, type="debit")
     make_transaction(user, food, value=99999, type="credit")
 
-    assert _summed(client, auth_headers) == [{"category_id": food, "total": 1300}]
+    assert _summed(client, auth_headers) == [{"category_id": str(food), "total": 1300}]
 
 
 # --- dates: transactioned_at, created_at, updated_at -------------------------
@@ -386,7 +387,7 @@ def test_update_cannot_change_another_users_transaction(
 
 
 def test_update_of_an_unknown_id_is_not_found(client, auth_headers, category_ids):
-    response = _update(client, auth_headers, 999999, category_id=category_ids["Restaurantes e Bares"])
+    response = _update(client, auth_headers, MISSING_ID, category_id=category_ids["Restaurantes e Bares"])
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Transaction not found"
@@ -397,7 +398,7 @@ def test_update_with_an_unknown_category_is_not_found_and_changes_nothing(
 ):
     row = make_transaction(user, category_ids["Restaurantes e Bares"], label="Velho", value=1000)
 
-    response = _update(client, auth_headers, row.id, category_id=999999)
+    response = _update(client, auth_headers, row.id, category_id=MISSING_ID)
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Category not found"
@@ -432,7 +433,7 @@ def test_update_requires_authentication(client, user, make_transaction, category
 
 
 def test_deleting_an_unknown_transaction_is_not_found(client, auth_headers):
-    assert client.delete("/transactions/999999", headers=auth_headers).status_code == 404
+    assert client.delete(f"/transactions/{MISSING_ID}", headers=auth_headers).status_code == 404
 
 
 def test_deleting_another_users_transaction_is_not_found(
@@ -450,7 +451,7 @@ def test_creating_with_an_unknown_category_is_a_client_error(db, user, auth_head
 
     # raise_server_exceptions=False: we want to see the status code a real client would get
     response = TestClient(app, raise_server_exceptions=False).post(
-        "/transactions/create", json={"label": "x", "value": 100, "category_id": 999999}, headers=auth_headers
+        "/transactions/create", json={"label": "x", "value": 100, "category_id": str(MISSING_ID)}, headers=auth_headers
     )
 
     assert response.status_code == 404
@@ -512,7 +513,7 @@ def test_a_transaction_cannot_be_given_to_someone_in_another_family(client, db, 
 def test_a_transaction_cannot_be_given_to_a_person_that_does_not_exist(client, db, auth_headers, category_ids):
     response = client.post(
         "/transactions/create",
-        json={"label": "x", "value": 100, "category_id": category_ids["Sem categoria"], "user_id": 999999},
+        json={"label": "x", "value": 100, "category_id": category_ids["Sem categoria"], "user_id": MISSING_ID},
         headers=auth_headers,
     )
 
@@ -531,7 +532,7 @@ def test_the_list_says_who_each_transaction_belongs_to(
 
     listed = {t["label"]: t["user_id"] for t in _list(client, auth_headers)}
 
-    assert listed == {mine.label: user.id, "Theirs": partner.id}
+    assert listed == {mine.label: str(user.id), "Theirs": str(partner.id)}
 
 
 def test_update_can_change_the_person(client, db, user, make_user, auth_headers, make_transaction, category_ids):
@@ -541,7 +542,7 @@ def test_update_can_change_the_person(client, db, user, make_user, auth_headers,
     response = _put(client, auth_headers, row.id, category_ids["Sem categoria"], user_id=partner.id)
 
     assert response.status_code == 200
-    assert response.json()["data"]["user_id"] == partner.id
+    assert response.json()["data"]["user_id"] == str(partner.id)
     db.refresh(row)
     assert row.user_id == partner.id
 

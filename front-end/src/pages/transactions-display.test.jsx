@@ -7,12 +7,15 @@ import TransactionsDisplay from './transactions-display'
 
 // The family the pages ask for, to show whose each transaction is
 const FAMILY = {
-  data: { me: 1, members: [{ id: 1, name: 'Clara Battesini', picture: null }, { id: 2, name: 'Bia Souza', picture: null }] },
+  data: { me: '1', members: [{ id: '1', name: 'Clara Battesini', picture: null }, { id: '2', name: 'Bia Souza', picture: null }] },
 }
 
 // Sunday 15 March 2026, noon: "today" starts 15 March 00:00, "this week" 8 March, "this month" 1 March.
-const CATEGORIES = { data: [{ id: 1, name: 'Alimentação' }, { id: 2, name: 'Transporte' }] }
-const t = (id, label, cents, date, category_id = 1) => ({ id, label, value: cents, transactioned_at: date, category_id })
+// Ids are opaque text (UUIDs on the real server), never numbers
+const CATEGORIES = { data: [{ id: '1', name: 'Alimentação' }, { id: '2', name: 'Transporte' }] }
+const t = (id, label, cents, date, category_id = 1) => ({
+  id: String(id), label, value: cents, transactioned_at: date, category_id: String(category_id),
+})
 
 // Deliberately NOT in group order: the page itself must put today first and the oldest last.
 const TRANSACTIONS = {
@@ -237,7 +240,7 @@ describe('transactions page', () => {
       'GET /families/me': FAMILY, 'GET /categories': CATEGORIES,
       'POST /transactions': () => jsonResponse({ data: remaining }),
       'DELETE /transactions/1': () => {
-        remaining = remaining.filter((x) => x.id !== 1)
+        remaining = remaining.filter((x) => x.id !== '1')
         return jsonResponse({ data: {} }, 202)
       },
     })
@@ -349,7 +352,7 @@ describe('transactions page', () => {
         'POST /transactions': () => jsonResponse({ data: rows }),
         'PUT /transactions/1': (_url, options) => {
           const body = JSON.parse(options.body)
-          rows = rows.map((row) => (row.id === 1 ? { ...row, ...body } : row))
+          rows = rows.map((row) => (row.id === '1' ? { ...row, ...body } : row))
           return jsonResponse({ data: {} })
         },
         'DELETE /transactions/1': () => jsonResponse({ data: {} }, 202),
@@ -430,7 +433,7 @@ describe('transactions page', () => {
       expect(await screen.findByText('Jantar')).toBeInTheDocument()
       const put = api.mock.calls.find(([, o]) => o.method === 'put')
       expect(JSON.parse(put[1].body)).toEqual({
-        label: 'Jantar', value: 3099, category_id: 2, type: 'debit', transactioned_at: '2026-03-15T09:00:00',
+        label: 'Jantar', value: 3099, category_id: '2', type: 'debit', transactioned_at: '2026-03-15T09:00:00',
       })
       expect(put[1].headers.Authorization).toBe('Bearer tok')
       expect(screen.queryByText('Almoço')).not.toBeInTheDocument()
@@ -682,9 +685,9 @@ describe('transactions page', () => {
   describe('who a transaction belongs to', () => {
     const OWNED = {
       data: [
-        { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 1 },
-        { ...t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2), user_id: 2 },
-        { ...t(3, 'Mercado', 12000, '2026-03-02T10:00:00', 1), user_id: 2 },
+        { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: '1' },
+        { ...t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2), user_id: '2' },
+        { ...t(3, 'Mercado', 12000, '2026-03-02T10:00:00', 1), user_id: '2' },
       ],
     }
     const setup = async () => {
@@ -714,8 +717,8 @@ describe('transactions page', () => {
         'GET /families/me': FAMILY,
         'GET /categories': CATEGORIES,
         'POST /transactions': { data: [
-          { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 1 },
-          { ...t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2), user_id: 99 }, // a person who is no longer in the family
+          { ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: '1' },
+          { ...t(2, 'Uber', 1800, '2026-03-10T18:00:00', 2), user_id: '99' }, // a person who is no longer in the family
         ] },
       })
       renderApp(<TransactionsDisplay />)
@@ -728,7 +731,7 @@ describe('transactions page', () => {
     it('splits the category name from its emoji, flags and joined emoji included', async () => {
       mockApi({
         'GET /families/me': FAMILY,
-        'GET /categories': { data: [{ id: 1, name: '🎁 Presentes' }, { id: 2, name: '🇨🇦 Canadá' }, { id: 3, name: '👨‍👩‍👧 Família' }] },
+        'GET /categories': { data: [{ id: '1', name: '🎁 Presentes' }, { id: '2', name: '🇨🇦 Canadá' }, { id: '3', name: '👨‍👩‍👧 Família' }] },
         'POST /transactions': { data: [t(1, 'A', 100, '2026-03-15T09:00:00', 1), t(2, 'B', 100, '2026-03-15T08:00:00', 2), t(3, 'C', 100, '2026-03-15T07:00:00', 3)] },
       })
       renderApp(<TransactionsDisplay />)
@@ -755,7 +758,7 @@ describe('transactions page', () => {
       await userEvent.selectOptions(form.getByLabelText('Quem'), 'Bia Souza')
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
-      await waitFor(() => expect(bodyOf(api, '/create').user_id).toBe(2))
+      await waitFor(() => expect(bodyOf(api, '/create').user_id).toBe('2'))
     })
 
     it('opens an edit with the transaction\'s person, and lets it be changed', async () => {
@@ -767,14 +770,14 @@ describe('transactions page', () => {
       await userEvent.selectOptions(form.getByLabelText('Quem'), 'Clara Battesini')
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
-      await waitFor(() => expect(bodyOf(api, '/transactions/2').user_id).toBe(1))
+      await waitFor(() => expect(bodyOf(api, '/transactions/2').user_id).toBe('1'))
     })
 
     it('does not make up a person for one who is no longer in the family', async () => {
       const api = mockApi({
         'GET /families/me': FAMILY,
         'GET /categories': CATEGORIES,
-        'POST /transactions': { data: [{ ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: 77 }] },
+        'POST /transactions': { data: [{ ...t(1, 'Almoço', 2550, '2026-03-15T09:00:00', 1), user_id: '77' }] },
         'PUT /transactions/1': [{ data: {} }, 200],
       })
       renderApp(<TransactionsDisplay />)

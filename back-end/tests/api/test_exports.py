@@ -13,6 +13,7 @@ from openpyxl import load_workbook
 from api.controllers import exports_controller
 from api.routers import exports_router
 from schemas.tables import ExportJobDB, Families, TransactionDB
+from tests.conftest import MISSING_ID
 
 
 @pytest.fixture
@@ -60,7 +61,7 @@ def test_queueing_answers_accepted_and_the_job_waits_until_the_background_work_r
 
     assert response.status_code == 202
     job = response.json()["data"]
-    assert (job["format"], job["id"]) == ("xlsx", db.query(ExportJobDB).one().id)
+    assert (job["format"], job["id"]) == ("xlsx", str(db.query(ExportJobDB).one().id))
     assert job["status"] == "queued"
     still_waiting = client.get(f"/exports/{job['id']}", headers=auth_headers).json()["data"]
     assert (still_waiting["status"], still_waiting["filename"]) == ("queued", None)
@@ -244,8 +245,8 @@ def test_another_user_cannot_see_or_download_a_job(client, user, other_user, aut
 
 
 def test_an_unknown_job_is_not_found(client, auth_headers):
-    assert client.get("/exports/999999", headers=auth_headers).status_code == 404
-    assert _file(client, auth_headers, 999999).status_code == 404
+    assert client.get(f"/exports/{MISSING_ID}", headers=auth_headers).status_code == 404
+    assert _file(client, auth_headers, MISSING_ID).status_code == 404
 
 
 def test_queueing_deletes_every_expired_job_not_just_the_callers_but_keeps_recent_ones(
@@ -285,8 +286,9 @@ def test_queueing_deletes_every_expired_job_not_just_the_callers_but_keeps_recen
     _queue(client, auth_headers)
 
     db.expire_all()
-    remaining = db.query(ExportJobDB).order_by(ExportJobDB.id).all()
-    assert [(j.requested_by, j.content) for j in remaining[:1]] == [(other_user.id, b"z")]  # the recent one survives
+    remaining = db.query(ExportJobDB).all()
+    recent = [j for j in remaining if j.content == b"z"]
+    assert [j.requested_by for j in recent] == [other_user.id]  # the recent one survives
     assert len(remaining) == 2  # that one and the job just queued
 
 
@@ -385,7 +387,7 @@ def test_a_job_that_is_only_a_little_old_is_not_cancelled(client, db, user, auth
 
 
 def test_the_runner_ignores_a_job_that_no_longer_exists():
-    exports_controller.run_export_job(999999)  # must not raise
+    exports_controller.run_export_job(MISSING_ID)  # must not raise
 
 
 def test_the_runner_does_not_crash_when_even_recording_the_failure_fails(

@@ -1,6 +1,7 @@
 import hashlib
 import re
 import secrets
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -105,7 +106,7 @@ def list_family_invites(db: Session, user: Users) -> list[dict]:
     return [_invite_out(i) for i in list_active_invites(db, user.family_id)]
 
 
-def cancel_family_invite(db: Session, user: Users, invite_id: int) -> dict:
+def cancel_family_invite(db: Session, user: Users, invite_id: UUID) -> dict:
     _only_owner(user)
     # Missing, already used, expired and another family's all look the same
     if not cancel_invite(db, user.family_id, invite_id):

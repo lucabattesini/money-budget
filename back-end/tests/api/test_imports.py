@@ -13,6 +13,7 @@ from api.controllers import imports_controller
 from api.routers import imports_router
 from api.utils.clock import family_today
 from schemas.tables import Categories, Families, ImportJobDB, Merchants, TransactionDB
+from tests.conftest import MISSING_ID
 
 HEADER = "Data;Descrição;Categoria;Valor;Tipo"
 GOOD_ROW = "15/03/2026;Almoço;Restaurantes e Bares;1.234,56;Débito"
@@ -100,7 +101,12 @@ def _problems(response):
 
 
 def _saved(db, user):
-    return db.query(TransactionDB).filter_by(family_id=user.family_id).order_by(TransactionDB.id).all()
+    return (
+        db.query(TransactionDB)
+        .filter_by(family_id=user.family_id)
+        .order_by(TransactionDB.transactioned_at, TransactionDB.label, TransactionDB.value)
+        .all()
+    )
 
 
 # --- step 1: the file is checked before anything is kept -----------------------------------------------------------
@@ -370,7 +376,7 @@ def test_matching_again_without_changes_leaves_the_choices_alone(client, db, use
     again = _match(client, auth_headers, job["id"], job["column_map"]).json()["data"]
 
     assert again["unknown_categories"] == []  # still settled
-    assert again["new_categories"] == [{"name": "Pets", "rows": 1, "category_id": category_ids["Aluguel"]}]
+    assert again["new_categories"] == [{"name": "Pets", "rows": 1, "category_id": str(category_ids["Aluguel"])}]
     db.expire_all()
     assert db.query(ImportJobDB).one().rows == before
 
@@ -387,7 +393,7 @@ def test_matching_again_with_other_columns_keeps_the_choices_about_names_still_i
 
     assert [r["type"] for r in db.query(ImportJobDB).one().rows] == ["credit"]  # the rows really changed
     assert again["unknown_categories"] == []
-    assert again["new_categories"][0]["category_id"] == category_ids["Aluguel"]
+    assert again["new_categories"][0]["category_id"] == str(category_ids["Aluguel"])
 
 
 def test_matching_again_keeps_who_the_person_chose_for_a_name(client, db, user, auth_headers, make_user):
@@ -400,8 +406,8 @@ def test_matching_again_keeps_who_the_person_chose_for_a_name(client, db, user, 
         client, auth_headers, job["id"], {**job["column_map"], "Tipo": None}, sign="negative_debit"
     ).json()["data"]
 
-    assert same["people"] == [{"name": "Apelido", "rows": 1, "user_id": partner.id}]
-    assert changed["people"] == [{"name": "Apelido", "rows": 1, "user_id": partner.id}]
+    assert same["people"] == [{"name": "Apelido", "rows": 1, "user_id": str(partner.id)}]
+    assert changed["people"] == [{"name": "Apelido", "rows": 1, "user_id": str(partner.id)}]
 
 
 def test_categories_and_starting_wait_for_the_columns(client, db, auth_headers, category_ids):
@@ -558,7 +564,7 @@ def test_the_year_first_date_is_a_format_of_its_own(client, db, user, auth_heade
         date_order=order,
     )
 
-    assert [day for day, _, _ in saved] == [date(2026, 10, 13), date(2026, 3, 5)]
+    assert sorted(day for day, _, _ in saved) == [date(2026, 3, 5), date(2026, 10, 13)]
 
 
 @pytest.mark.parametrize("order", ["day_first", "month_first"])
@@ -586,7 +592,7 @@ def test_on_automatic_the_two_kinds_of_dates_can_share_a_file(client, db, user, 
         client, queue, db, user, auth_headers, "2026-10-13;a;Aluguel;1,00", "15/03/2026;b;Aluguel;1,00"
     )
 
-    assert [day for day, _, _ in saved] == [date(2026, 10, 13), date(2026, 3, 15)]
+    assert sorted(day for day, _, _ in saved) == [date(2026, 3, 15), date(2026, 10, 13)]
 
 
 def test_the_answer_says_the_year_first_format_was_used(client, auth_headers):
@@ -945,7 +951,7 @@ def test_creating_the_category_in_the_family_settles_it_by_itself(client, db, us
 
     _start(client, auth_headers, job["id"])
     queue.run()
-    assert [t.category_id for t in _saved(db, user)] == [created.json()["data"]["id"]]
+    assert [str(t.category_id) for t in _saved(db, user)] == [created.json()["data"]["id"]]
 
 
 def test_a_family_category_wins_over_a_default_one_with_the_same_name(client, db, user, auth_headers, queue):
@@ -961,7 +967,7 @@ def test_a_family_category_wins_over_a_default_one_with_the_same_name(client, db
 def test_a_category_that_does_not_exist_cannot_be_chosen(client, auth_headers):
     job = _stage(client, auth_headers, "15/03/2026;Ração;Pets;30,00;Débito")
 
-    assert _choose(client, auth_headers, job["id"], {"Pets": 999999}).status_code == 422
+    assert _choose(client, auth_headers, job["id"], {"Pets": MISSING_ID}).status_code == 422
 
 
 def test_another_familys_category_cannot_be_chosen(client, db, user, other_user, auth_headers):
@@ -1022,8 +1028,8 @@ def test_imported_transactions_belong_to_the_family_and_were_created_by_the_pers
     assert (job["status"], job["total_rows"], job["imported_count"], job["skipped_count"]) == ("done", 2, 2, 0)
     saved = _saved(db, user)
     assert [(t.label, t.value, t.type, t.transactioned_at.date()) for t in saved] == [
-        ("Almoço", 123456, "debit", date(2026, 3, 15)),
         ("Salário", 500, "credit", date(2026, 3, 1)),
+        ("Almoço", 123456, "debit", date(2026, 3, 15)),
     ]
     assert {t.user_id for t in saved} == {user.id}
     assert _saved(db, other_user) == []
@@ -1268,7 +1274,7 @@ def test_nobody_else_can_see_or_use_a_job_not_even_in_the_same_family(
 
 
 def test_an_unknown_job_is_not_found(client, auth_headers):
-    assert client.get("/imports/999999", headers=auth_headers).status_code == 404
+    assert client.get(f"/imports/{MISSING_ID}", headers=auth_headers).status_code == 404
 
 
 # --- found in review ------------------------------------------------------------------------------------------------
@@ -1477,8 +1483,11 @@ def test_a_name_that_matches_nobody_waits_for_the_person_to_choose_who_it_stands
     )
 
     assert job["unknown_people"] == [{"name": "Bia", "rows": 2, "user_id": None}]  # "bia" is the same name: asked once
-    assert [(p["name"], p["user_id"]) for p in job["people"]] == [("Bia Souza", partner.id), ("Bia", None)]  # all shown
-    assert {m["id"] for m in job["members"]} == {user.id, partner.id}
+    assert [(p["name"], p["user_id"]) for p in job["people"]] == [
+        ("Bia Souza", str(partner.id)),
+        ("Bia", None),
+    ]  # all shown
+    assert {m["id"] for m in job["members"]} == {str(user.id), str(partner.id)}
     assert _start(client, auth_headers, job["id"]).status_code == 409  # not before it is settled
     assert _saved(db, user) == []
 
@@ -1537,12 +1546,12 @@ def test_the_person_can_change_a_name_that_was_matched_by_itself(client, db, use
     partner = _partner(db, user, make_user)
     job = _stage_people(client, auth_headers, "15/03/2026;Mercado;Aluguel;10,00;Débito;Bia Souza")
     assert job["unknown_people"] == []
-    assert job["people"] == [{"name": "Bia Souza", "rows": 1, "user_id": partner.id}]  # matched, and shown
+    assert job["people"] == [{"name": "Bia Souza", "rows": 1, "user_id": str(partner.id)}]  # matched, and shown
 
     changed = _choose_people(client, auth_headers, job["id"], {"Bia Souza": user.id})
 
     assert changed.status_code == 200
-    assert changed.json()["data"]["people"][0]["user_id"] == user.id
+    assert changed.json()["data"]["people"][0]["user_id"] == str(user.id)
     _start(client, auth_headers, job["id"])
     queue.run()
     assert [t.user_id for t in _saved(db, user)] == [user.id]

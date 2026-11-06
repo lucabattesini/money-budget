@@ -1,5 +1,6 @@
 import logging
 from datetime import date
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -71,13 +72,13 @@ def _unprocessable(message: str) -> HTTPException:
 # --- categories ----------------------------------------------------------------------------------------------------
 
 
-def _member_names(db: Session, family_id: int) -> dict[str, int | None]:
+def _member_names(db: Session, family_id: UUID) -> dict[str, str | None]:
     """(name of each person of the family, as simple_name writes it -> their id). Two people with the same name map to
     None, so a file naming them is refused instead of guessed."""
-    names: dict[str, int | None] = {}
+    names: dict[str, str | None] = {}
     for member in list_members(db, family_id):
         key = simple_name(member.name)
-        names[key] = None if key in names else member.id
+        names[key] = None if key in names else str(member.id)
     return names
 
 
@@ -109,7 +110,7 @@ def _unknown_people(job: ImportJobDB) -> dict[str, dict]:
     return {key: entry for key, entry in _file_people(job).items() if entry["user_id"] is None}
 
 
-def _merchant_ids(db: Session, family_id: int, names: set[str]) -> dict[str, int]:
+def _merchant_ids(db: Session, family_id: UUID, names: set[str]) -> dict[str, UUID]:
     """(words of the name -> merchant id) for each merchant of the file: the family's own when one has the same words
     (ignoring case, spaces and emoji), otherwise a new one, created here. Not committed: it goes with the import, so
     either everything is saved or nothing is."""
@@ -123,21 +124,21 @@ def _merchant_ids(db: Session, family_id: int, names: set[str]) -> dict[str, int
     return lookup
 
 
-def _category_lookup(db: Session, family_id: int) -> tuple[dict[str, int], set[int]]:
+def _category_lookup(db: Session, family_id: UUID) -> tuple[dict[str, str], set[str]]:
     """(words of the name -> category id, every id the family may use). The family's own category wins over a default
-    one with the same name."""
+    one with the same name. Ids are text here because they are kept in the job's JSON columns next to the rows."""
     categories = [category for category, _group in get_all_categories_repo(db, family_id)]
-    lookup: dict[str, int] = {}
+    lookup: dict[str, str] = {}
     for category in sorted(categories, key=lambda c: c.family_id is not None):  # defaults first, then overwritten
-        lookup[name_key(category.name)] = category.id
-    return lookup, {category.id for category in categories}
+        lookup[name_key(category.name)] = str(category.id)
+    return lookup, {str(category.id) for category in categories}
 
 
-def _resolve(job: ImportJobDB, lookup: dict[str, int], visible: set[int]) -> tuple[dict[str, int], dict[str, dict]]:
+def _resolve(job: ImportJobDB, lookup: dict[str, str], visible: set[str]) -> tuple[dict[str, str], dict[str, dict]]:
     """(file category -> id, the file categories still without one). A name the family has (now) needs no choice; for
     the others, the choice the person made counts as long as that category is still there."""
     chosen = job.category_map or {}
-    resolved: dict[str, int] = {}
+    resolved: dict[str, str] = {}
     unknown: dict[str, dict] = {}
     for row in job.rows or []:
         key = name_key(row["category"])
@@ -155,7 +156,7 @@ def _resolve(job: ImportJobDB, lookup: dict[str, int], visible: set[int]) -> tup
     return resolved, unknown
 
 
-def _new_categories(job: ImportJobDB, lookup: dict[str, int], visible: set[int]) -> list[dict]:
+def _new_categories(job: ImportJobDB, lookup: dict[str, str], visible: set[str]) -> list[dict]:
     """Every category of the file the family does not have by that name, with the category the person chose for it
     (`category_id`, None while there is none). The step lists all of them, so choices can be seen and changed."""
     chosen = job.category_map or {}
@@ -176,7 +177,7 @@ def _new_categories(job: ImportJobDB, lookup: dict[str, int], visible: set[int])
     return list(found.values())
 
 
-def _duplicates(db: Session, job: ImportJobDB, resolved: dict[str, int]) -> list[dict]:
+def _duplicates(db: Session, job: ImportJobDB, resolved: dict[str, str]) -> list[dict]:
     """The rows the family already has (same day, description, amount, category and type). Rows of the same file
     never count as duplicates of each other."""
     rows = [row for row in job.rows or [] if name_key(row["category"]) in resolved]
@@ -246,7 +247,7 @@ def describe_job(db: Session, job: ImportJobDB) -> dict:
 # --- steps ---------------------------------------------------------------------------------------------------------
 
 
-def stage_import(db: Session, family_id: int, user_id: int, filename: str, content: bytes) -> dict:
+def stage_import(db: Session, family_id: UUID, user_id: UUID, filename: str, content: bytes) -> dict:
     """Step 1: read the file. Nothing is checked yet: the person first says which column is which."""
     extension = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if extension not in FORMATS:
@@ -267,7 +268,7 @@ def stage_import(db: Session, family_id: int, user_id: int, filename: str, conte
     return describe_job(db, create_import_job(db, family_id, user_id, filename, table.columns, raw_rows))
 
 
-def get_import(db: Session, job_id: int, family_id: int, user_id: int) -> ImportJobDB:
+def get_import(db: Session, job_id: UUID, family_id: UUID, user_id: UUID) -> ImportJobDB:
     job = get_import_job(db, job_id, family_id, user_id)
     # Missing, another family's, another person's and expired all look the same, so ids of other users are not revealed
     if job is None or is_expired(job, db):
@@ -278,7 +279,7 @@ def get_import(db: Session, job_id: int, family_id: int, user_id: int) -> Import
     return job
 
 
-def _staged(db: Session, job_id: int, family_id: int, user_id: int) -> ImportJobDB:
+def _staged(db: Session, job_id: UUID, family_id: UUID, user_id: UUID) -> ImportJobDB:
     job = get_import(db, job_id, family_id, user_id)
     if job.status != "staged":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Essa importação já foi iniciada.")
@@ -293,9 +294,9 @@ def _checked(job: ImportJobDB) -> ImportJobDB:
 
 def match_columns(
     db: Session,
-    job_id: int,
-    family_id: int,
-    user_id: int,
+    job_id: UUID,
+    family_id: UUID,
+    user_id: UUID,
     mapping: dict[str, int | None],
     date_order: str = "auto",
     amount_style: str = "auto",
@@ -331,7 +332,7 @@ def match_columns(
     column_map = {field: mapping.get(field) for field in mapping}
     if job.rows is not None and job.column_map == column_map and _same_rows(job.rows, rows):
         return job, order  # nothing changed: what the person chose about categories and people stays as it is
-    members = {member.id for member in list_members(db, family_id)}
+    members = {str(member.id) for member in list_members(db, family_id)}
     chosen = {
         simple_name(row["person"]): row["user_id"]
         for row in job.rows or []
@@ -348,7 +349,9 @@ def match_columns(
     return job, order
 
 
-def choose_categories(db: Session, job_id: int, family_id: int, user_id: int, mapping: dict[str, int]) -> ImportJobDB:
+def choose_categories(
+    db: Session, job_id: UUID, family_id: UUID, user_id: UUID, mapping: dict[str, UUID]
+) -> ImportJobDB:
     """Step 3: say which category of the family each unknown name in the file stands for."""
     job = _checked(_staged(db, job_id, family_id, user_id))
     _lookup, visible = _category_lookup(db, family_id)
@@ -357,26 +360,26 @@ def choose_categories(db: Session, job_id: int, family_id: int, user_id: int, ma
     for name, category_id in mapping.items():
         if name_key(name) not in in_file:
             raise _unprocessable(f'A categoria "{name}" não está no arquivo.')
-        if category_id not in visible:
+        if str(category_id) not in visible:
             raise _unprocessable("Essa categoria não existe.")
-        chosen[name_key(name)] = category_id
+        chosen[name_key(name)] = str(category_id)
     set_category_map(db, job, chosen)
     return job
 
 
-def choose_people(db: Session, job_id: int, family_id: int, user_id: int, mapping: dict[str, int]) -> ImportJobDB:
+def choose_people(db: Session, job_id: UUID, family_id: UUID, user_id: UUID, mapping: dict[str, UUID]) -> ImportJobDB:
     """Step 3b: say which member of the family each name of the Pessoa column stands for. It can change the ones matched
     by themselves too: the person always has the last word."""
     job = _checked(_staged(db, job_id, family_id, user_id))
-    members = {member.id for member in list_members(db, family_id)}
+    members = {str(member.id) for member in list_members(db, family_id)}
     in_file = _file_people(job)
-    chosen: dict[str, int] = {}
+    chosen: dict[str, str] = {}
     for name, person_id in mapping.items():
         if simple_name(name) not in in_file:
             raise _unprocessable(f'A pessoa "{name}" não está no arquivo.')
-        if person_id not in members:
+        if str(person_id) not in members:
             raise _unprocessable("Essa pessoa não é da sua família.")
-        chosen[simple_name(name)] = person_id
+        chosen[simple_name(name)] = str(person_id)
     set_rows(
         db,
         job,
@@ -390,11 +393,11 @@ def choose_people(db: Session, job_id: int, family_id: int, user_id: int, mappin
     return job
 
 
-def cancel_import(db: Session, job_id: int, family_id: int, user_id: int) -> None:
+def cancel_import(db: Session, job_id: UUID, family_id: UUID, user_id: UUID) -> None:
     delete_job(db, _staged(db, job_id, family_id, user_id))
 
 
-def start_import(db: Session, job_id: int, family_id: int, user_id: int) -> ImportJobDB:
+def start_import(db: Session, job_id: UUID, family_id: UUID, user_id: UUID) -> ImportJobDB:
     """Step 4: queue the import. The transactions are saved later by run_import_job.
 
     One import at a time per family. The family row is locked so two clicks cannot both get through the check. Nothing
@@ -425,7 +428,7 @@ def start_import(db: Session, job_id: int, family_id: int, user_id: int) -> Impo
     return job
 
 
-def run_import_job(job_id: int) -> None:
+def run_import_job(job_id: UUID) -> None:
     """Save the transactions of a queued job. Runs in the background, after the response was sent.
 
     All or nothing: the transactions and the "done" mark are committed together.
@@ -443,7 +446,7 @@ def run_import_job(job_id: int) -> None:
                 return
             duplicates = _duplicates(db, job, resolved)
             skipped_rows = {row["row"] for row in duplicates}
-            people = {member.id for member in list_members(db, job.family_id)}
+            people = {str(member.id) for member in list_members(db, job.family_id)}
             if any(row.get("user_id") not in (None, *people) for row in job.rows) or _unknown_people(
                 job
             ):  # someone left

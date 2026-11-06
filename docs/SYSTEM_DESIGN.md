@@ -202,10 +202,12 @@ Layered FastAPI app: **router -> controller -> repository -> DB**.
   returns an app-issued JWT (HS256, 7-day expiry). The signing key comes from
   `JWT_SECRET`; the API refuses to start without it unless `APP_ENV=development`.
 - Every protected endpoint depends on `get_current_user_id` (FastAPI
-  `HTTPBearer` + `decode_jwt`; the token only carries the user id). Endpoints
+  `HTTPBearer` + `decode_jwt`; the token only carries the user id, written as a UUID string). Endpoints
   that read or write budget data depend on `get_current_family_id`, which looks
   up the user's family and is the only scope they use (see "Families" in 3.5).
   A token whose user no longer exists answers `401`.
+  Tokens issued before TKT-74 carry a counting number instead of a UUID: they are refused (`401`, "Invalid token"), so
+  everyone logs in again once, after the update.
 - In the web app, any `401` from the API (expired or invalid token) clears the
   stored token and sends the user to `#/login-google` (`api/endpoints.js`).
   A failed read is never treated as data; the dashboard and transactions pages
@@ -237,7 +239,7 @@ request/response schemas (`schemas/agents_schemas.py`).
 ```mermaid
 erDiagram
     FAMILIES {
-        int id PK
+        uuid id PK
         datetime created_at
         datetime abandoned_at "when its last person left; deleted 30 days later"
         string currency "BRL, USD, CAD, EUR or GBP; how amounts are shown"
@@ -246,10 +248,10 @@ erDiagram
         bool merchants_enabled "off by default; turns merchants on for the whole family"
     }
     USERS {
-        int id PK
-        int family_id FK
+        uuid id PK
+        uuid family_id FK
         string role "owner or member"
-        int previous_family_id FK "the family left behind, to go back to"
+        uuid previous_family_id FK "the family left behind, to go back to"
         string google_id
         string name
         string email
@@ -260,58 +262,58 @@ erDiagram
         datetime last_login
     }
     CATEGORY_GROUPS {
-        int id PK
+        uuid id PK
         string name "unique; a fixed set shipped with the app"
         int position "its place in every list, 1 is first, set in the database"
     }
     CATEGORIES {
-        int id PK
-        int family_id FK "empty = default category, shared by all"
-        int group_id FK "required; every category has exactly one group"
+        uuid id PK
+        uuid family_id FK "empty = default category, shared by all"
+        uuid group_id FK "required; every category has exactly one group"
         string name
     }
     TRANSACTIONS {
-        int id PK
-        int family_id FK
-        int user_id FK "the person it belongs to (who paid)"
+        uuid id PK
+        uuid family_id FK
+        uuid user_id FK "the person it belongs to (who paid)"
         string label
         int value "cents, always positive"
         string type "debit or credit"
         datetime transactioned_at "when the money moved (editable)"
         datetime created_at "when first saved"
         datetime updated_at "when last edited"
-        int category_id FK
-        int merchant_id FK "optional: the place or company the money went to"
+        uuid category_id FK
+        uuid merchant_id FK "optional: the place or company the money went to"
     }
     MERCHANTS {
-        int id PK
-        int family_id FK
+        uuid id PK
+        uuid family_id FK
         string name "unique inside the family, compared by its words"
     }
 
     FAMILY_INVITES {
-        int id PK
-        int family_id FK
-        int created_by FK
+        uuid id PK
+        uuid family_id FK
+        uuid created_by FK
         string code_hash "the code is never stored"
         string code_hint "its last 4 characters"
         datetime created_at
         datetime expires_at "7 days after creation"
-        int used_by FK "empty until used"
+        uuid used_by FK "empty until used"
         datetime used_at
     }
 
     BUDGETS {
-        int id PK
-        int family_id FK
-        int category_id FK
+        uuid id PK
+        uuid family_id FK
+        uuid category_id FK
         date month "first day of the month"
         int amount "cents, 0 means no plan from this month on"
     }
     EXPORT_JOBS {
-        int id PK
-        int family_id FK
-        int requested_by FK "only this person gets the file"
+        uuid id PK
+        uuid family_id FK
+        uuid requested_by FK "only this person gets the file"
         string format "csv or xlsx"
         string status "queued, running, done or failed"
         string filename
@@ -323,9 +325,9 @@ erDiagram
     }
 
     IMPORT_JOBS {
-        int id PK
-        int family_id FK
-        int requested_by FK "only this person can follow it"
+        uuid id PK
+        uuid family_id FK
+        uuid requested_by FK "only this person can follow it"
         string status "staged, queued, running, done or failed"
         string filename
         json columns "the names in the first row of the file"
@@ -358,6 +360,17 @@ erDiagram
     MERCHANTS ||--o{ TRANSACTIONS : "was paid"
     CATEGORIES ||--o{ BUDGETS : "has"
 ```
+**Identifiers (TKT-74).** Every table is keyed by a random UUID (v4, made by the application; Postgres `uuid`
+type), and every link (`family_id`, `user_id`, `category_id`, ...) is a UUID too. Ids therefore cannot be guessed or
+counted, and have no order: nothing may sort by id to mean "newest" (lists sort by date, name, `position` or
+`created_at`, and a tie falls back to the id only to be stable between calls). The API writes them as text in JSON and
+accepts them as text in paths, bodies and query strings; an id that is not a UUID answers `422`, and a well-formed one
+nobody has answers `404`, the same as another family's. The chatbot state and the JWT (`user_id`, as text) carry them
+as text too. The job tables keep ids inside JSON columns (`import_jobs.rows`, `category_map`) as text. Migration
+`0019` converts a database in place, keeping every link; it deletes spreadsheet imports in progress (they are only
+kept for a day) and can be undone (the downgrade hands out new counting numbers, not the old ones). Take a copy of the
+database before running it: it locks the tables while it runs.
+
 **Families.** Data belongs to a family (the people who share one budget), not to a
 person. A user is in exactly one family (`users.family_id`, not null; no membership
 table). Every new user gets a family of their own on their first login and is its
@@ -513,7 +526,7 @@ category (data only: no column; a family's own categories are untouched), `0012`
 Money (data only: the 12 groups and 39 defaults are replaced by 14 groups and 51 defaults; each old default is renamed
 into the closest new one, and when several become one their transactions move to the one kept; a family's own
 categories keep their names and move to the group that replaces theirs; the downgrade restores the old groups and
-names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are), `0018` the `merchants` table, `transactions.merchant_id` (empty for every existing transaction) and `families.merchants_enabled` (off for every existing family).
+names, but merged categories stay merged), `0013` `families.currency` and `families.language` (existing families keep reais and Portuguese), `0014` the `budgets` table, `0015` `category_groups.position`, `0016` the `import_jobs` table, `0017` `families.timezone` (existing families get `America/Sao_Paulo`; the dates already stored are left as they are), `0018` the `merchants` table, `transactions.merchant_id` (empty for every existing transaction) and `families.merchants_enabled` (off for every existing family), `0019` UUID identifiers for every table (every link is kept; imports in progress are dropped; old login tokens stop working).
 
 **Category groups.** Categories are listed under a group (the same ones Monarch Money has, in Portuguese:
 Receitas, Presentes e Doações, Auto e Transporte, Moradia, Contas e Serviços, Alimentação, Compras, Viagem e Estilo de

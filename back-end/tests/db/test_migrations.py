@@ -15,7 +15,8 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0018"
+LATEST = "0019"
+BEFORE_UUIDS = "0018"  # the migrations of the older tests below end here: ids were still counting numbers
 
 
 def _version(engine):
@@ -64,9 +65,12 @@ def test_the_migrations_build_exactly_what_the_models_describe(url, engine):
 def test_running_the_upgrade_again_changes_nothing(url, engine):
     upgrade_database(url)
     with engine.begin() as conn:
-        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid())"))
         conn.execute(
-            text("INSERT INTO users (family_id, google_id, name, email) VALUES (1, 'g', 'Ana', 'a@example.com')")
+            text(
+                "INSERT INTO users (id, family_id, google_id, name, email) "
+                "SELECT gen_random_uuid(), id, 'g', 'Ana', 'a@example.com' FROM families"
+            )
         )
 
     upgrade_database(url)
@@ -142,9 +146,9 @@ def test_an_old_database_with_the_category_as_text_is_upgraded_without_losing_da
         )
     _forget_history(engine)
 
-    upgrade_database(url)
+    upgrade_database(url, BEFORE_UUIDS)
 
-    assert _version(engine) == LATEST
+    assert _version(engine) == BEFORE_UUIDS
     with engine.connect() as conn:
         rows = conn.execute(
             text(
@@ -204,7 +208,13 @@ def test_an_old_database_is_recognised_at_the_revision_it_already_has(url, engin
 def test_a_database_made_from_the_models_without_history_is_adopted_as_it_is(url, engine):
     Base.metadata.create_all(engine)  # what the app used to do
     with engine.begin() as conn:
-        _seed_users_and_categories(conn)
+        conn.execute(text("INSERT INTO category_groups (id, name, position) VALUES (gen_random_uuid(), 'Outros', 1)"))
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, name, group_id) SELECT gen_random_uuid(), v.name, g.id "
+                "FROM (VALUES ('Alimentação'), ('Transporte'), ('Outros')) AS v(name), category_groups g"
+            )
+        )
 
     upgrade_database(url)
 
@@ -279,11 +289,11 @@ def test_a_half_migrated_database_keeps_its_data(url, engine):
         )
     _forget_history(engine)
 
-    upgrade_database(url)
+    upgrade_database(url, BEFORE_UUIDS)
 
     with engine.connect() as conn:
         assert conn.execute(text("SELECT category_id FROM transactions")).scalar() == 2
-    assert _version(engine) == LATEST
+    assert _version(engine) == BEFORE_UUIDS
 
 
 def test_a_hand_edited_database_that_already_has_later_columns_is_not_broken_by_the_upgrade(url, engine):
@@ -392,7 +402,7 @@ def test_a_password_with_special_characters_does_not_break_the_upgrade(url, engi
 
 
 def test_undoing_the_revisions_on_a_database_with_data_drops_only_what_the_old_schema_cannot_hold(url, engine):
-    upgrade_database(url)
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
     with engine.begin() as conn:
         _seed_users_and_categories(conn)
         conn.execute(
@@ -435,7 +445,7 @@ def test_a_large_old_table_is_upgraded_with_a_handful_of_statements(url, engine)
 
     event.listen(Engine, "before_cursor_execute", count)
     try:
-        upgrade_database(url)
+        upgrade_database(url, BEFORE_UUIDS)
     finally:
         event.remove(Engine, "before_cursor_execute", count)
 
@@ -463,7 +473,7 @@ def test_duplicate_and_badly_formatted_phone_numbers_are_cleaned_before_the_numb
             )
         )
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         phones = dict(conn.execute(text("SELECT id, whatsapp_phone FROM users ORDER BY id")).all())
@@ -506,7 +516,7 @@ def _database_before_families(url, engine):
 def test_every_existing_user_gets_a_family_of_their_own(url, engine):
     _database_before_families(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         families = dict(conn.execute(text("SELECT id, family_id FROM users")).all())
@@ -517,7 +527,7 @@ def test_every_existing_user_gets_a_family_of_their_own(url, engine):
 def test_data_follows_its_owner_into_the_family_and_keeps_who_created_it(url, engine):
     _database_before_families(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         family = dict(conn.execute(text("SELECT id, family_id FROM users")).all())
@@ -534,7 +544,7 @@ def test_data_follows_its_owner_into_the_family_and_keeps_who_created_it(url, en
 def test_a_transaction_nobody_owned_is_dropped_and_everything_else_is_kept(url, engine):
     _database_before_families(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         assert sorted(conn.execute(text("SELECT label FROM transactions")).scalars()) == ["ana 1", "ana 2", "bia 1"]
@@ -543,7 +553,7 @@ def test_a_transaction_nobody_owned_is_dropped_and_everything_else_is_kept(url, 
 def test_the_old_user_columns_are_gone_except_the_authors_of_transactions(url, engine):
     _database_before_families(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     for table in ("categories", "export_jobs"):  # transactions keep it: it says who entered the row
         assert "user_id" not in {c["name"] for c in inspect(engine).get_columns(table)}
@@ -553,7 +563,7 @@ def test_the_old_user_columns_are_gone_except_the_authors_of_transactions(url, e
 
 def test_undoing_the_family_revision_gives_every_row_its_user_back(url, engine):
     _database_before_families(url, engine)
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     command.downgrade(alembic_config(url), "0006")
 
@@ -574,7 +584,7 @@ def test_a_transaction_that_used_another_persons_category_loses_it_instead_of_sh
     with engine.begin() as conn:  # Ana's transaction 1 now points at Bia's private category (3)
         conn.execute(text("UPDATE transactions SET category_id = 3 WHERE id = 1"))
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         categories = dict(conn.execute(text("SELECT id, category_id FROM transactions")).all())
@@ -589,7 +599,7 @@ def test_a_transaction_that_used_another_persons_category_loses_it_instead_of_sh
 def test_everyone_who_exists_becomes_the_owner_of_their_own_family(url, engine):
     _database_before_families(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         assert conn.execute(text("SELECT role FROM users ORDER BY id")).scalars().all() == ["owner", "owner"]
@@ -598,7 +608,7 @@ def test_everyone_who_exists_becomes_the_owner_of_their_own_family(url, engine):
 
 def test_undoing_the_invites_revision_removes_roles_and_codes_and_keeps_the_families(url, engine):
     _database_before_families(url, engine)
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     command.downgrade(alembic_config(url), "0007")
 
@@ -619,7 +629,7 @@ def test_a_family_that_is_already_empty_is_marked_abandoned_and_the_others_are_n
             text("INSERT INTO users (id, family_id, google_id, name, email) VALUES (1, 1, 'g', 'Ana', 'a@e.com')")
         )
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         abandoned = dict(conn.execute(text("SELECT id, abandoned_at IS NOT NULL FROM families")).all())
@@ -721,7 +731,7 @@ def test_every_category_must_have_a_group(url, engine):
 
     with engine.begin() as conn:
         with pytest.raises(Exception, match="group_id"):
-            conn.execute(text("INSERT INTO categories (name) VALUES ('sem grupo')"))
+            conn.execute(text("INSERT INTO categories (id, name) VALUES (gen_random_uuid(), 'sem grupo')"))
 
 
 def test_undoing_the_groups_revision_drops_the_groups_and_keeps_the_categories(url, engine):
@@ -856,7 +866,7 @@ def test_the_monarch_groups_replace_the_old_ones_in_order(url, engine):
     upgrade_database(url)
 
     with engine.connect() as conn:
-        names = conn.execute(text("SELECT name FROM category_groups ORDER BY id")).scalars().all()
+        names = conn.execute(text("SELECT name FROM category_groups ORDER BY position")).scalars().all()
     assert names == [
         "Receitas",
         "Presentes e Doações",
@@ -878,7 +888,7 @@ def test_the_monarch_groups_replace_the_old_ones_in_order(url, engine):
 def test_old_default_categories_become_the_closest_monarch_one_and_several_are_merged_into_one(url, engine):
     _database_before_monarch(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     rows = _category_rows(engine)
     # Hobbies, Assinaturas and Entretenimento are one category now: the first row is kept, the others are gone
@@ -892,7 +902,7 @@ def test_old_default_categories_become_the_closest_monarch_one_and_several_are_m
 def test_a_default_category_the_old_list_did_not_know_keeps_its_name_in_outros(url, engine):
     _database_before_monarch(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     assert _category_rows(engine)[6] == ("Uma que a lista não conhece", None, "Outros")
 
@@ -900,7 +910,7 @@ def test_a_default_category_the_old_list_did_not_know_keeps_its_name_in_outros(u
 def test_the_transactions_of_merged_categories_follow_to_the_one_that_is_kept(url, engine):
     _database_before_monarch(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         categories = dict(conn.execute(text("SELECT id, category_id FROM transactions ORDER BY id")).all())
@@ -911,7 +921,7 @@ def test_the_transactions_of_merged_categories_follow_to_the_one_that_is_kept(ur
 def test_a_familys_own_categories_are_not_renamed_and_move_to_the_group_that_replaces_theirs(url, engine):
     _database_before_monarch(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     rows = _category_rows(engine)
     assert rows[8] == ("Plantas", 1, "Moradia")  # Casa
@@ -922,7 +932,7 @@ def test_a_familys_own_categories_are_not_renamed_and_move_to_the_group_that_rep
 def test_no_old_group_is_left_behind(url, engine):
     _database_before_monarch(url, engine)
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM category_groups")).scalar() == 14
@@ -931,7 +941,7 @@ def test_no_old_group_is_left_behind(url, engine):
 
 def test_undoing_the_monarch_revision_brings_back_the_old_groups_and_names_and_keeps_every_row(url, engine):
     _database_before_monarch(url, engine)
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     command.downgrade(alembic_config(url), "0011")
 
@@ -958,7 +968,7 @@ def test_a_default_category_that_already_has_a_new_name_is_put_in_its_new_group(
             )
         )
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     assert _category_rows(engine)[1] == ("📱 Telefone", None, "Contas e Serviços")
 
@@ -971,7 +981,7 @@ def test_existing_families_keep_seeing_reais_in_portuguese(url, engine):
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO families (id) VALUES (1), (2)"))
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT currency, language FROM families ORDER BY id")).all()
@@ -994,20 +1004,24 @@ def test_undoing_the_currency_and_language_revision_drops_only_those_columns(url
 def test_the_budgets_table_allows_one_amount_per_family_category_and_month(url, engine):
     upgrade_database(url)
     with engine.begin() as conn:
-        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
-        conn.execute(text("INSERT INTO categories (id, name, group_id) SELECT 1, 'x', min(id) FROM category_groups"))
-        conn.execute(
-            text("INSERT INTO budgets (family_id, category_id, month, amount) VALUES (1, 1, '2026-11-01', 100)")
-        )
-        conn.execute(
-            text("INSERT INTO budgets (family_id, category_id, month, amount) VALUES (1, 1, '2026-12-01', 100)")
-        )
+        family = conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid()) RETURNING id")).scalar()
+        category = conn.execute(
+            text(
+                "INSERT INTO categories (id, name, group_id) SELECT gen_random_uuid(), 'x', id "
+                "FROM category_groups LIMIT 1 RETURNING id"
+            )
+        ).scalar()
+    insert = text(
+        "INSERT INTO budgets (id, family_id, category_id, month, amount) "
+        "VALUES (gen_random_uuid(), :family, :category, :month, :amount)"
+    )
+    with engine.begin() as conn:
+        conn.execute(insert, {"family": family, "category": category, "month": "2026-11-01", "amount": 100})
+        conn.execute(insert, {"family": family, "category": category, "month": "2026-12-01", "amount": 100})
 
     with engine.begin() as conn:
         with pytest.raises(Exception, match="uq_budgets_family_category_month"):
-            conn.execute(
-                text("INSERT INTO budgets (family_id, category_id, month, amount) VALUES (1, 1, '2026-11-01', 200)")
-            )
+            conn.execute(insert, {"family": family, "category": category, "month": "2026-11-01", "amount": 200})
 
 
 def test_undoing_the_budgets_revision_drops_only_the_budgets(url, engine):
@@ -1027,7 +1041,7 @@ def test_the_groups_keep_the_order_they_had_and_get_a_position(url, engine):
     with engine.connect() as conn:
         before = conn.execute(text("SELECT name FROM category_groups ORDER BY id")).scalars().all()
 
-    command.upgrade(alembic_config(url), "head")
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
 
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT name, position FROM category_groups ORDER BY position")).all()
@@ -1122,3 +1136,172 @@ def test_undoing_the_merchants_revision_drops_only_what_it_added(url, engine):
     assert "merchant_id" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
     assert "merchants_enabled" not in {c["name"] for c in inspect(engine).get_columns("families")}
     assert "timezone" in {c["name"] for c in inspect(engine).get_columns("families")}
+
+
+# --- 0019: UUID identifiers (TKT-74) -----------------------------------------------------------
+
+
+def _data_with_every_kind_of_link(engine):
+    """Rows with counting-number ids that point at one another through every foreign key, at revision 0018."""
+    with engine.begin() as conn:
+        group = conn.execute(text("SELECT id FROM category_groups ORDER BY position LIMIT 1")).scalar()
+        conn.execute(text("INSERT INTO families (id) VALUES (10), (20)"))
+        conn.execute(
+            text(
+                "INSERT INTO users (id, family_id, previous_family_id, role, google_id, name, email) VALUES "
+                "(1, 10, NULL, 'owner', 'g1', 'Ana', 'a@e.com'), (2, 10, NULL, 'member', 'g2', 'Bia', 'b@e.com'),"
+                "(3, 20, 10, 'owner', 'g3', 'Caio', 'c@e.com')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO categories (id, family_id, name, group_id) VALUES (500, 10, 'Plantas', :g), (501, NULL, 'Geral', :g)"
+            ),
+            {"g": group},
+        )
+        conn.execute(text("INSERT INTO merchants (id, family_id, name) VALUES (70, 10, 'Uber')"))
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, family_id, user_id, label, value, category_id, merchant_id) VALUES "
+                "(900, 10, 1, 'with everything', 100, 500, 70), (901, 10, 2, 'default category', 200, 501, NULL),"
+                "(902, 10, 1, 'no category', 300, NULL, NULL)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO budgets (id, family_id, category_id, month, amount) VALUES (5, 10, 500, '2026-11-01', 1000)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO family_invites (id, family_id, created_by, used_by, code_hash, code_hint, expires_at) VALUES "
+                "(8, 10, 1, 2, 'h1', '1111', now()), (9, 10, 1, NULL, 'h2', '2222', now())"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO export_jobs (id, family_id, requested_by, format, status) VALUES (3, 10, 2, 'csv', 'done')"
+            )
+        )
+        conn.execute(text("INSERT INTO import_jobs (id, family_id, requested_by, status) VALUES (4, 10, 1, 'staged')"))
+    return group
+
+
+def _links(conn):
+    """What points at what, written with the labels and names that do not change when the ids do."""
+    return {
+        "transactions": conn.execute(
+            text(
+                "SELECT t.label, u.name, f.id IS NOT NULL AS has_family, c.name, m.name FROM transactions t "
+                "JOIN users u ON u.id = t.user_id JOIN families f ON f.id = t.family_id "
+                "LEFT JOIN categories c ON c.id = t.category_id LEFT JOIN merchants m ON m.id = t.merchant_id "
+                "WHERE f.id = u.family_id ORDER BY t.label"
+            )
+        ).all(),
+        "budget": conn.execute(
+            text("SELECT c.name, b.amount FROM budgets b JOIN categories c ON c.id = b.category_id")
+        ).all(),
+        "invites": conn.execute(
+            text(
+                "SELECT i.code_hint, a.name, u.name FROM family_invites i JOIN users a ON a.id = i.created_by "
+                "LEFT JOIN users u ON u.id = i.used_by ORDER BY i.code_hint"
+            )
+        ).all(),
+        "export": conn.execute(text("SELECT u.name FROM export_jobs e JOIN users u ON u.id = e.requested_by")).all(),
+        "left_family": conn.execute(
+            text(
+                "SELECT u.name, (SELECT count(*) FROM users o WHERE o.family_id = u.previous_family_id) FROM users u "
+                "WHERE u.previous_family_id IS NOT NULL"
+            )
+        ).all(),
+        "default_category": conn.execute(text("SELECT family_id FROM categories WHERE name = 'Geral'")).scalar(),
+        "category_group": conn.execute(
+            text("SELECT count(*) FROM categories c JOIN category_groups g ON g.id = c.group_id")
+        ).scalar(),
+        "family_of": conn.execute(
+            text(
+                "SELECT u.name, count(*) FROM users u JOIN users o ON o.family_id = u.family_id GROUP BY u.name ORDER BY u.name"
+            )
+        ).all(),
+    }
+
+
+def test_the_uuid_revision_gives_every_row_a_uuid_and_keeps_every_link(url, engine):
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
+    _data_with_every_kind_of_link(engine)
+    with engine.connect() as conn:
+        before = _links(conn)
+
+    upgrade_database(url)
+
+    assert _version(engine) == LATEST
+    with engine.connect() as conn:
+        assert _links(conn) == before
+        for table in (
+            "families",
+            "users",
+            "categories",
+            "category_groups",
+            "transactions",
+            "merchants",
+            "budgets",
+            "family_invites",
+            "export_jobs",
+        ):
+            assert str(conn.execute(text(f"SELECT pg_typeof(id) FROM {table} LIMIT 1")).scalar()) == "uuid", table
+        assert conn.execute(text("SELECT count(DISTINCT id) FROM transactions")).scalar() == 3  # not one id for all
+        # The links are real foreign keys again: a transaction cannot point at a category that is not there
+    with engine.begin() as conn, pytest.raises(Exception, match="transactions_category_id_fkey"):
+        conn.execute(text("UPDATE transactions SET category_id = gen_random_uuid()"))
+
+
+def test_the_uuid_revision_drops_imports_in_progress_because_their_saved_rows_hold_old_ids(url, engine):
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
+    _data_with_every_kind_of_link(engine)
+
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM import_jobs")).scalar() == 0
+
+
+def test_the_budgets_rule_of_one_amount_per_family_category_and_month_survives_the_uuid_revision(url, engine):
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
+    _data_with_every_kind_of_link(engine)
+    upgrade_database(url)
+
+    with engine.begin() as conn, pytest.raises(Exception, match="uq_budgets_family_category_month"):
+        conn.execute(
+            text(
+                "INSERT INTO budgets (id, family_id, category_id, month, amount) "
+                "SELECT gen_random_uuid(), family_id, category_id, month, 5 FROM budgets"
+            )
+        )
+
+
+def test_undoing_the_uuid_revision_gives_counting_numbers_back_and_keeps_every_link(url, engine):
+    command.upgrade(alembic_config(url), BEFORE_UUIDS)
+    _data_with_every_kind_of_link(engine)
+    upgrade_database(url)
+    with engine.connect() as conn:
+        before = _links(conn)
+
+    command.downgrade(alembic_config(url), BEFORE_UUIDS)
+
+    assert _version(engine) == BEFORE_UUIDS
+    with engine.connect() as conn:
+        assert _links(conn) == before
+        assert str(conn.execute(text("SELECT pg_typeof(id) FROM transactions LIMIT 1")).scalar()) == "integer"
+        # New rows get the next number by themselves again
+        conn.execute(text("INSERT INTO families DEFAULT VALUES"))
+        assert conn.execute(text("SELECT count(DISTINCT id) FROM families")).scalar() == 3
+    upgrade_database(url)  # and it can go forward again
+    assert _version(engine) == LATEST
+
+
+def test_a_database_without_rows_survives_the_uuid_revision_both_ways(url, engine):
+    upgrade_database(url)
+    command.downgrade(alembic_config(url), BEFORE_UUIDS)
+    upgrade_database(url)
+
+    assert _version(engine) == LATEST

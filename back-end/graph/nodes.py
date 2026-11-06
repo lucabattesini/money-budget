@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from uuid import UUID
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -23,8 +24,11 @@ from graph.state import AssistantState
 from schemas.agents_schemas import ListTransactionsArgs, QueryFiltersArgs, SummarizeTransactionsArgs, ToolCall
 from schemas.tables_schemas import Transaction, TransactionFilters
 
+# An id that no row has (the all-zero UUID), for names that match nothing
+NO_MATCH = UUID(int=0)
 
-def _merchant_of(db: Session, family_id: int, name: str | None) -> int | None:
+
+def _merchant_of(db: Session, family_id: UUID, name: str | None) -> UUID | None:
     """The merchant the user named, or None when the name cannot be one (only an emoji, say). The expense is still
     recorded: a bad merchant must not lose it."""
     try:
@@ -38,21 +42,21 @@ def _to_cents(amount: float | None) -> int | None:
     return None if amount is None else round(amount * 100)
 
 
-def _category_ids(db: Session, family_id: int, names: list[str] | None) -> list[int] | None:
+def _category_ids(db: Session, family_id: UUID, names: list[str] | None) -> list[UUID] | None:
     if not names:
         return None
-    # An unknown name maps to -1 so it matches nothing instead of silently widening the filter
-    return [cat.id if (cat := get_category_by_name(db, name, family_id)) else -1 for name in names]
+    # An unknown name maps to an id nothing has so it matches nothing instead of silently widening the filter
+    return [cat.id if (cat := get_category_by_name(db, name, family_id)) else NO_MATCH for name in names]
 
 
-def _merchant_ids(db: Session, family_id: int, names: list[str] | None) -> list[int] | None:
+def _merchant_ids(db: Session, family_id: UUID, names: list[str] | None) -> list[UUID] | None:
     if not names:
         return None
-    # An unknown name maps to -1 so it matches nothing instead of silently widening the filter
-    return [merchant.id if (merchant := find_by_name(db, family_id, name)) else -1 for name in names]
+    # An unknown name maps to an id nothing has so it matches nothing instead of silently widening the filter
+    return [merchant.id if (merchant := find_by_name(db, family_id, name)) else NO_MATCH for name in names]
 
 
-def _to_filters(db: Session, family_id: int, args: QueryFiltersArgs, merchants_enabled: bool) -> TransactionFilters:
+def _to_filters(db: Session, family_id: UUID, args: QueryFiltersArgs, merchants_enabled: bool) -> TransactionFilters:
     return TransactionFilters(
         start_date=args.start_date,
         end_date=args.end_date,
@@ -67,7 +71,7 @@ def _to_filters(db: Session, family_id: int, args: QueryFiltersArgs, merchants_e
 
 
 def _run_query_tool(
-    db: Session, call: ToolCall, family_id: int, language: str = "pt", merchants_enabled: bool = False
+    db: Session, call: ToolCall, family_id: UUID, language: str = "pt", merchants_enabled: bool = False
 ) -> dict:
     """Execute one query tool call for the family and return its result with amounts in the family's currency
     (whole units, not cents)."""

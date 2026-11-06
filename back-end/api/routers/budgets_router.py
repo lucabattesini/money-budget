@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -20,7 +22,7 @@ def _ok(data):
 @router.get("/")
 async def get_budget_router(
     month: str = Query(pattern=MONTH_PATTERN, description="YYYY-MM"),
-    family_id: int = Depends(get_current_family_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """The plan and the spending of the family in one month, by group and category (cents)."""
@@ -29,7 +31,7 @@ async def get_budget_router(
 
 @router.put("")
 async def set_budget_router(
-    params: BudgetSet, family_id: int = Depends(get_current_family_id), db: Session = Depends(get_db)
+    params: BudgetSet, family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)
 ):
     """Plan an amount for a category from a month on, until a later month changes it (0: nothing from then on).
     Answers with the month as `GET` shows it."""

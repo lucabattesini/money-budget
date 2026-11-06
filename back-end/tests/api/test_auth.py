@@ -1,4 +1,6 @@
+import uuid
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import jwt
 import pytest
@@ -37,7 +39,7 @@ def test_malformed_token_is_unauthorized(client):
 
 
 def test_token_signed_with_another_secret_is_unauthorized(client, user):
-    forged = _token({"user_id": user.id, "exp": _future()}, secret="a-different-secret-0123456789abcdef")
+    forged = _token({"user_id": str(user.id), "exp": _future()}, secret="a-different-secret-0123456789abcdef")
 
     response = _call(client, {"Authorization": f"Bearer {forged}"})
 
@@ -46,7 +48,7 @@ def test_token_signed_with_another_secret_is_unauthorized(client, user):
 
 
 def test_unsigned_token_is_unauthorized(client, user):
-    unsigned = jwt.encode({"user_id": user.id, "exp": _future()}, key=None, algorithm="none")
+    unsigned = jwt.encode({"user_id": str(user.id), "exp": _future()}, key=None, algorithm="none")
 
     response = _call(client, {"Authorization": f"Bearer {unsigned}"})
 
@@ -60,7 +62,7 @@ def test_token_without_user_id_is_unauthorized(client):
 
 
 def test_expired_token_is_unauthorized(client, user):
-    expired = _token({"user_id": user.id, "exp": datetime.now(timezone.utc) - timedelta(minutes=1)})
+    expired = _token({"user_id": str(user.id), "exp": datetime.now(timezone.utc) - timedelta(minutes=1)})
 
     response = _call(client, {"Authorization": f"Bearer {expired}"})
 
@@ -69,7 +71,25 @@ def test_expired_token_is_unauthorized(client, user):
 
 
 def test_token_round_trips_the_user_id():
-    assert auth_controller.decode_jwt(auth_controller.create_jwt(42))["user_id"] == 42
+    user_id = uuid.uuid4()
+
+    assert UUID(auth_controller.decode_jwt(auth_controller.create_jwt(user_id))["user_id"]) == user_id
+
+
+def test_a_token_made_before_ids_were_uuids_asks_for_a_new_login(client):
+    """Tokens from the counting-number days hold a number: they are refused, so the person logs in again (TKT-74)."""
+    old = _token({"user_id": 7, "exp": _future()})
+
+    response = _call(client, {"Authorization": f"Bearer {old}"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid token"
+
+
+def test_a_token_without_a_user_is_unauthorized(client):
+    response = _call(client, {"Authorization": f"Bearer {_token({'exp': _future()})}"})
+
+    assert response.status_code == 401
 
 
 # --- Google login ------------------------------------------------------------
@@ -101,8 +121,8 @@ def test_google_login_creates_the_user_and_returns_a_working_token(client, db, g
     assert data["user"]["email"] == "new@example.com"
     assert data["user"]["picture"] == "http://pic"
     row = db.query(Users).filter_by(google_id="g-123").one()
-    assert row.id == data["user"]["id"]
-    assert auth_controller.decode_jwt(data["token"])["user_id"] == row.id
+    assert str(row.id) == data["user"]["id"]
+    assert auth_controller.decode_jwt(data["token"])["user_id"] == str(row.id)
     # the token we got back really authenticates the user
     assert client.get("/user/me", headers={"Authorization": f"Bearer {data['token']}"}).status_code == 200
     # Google is asked to verify the token we received, for our own client id

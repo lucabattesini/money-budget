@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta
+from uuid import UUID
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ def _last_touched():
 
 
 def create_import_job(
-    db: Session, family_id: int, user_id: int, filename: str, columns: list[str], raw_rows: list
+    db: Session, family_id: UUID, user_id: UUID, filename: str, columns: list[str], raw_rows: list
 ) -> ImportJobDB:
     """The file as it was read, before the person says which column is which."""
     job = ImportJobDB(
@@ -37,7 +38,7 @@ def create_import_job(
 
 
 def get_import_job(
-    db: Session, job_id: int, family_id: int | None = None, user_id: int | None = None
+    db: Session, job_id: UUID, family_id: UUID | None = None, user_id: UUID | None = None
 ) -> ImportJobDB | None:
     """The job, or None. With `family_id` and `user_id` it only finds jobs of that family uploaded by that person."""
     query = db.query(ImportJobDB).filter_by(id=job_id)
@@ -48,7 +49,7 @@ def get_import_job(
     return query.first()
 
 
-def has_active_import_job(db: Session, family_id: int) -> bool:
+def has_active_import_job(db: Session, family_id: UUID) -> bool:
     """True if the family has an import that is waiting or running."""
     return (
         db.query(ImportJobDB.id)
@@ -58,7 +59,7 @@ def has_active_import_job(db: Session, family_id: int) -> bool:
     )
 
 
-def delete_staged_jobs_of(db: Session, family_id: int, user_id: int) -> None:
+def delete_staged_jobs_of(db: Session, family_id: UUID, user_id: UUID) -> None:
     """A person has one file in preparation at a time: uploading another throws the previous one away."""
     db.query(ImportJobDB).filter_by(family_id=family_id, requested_by=user_id, status="staged").delete(
         synchronize_session=False
@@ -122,7 +123,7 @@ def mark_failed(db: Session, job: ImportJobDB, error: str) -> None:
     db.commit()
 
 
-def fail_stuck_import_jobs(db: Session, family_id: int, error: str) -> None:
+def fail_stuck_import_jobs(db: Session, family_id: UUID, error: str) -> None:
     """Mark the family's jobs that have been queued or running for too long as failed."""
     db.query(ImportJobDB).filter(
         ImportJobDB.family_id == family_id,
@@ -150,7 +151,7 @@ def is_expired(job: ImportJobDB, db: Session) -> bool:
     )
 
 
-def existing_transaction_keys(db: Session, family_id: int, first: date, last: date) -> set[tuple]:
+def existing_transaction_keys(db: Session, family_id: UUID, first: date, last: date) -> set[tuple]:
     """(day, description, value in cents, category id, type) of the family's transactions from `first` to `last`."""
     rows = (
         db.query(
@@ -167,21 +168,22 @@ def existing_transaction_keys(db: Session, family_id: int, first: date, last: da
         )
         .all()
     )
-    return {(r.transactioned_at.date(), (r.label or "").strip(), r.value, r.category_id, r.type) for r in rows}
+    return {(r.transactioned_at.date(), (r.label or "").strip(), r.value, str(r.category_id), r.type) for r in rows}
 
 
-def add_transactions(db: Session, family_id: int, user_id: int, items: list[dict]) -> None:
+def add_transactions(db: Session, family_id: UUID, user_id: UUID, items: list[dict]) -> None:
     """Add the transactions to the session. The caller commits, together with marking the job done, so either
     everything is saved or nothing is."""
     db.add_all(
         TransactionDB(
             family_id=family_id,
             merchant_id=item.get("merchant_id"),
-            user_id=item.get("user_id") or user_id,  # the file may name a person; else whoever imports
+            # the file may name a person; else whoever imports. The job's JSON keeps ids as text.
+            user_id=UUID(item["user_id"]) if item.get("user_id") else user_id,
             label=item["label"],
             value=item["value"],
             type=item["type"],
-            category_id=item["category_id"],
+            category_id=UUID(item["category_id"]),
             transactioned_at=datetime.combine(date.fromisoformat(item["date"]), time(12, 0)),
         )
         for item in items

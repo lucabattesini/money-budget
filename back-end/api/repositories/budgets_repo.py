@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from uuid import UUID
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -16,19 +17,19 @@ def month_bounds(month: date) -> tuple[datetime, datetime]:
     return start, end
 
 
-def budgetable_categories(db: Session, family_id: int):
+def budgetable_categories(db: Session, family_id: UUID):
     """The categories the family can plan money for, each with its group, in the order the groups are shown."""
     return (
         db.query(Categories, CategoryGroups)
         .join(CategoryGroups, Categories.group_id == CategoryGroups.id)
         .filter(or_(Categories.family_id.is_(None), Categories.family_id == family_id))
         .filter(CategoryGroups.name.notin_(UNBUDGETED_GROUPS))
-        .order_by(CategoryGroups.position, CategoryGroups.id, Categories.id)
+        .order_by(CategoryGroups.position, CategoryGroups.id, Categories.name, Categories.id)
         .all()
     )
 
 
-def effective_budgets(db: Session, family_id: int, month: date) -> dict[int, tuple[int, date]]:
+def effective_budgets(db: Session, family_id: UUID, month: date) -> dict[int, tuple[int, date]]:
     """What the family has planned for the month, by category: category id -> (cents, the month the amount was set).
 
     A plan stays in force until it is changed: a month with no row of its own uses the most recent earlier one.
@@ -46,7 +47,7 @@ def effective_budgets(db: Session, family_id: int, month: date) -> dict[int, tup
     return {category_id: found for category_id, found in latest.items() if found[0] > 0}
 
 
-def _amount_before(db: Session, family_id: int, category_id: int, month: date) -> int:
+def _amount_before(db: Session, family_id: UUID, category_id: UUID, month: date) -> int:
     """What would be planned for the category in the month if the month had no row of its own (0: nothing)."""
     row = (
         db.query(Budgets.amount)
@@ -57,7 +58,7 @@ def _amount_before(db: Session, family_id: int, category_id: int, month: date) -
     return row.amount if row else 0
 
 
-def set_budget(db: Session, family_id: int, category_id: int, month: date, amount: int) -> None:
+def set_budget(db: Session, family_id: UUID, category_id: UUID, month: date, amount: int) -> None:
     """Plan `amount` cents for the category from this month on (until a later month changes it); 0 means nothing.
 
     A row is only kept when it says something the earlier months do not: asking for what already applies from an
@@ -78,6 +79,6 @@ def set_budget(db: Session, family_id: int, category_id: int, month: date, amoun
     db.commit()
 
 
-def delete_budgets_of_category(db: Session, category_id: int) -> None:
+def delete_budgets_of_category(db: Session, category_id: UUID) -> None:
     """A category that goes takes its budgets with it (the caller commits)."""
     db.query(Budgets).filter(Budgets.category_id == category_id).delete(synchronize_session=False)

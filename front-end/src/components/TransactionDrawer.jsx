@@ -82,11 +82,11 @@ export default function TransactionDrawer({ open, onClose, categories, members =
         const payload = {
             label: description.trim(),
             value: digitsToCents(amount),
-            category_id: Number(categoryId),
+            category_id: categoryId,
             type,
             transactioned_at: `${date}T${time}`,
             // Left out when unknown: the server then keeps the person (edit) or uses the logged-in one (new)
-            ...(personId ? { user_id: Number(personId) } : {}),
+            ...(personId ? { user_id: personId } : {}),
             // "" takes the merchant off an edited transaction; a new one without it simply has none
             ...(merchants ? { merchant: merchant.trim() } : {}),
         };

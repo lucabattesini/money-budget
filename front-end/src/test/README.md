@@ -68,3 +68,9 @@ Nothing is skipped at the moment.
 The charts (the line chart of `SpendingCard`, the bars of `TopCategoriesBarList`) draw with
 sizes that jsdom does not have, so only their texts and numbers are tested, through the
 dashboard; the legacy `login` and `create-account` pages are not tested.
+
+## Ids are text
+
+The server's ids are UUIDs (TKT-74), so the app treats every id as an opaque string: it never turns one into a number
+or does arithmetic on it. In mocks use strings (`'1'`, or a real UUID where the format matters) and compare what is sent
+with strings.

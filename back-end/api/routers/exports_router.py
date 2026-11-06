@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -19,8 +21,8 @@ def _out(job) -> dict:
 async def create_export_router(
     params: ExportJobCreate,
     background_tasks: BackgroundTasks,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """Queue an export. Answers at once; poll GET /exports/{id} until it is done."""
@@ -31,9 +33,9 @@ async def create_export_router(
 
 @router.get("/{job_id}")
 async def get_export_router(
-    job_id: int,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    job_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     return JSONResponse(
@@ -43,9 +45,9 @@ async def get_export_router(
 
 @router.get("/{job_id}/file")
 async def get_export_file_router(
-    job_id: int,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    job_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     job = get_export_file(db, job_id, family_id, user_id)

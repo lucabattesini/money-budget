@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -12,7 +14,7 @@ router = APIRouter(prefix="/user", tags=["user"], responses={404: {"description"
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
+async def get_me(user_id: UUID = Depends(get_current_user_id), db: Session = Depends(get_db)):
     """Return the currently authenticated user based on the JWT."""
     user = get_user_by_id_ctrl(db, user_id)
 
@@ -25,7 +27,7 @@ async def get_me(user_id: int = Depends(get_current_user_id), db: Session = Depe
 @router.patch("/me/phone", response_model=UserResponse)
 async def update_phone(
     payload: UserUpdatePhone,
-    user_id: int = Depends(get_current_user_id),
+    user_id: UUID = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     user = update_user_phone_ctrl(db, user_id, payload.whatsapp_phone)

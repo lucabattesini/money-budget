@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -20,7 +22,7 @@ from schemas.tables_schemas import FamilySettings, JoinFamily
 router = APIRouter(prefix="/families", tags=["families"], responses={404: {"description": "Not found"}})
 
 
-def _current_user(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
+def _current_user(user_id: UUID = Depends(get_current_user_id), db: Session = Depends(get_db)):
     user = get_user_by_id_ctrl(db, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -53,7 +55,7 @@ async def list_invites_router(user=Depends(_current_user), db: Session = Depends
 
 
 @router.delete("/invites/{invite_id}")
-async def cancel_invite_router(invite_id: int, user=Depends(_current_user), db: Session = Depends(get_db)):
+async def cancel_invite_router(invite_id: UUID, user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(cancel_family_invite(db, user, invite_id))
 
 
