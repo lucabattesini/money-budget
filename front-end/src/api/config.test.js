@@ -25,4 +25,15 @@ describe('API address', () => {
     expect(endpoints.categories).toBe('http://localhost:8000/categories')
     expect(endpoints.transactions).not.toContain('undefined')
   })
+
+  it('in the production build, with no address set, uses the page\'s own address (the API serves the app)', async () => {
+    vi.stubEnv('VITE_API_URL', '')
+    vi.stubEnv('PROD', true)
+    vi.resetModules()
+
+    const { endpoints } = await import('./endpoints')
+
+    expect(endpoints.categories).toBe('/categories')
+    expect(endpoints.transactions).not.toContain('localhost')
+  })
 })

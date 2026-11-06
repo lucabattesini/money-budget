@@ -135,5 +135,7 @@ Front-end: none in what ships to users; see `front-end/README.md` for the develo
 that are left and the upgrades postponed on purpose.
 
 ## 📚Documentation
+How to deploy and roll back: `docs/DEPLOY.md`.
+
 See `docs/SYSTEM_DESIGN.md` for the architecture and `AGENTS.md` for the
 contribution conventions (branches, commits and pull requests).

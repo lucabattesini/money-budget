@@ -1,9 +1,9 @@
 name: Tests
 
 on:
+  # Pull requests run it directly; the main branch runs it through deploy.yml, which only goes on if it passes
+  workflow_call:
   pull_request:
-  push:
-    branches: [main]
 
 # A newer push to the same branch makes the older run pointless
 concurrency:

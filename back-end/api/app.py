@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from dotenv import find_dotenv, load_dotenv
 
 dotenv_path = find_dotenv()
@@ -6,6 +8,7 @@ load_dotenv(dotenv_path)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.gateways.documents import MAX_FILE_BYTES
 from api.routers import (
@@ -20,9 +23,16 @@ from api.routers import (
     users_router,
     whatsapp_router,
 )
-from config import FRONT_URL
+from config import FRONT_URL, STATIC_DIR
 
-app = FastAPI()
+# The generated API pages list every address and are of no use to the people of a deployed app, so they are only served
+# in development (where the web app is not served by this server)
+_serving_web_app = bool(STATIC_DIR and Path(STATIC_DIR).is_dir())
+app = FastAPI(
+    docs_url=None if _serving_web_app else "/docs",
+    redoc_url=None if _serving_web_app else "/redoc",
+    openapi_url=None if _serving_web_app else "/openapi.json",
+)
 
 UPLOAD_OVERHEAD = 1024 * 1024  # the rest of the form around the file
 
@@ -57,3 +67,8 @@ app.include_router(exports_router.router)
 app.include_router(imports_router.router)
 app.include_router(families_router.router)
 app.include_router(whatsapp_router.router)
+
+# In production the same server serves the web app (a hash-routed single page, so every address is "/" plus files).
+# Mounted last: every API address above wins over a file of the same name.
+if _serving_web_app:
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="web")

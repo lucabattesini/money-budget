@@ -36,8 +36,6 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
 
         msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
         result = process_whatsapp_message(db, msg["from"], msg["text"]["body"])
-        print(f"AI RESPONSE TO {msg['from']}:", result["reply"])
-
         send_whatsapp_message(msg["from"], result["reply"])
 
         return {"status": "success", "reply": result["reply"]}

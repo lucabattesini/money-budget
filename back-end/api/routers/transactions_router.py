@@ -19,6 +19,9 @@ from schemas.tables_schemas import GetTransactionsParams, Transaction, Transacti
 router = APIRouter(prefix="/transactions", tags=["transactions"], responses={404: {"description": "Not found"}})
 
 
+# Both spellings: the web app posts to "/transactions", and the web app's own files are served from "/" in production, where
+# a missing slash is not redirected (see api/app.py)
+@router.post("")
 @router.post("/")
 async def get_transactions_router(
     transactionsParams: GetTransactionsParams,
