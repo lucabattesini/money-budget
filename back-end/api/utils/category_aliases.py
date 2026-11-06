@@ -3,7 +3,8 @@
 The default categories are in Portuguese (db/seed.py). A spreadsheet may come from another app and use English names (the
 ones of Monarch Money, which the defaults mirror, and everyday words) or the same Portuguese words without accents or a
 common short form. Each default category lists the other names that can only mean it; a word that could mean two
-categories (for example "Transporte" or "Saúde") is left out on purpose, so the person is asked instead of guessed for.
+categories (for example "Transporte", "Saúde", "Income", "Other" or "Cash") is left out on purpose, so the person is asked
+instead of guessed for. "Gas" is the fuel, as in Monarch (the utility there is "Gas & Electric").
 
 Pure functions. Names are compared as `name_key` does (words only, ignoring emoji and case) and also without accents.
 """
@@ -14,10 +15,10 @@ from api.utils.category_names import name_key
 
 # default category (as seed.py writes it, without its emoji) -> other names for it
 ALIASES: dict[str, list[str]] = {
-    "Salário": ["Salary", "Paycheck", "Paychecks", "Wages", "Pay"],
+    "Salário": ["Salary", "Paycheck", "Paychecks", "Wages"],
     "Juros": ["Interest"],
     "Renda de negócios": ["Business Income"],
-    "Outras receitas": ["Other Income", "Income"],
+    "Outras receitas": ["Other Income"],
     "Caridade": ["Charity", "Donations", "Donation", "Doações"],
     "Presentes": ["Gifts", "Gift"],
     "Pagamento do veículo": ["Auto Payment", "Car Payment"],
@@ -62,15 +63,15 @@ ALIASES: dict[str, list[str]] = {
     "Médico": ["Medical", "Doctor"],
     "Dentista": ["Dentist", "Dental"],
     "Academia e Fitness": ["Fitness", "Gym", "Academia"],
-    "Pagamento de empréstimos": ["Loan Repayment", "Loan Payment", "Loans"],
-    "Serviços financeiros e jurídicos": ["Financial & Legal Services", "Financial and Legal Services", "Legal"],
-    "Tarifas financeiras": ["Financial Fees", "Bank Fees", "Fees"],
-    "Saque e caixa eletrônico": ["Cash & ATM", "Cash and ATM", "ATM", "Cash", "Saque"],
+    "Pagamento de empréstimos": ["Loan Repayment", "Loan Payment"],
+    "Serviços financeiros e jurídicos": ["Financial & Legal Services", "Financial and Legal Services"],
+    "Tarifas financeiras": ["Financial Fees", "Bank Fees"],
+    "Saque e caixa eletrônico": ["Cash & ATM", "Cash and ATM", "ATM", "Saque"],
     "Seguros": ["Insurance", "Seguro"],
     "Impostos": ["Taxes", "Tax", "Imposto"],
     "Sem categoria": ["Uncategorized", "No Category"],
     "Cheque": ["Check", "Cheque"],
-    "Diversos": ["Miscellaneous", "Misc", "Other"],
+    "Diversos": ["Miscellaneous", "Misc"],
     "Transferência": ["Transfer", "Transfers", "Transferências"],
     "Pagamento de fatura do cartão": ["Credit Card Payment", "Card Payment", "Pagamento do cartão"],
     "Ajustes de saldo": ["Balance Adjustments", "Balance Adjustment"],

@@ -30,7 +30,7 @@ function Progress({ done, total, noun }) {
         <Text role="status" fontSize="sm" color={missing === 0 ? "fg.success" : "fg.muted"}>
             {missing === 0
                 ? `Tudo escolhido: ${total === 1 ? `1 ${noun.one}` : `${total} ${noun.many}`}.`
-                : `${done} de ${total} ${noun.many} escolhidas. ${missing === 1 ? "Falta 1." : `Faltam ${missing}.`}`}
+                : `${done} de ${total === 1 ? `1 ${noun.one} escolhida` : `${total} ${noun.many} escolhidas`}. ${missing === 1 ? "Falta 1." : `Faltam ${missing}.`}`}
         </Text>
     );
 }

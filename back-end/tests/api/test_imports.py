@@ -1727,3 +1727,25 @@ def test_an_other_name_of_a_default_that_is_not_there_is_not_matched(client, aut
     job = _stage(client, auth_headers, "15/03/2026;Vet;Pet Care;50,00;Débito")
 
     assert [item["name"] for item in job["unknown_categories"]] == ["Pet Care"]
+
+
+def test_an_other_name_follows_the_category_the_family_really_uses_for_the_default_name(
+    client, db, user, auth_headers, queue
+):
+    """The family has its own "Supermercado": the file's "Groceries" and "Supermercado" both go there, not one to each."""
+    own = Categories(name="Supermercado", family_id=user.family_id, group_id=db.query(CategoryGroups).first().id)
+    db.add(own)
+    db.commit()
+
+    job = _import(
+        client, queue, auth_headers, "15/03/2026;A;Groceries;10,00;Débito", "15/03/2026;B;Supermercado;20,00;Débito"
+    )
+
+    assert job["status"] == "done"
+    assert {t.category_id for t in _saved(db, user)} == {own.id}
+
+
+def test_a_word_that_could_mean_two_categories_is_not_matched(client, auth_headers):
+    job = _stage(client, auth_headers, "15/03/2026;Salário;Income;10,00;Crédito", "15/03/2026;Algo;Other;5,00;Débito")
+
+    assert sorted(item["name"] for item in job["unknown_categories"]) == ["Income", "Other"]

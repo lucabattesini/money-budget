@@ -132,12 +132,13 @@ def _category_lookup(db: Session, family_id: UUID) -> tuple[dict[str, str], set[
     lookup: dict[str, str] = {}
     for category in sorted(categories, key=lambda c: c.family_id is not None):  # defaults first, then overwritten
         lookup[name_key(category.name)] = str(category.id)
-    # Other names of the default categories (English, or Portuguese without accents) find them too, but never take
-    # the place of a name a category really has
-    defaults = {name_key(c.name): str(c.id) for c in categories if c.family_id is None}
+    # Other names of a default category (English, or Portuguese without accents) find the category the name of that
+    # default finds (so a family's own "Supermercado" also answers to "Groceries"), but never take the place of a name a
+    # category really has
     for spelling, canonical in alias_keys().items():
-        if spelling not in lookup and name_key(canonical) in defaults:
-            lookup[spelling] = defaults[name_key(canonical)]
+        target = lookup.get(name_key(canonical))
+        if spelling not in lookup and target is not None:
+            lookup[spelling] = target
     return lookup, {str(category.id) for category in categories}
 
 

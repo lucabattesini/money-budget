@@ -770,7 +770,7 @@ describe('import dialog', () => {
       await check()
       await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Criar uma categoria nova')
 
-      expect(screen.getByText('0 de 1 categorias escolhidas. Falta 1.')).toBeInTheDocument()
+      expect(screen.getByText('0 de 1 categoria escolhida. Falta 1.')).toBeInTheDocument()
       expect(screen.getByText(/clique em .Criar categoria./i)).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Próximo' })).toBeDisabled()
     })
