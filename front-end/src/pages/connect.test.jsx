@@ -37,6 +37,13 @@ describe('connecting an AI app', () => {
     expect(screen.getByRole('button', { name: 'Permitir' })).toBeInTheDocument()
   })
 
+  it('shows where the person will be sent back to, since any app can call itself Claude', () => {
+    saveToken('tok')
+    renderConnect()
+
+    expect(screen.getByText('claude.ai')).toBeInTheDocument()
+  })
+
   it('sends the answer as the signed-in person and goes where the server says', async () => {
     saveToken('tok')
     const api = mockApi({ 'POST /oauth/authorize': { data: { redirect_to: 'https://claude.ai/cb?code=c&state=xyz' } } })

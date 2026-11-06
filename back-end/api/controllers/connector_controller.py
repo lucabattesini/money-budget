@@ -102,7 +102,7 @@ def _read_row(raw, today: date, lookup: dict[str, str]) -> tuple[dict | None, li
 def _preview_id(user_id: UUID, rows: list[dict]) -> str:
     """Proves the rows were previewed: it covers exactly what would be saved and who for, and cannot be made without
     the server's secret. So the rows that get added are the ones that were shown."""
-    body = json.dumps([user_id.hex, rows], sort_keys=True, separators=(",", ":"))
+    body = json.dumps(["money-budget-preview", user_id.hex, rows], sort_keys=True, separators=(",", ":"))
     return hmac.new(JWT_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
 
 

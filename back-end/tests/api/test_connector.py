@@ -124,6 +124,7 @@ def test_registration_refuses_unsafe_return_addresses(client, redirect):
 
 def test_registration_allows_localhost_over_http(client):
     assert _register(client, "http://localhost:6274/callback").status_code == 201
+    assert _register(client, "http://[::1]:6274/callback").status_code == 201
 
 
 # --- the person says yes or no ----------------------------------------------------------------------------------

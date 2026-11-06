@@ -92,7 +92,7 @@ gcloud sql instances delete scratch-restore
 ## Good to know
 
 - The Claude connector (`/mcp`, TKT-72) is served by the same service, so it needs nothing more. Phones reach it at
-  `https://<the service address>/mcp`. If the sign-in pages show a wrong address (for example `http://`), set `PUBLIC_URL`.
+  `https://<the service address>/mcp`. If the sign-in pages show a wrong address (for example `http://`), set `PUBLIC_URL`. Setting it is advisable in production.
   Its rate limit is counted per instance.
 
 - The service is capped at 2 instances and the pool at 2 connections each, so it cannot use up the shared database's

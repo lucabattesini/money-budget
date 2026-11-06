@@ -37,10 +37,10 @@ from schemas.tables import OAuthClient, OAuthGrant
 CODE_MINUTES = 5
 ACCESS_HOURS = 1
 REFRESH_DAYS = 30
-UNUSED_CLIENT_DAYS = 1
+UNUSED_CLIENT_DAYS = 30  # long enough for an app to reconnect with the client id it kept
 MAX_REDIRECT_URIS = 5
 MAX_URI_LENGTH = 500
-LOCAL_HOSTS = ("localhost", "127.0.0.1", "[::1]")
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 
 class OAuthError(Exception):

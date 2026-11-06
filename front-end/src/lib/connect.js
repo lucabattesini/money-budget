@@ -35,7 +35,15 @@ export function readConnectRequest(search) {
     const complete = ["client_id", "redirect_uri", "response_type", "code_challenge", "code_challenge_method"].every(
         (key) => request[key],
     );
-    return complete ? { request, app: params.get("app") || "Um aplicativo" } : null;
+    if (!complete) return null;
+    // Where the person will be sent back to: anyone can register an app under any name, so the address is what tells apps apart
+    let returnHost = "";
+    try {
+        returnHost = new URL(request.redirect_uri).host;
+    } catch {
+        return null;
+    }
+    return { request, app: params.get("app") || "Um aplicativo", returnHost };
 }
 
 // Leave this page for the address the app is waiting at. (A function of its own so tests can see where it goes.)

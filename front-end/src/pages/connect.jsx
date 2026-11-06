@@ -58,6 +58,9 @@ export default function Connect() {
                     <List.Item>mostrar as transações que ele leu de uma foto ou extrato e adicioná-las depois que você confirmar.</List.Item>
                 </List.Root>
                 <Text fontSize="sm" color="fg.muted">
+                    Depois de responder, você volta para <strong>{asked.returnHost}</strong>. Só permita se esse endereço for do aplicativo que você está usando.
+                </Text>
+                <Text fontSize="sm" color="fg.muted">
                     Ele não consegue apagar nem alterar nada, nem ver suas transações. Você pode desconectar quando quiser em
                     Conta → Assistentes de IA.
                 </Text>

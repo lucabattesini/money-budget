@@ -241,7 +241,7 @@ OAuth 2.1 with PKCE, in front of the existing Google login; it does not replace 
 - The app discovers the server from `GET /.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`
   (the address in them is `PUBLIC_URL`, or the address of the request), registers itself with `POST /oauth/register`
   (dynamic client registration, public client: no secret; only `https` return addresses, or `http` for localhost; at most 5;
-  apps nobody signed in with are forgotten after a day) and sends the person to `GET /oauth/authorize`.
+  apps nobody signed in with are forgotten after 30 days) and sends the person to `GET /oauth/authorize`.
 - That checks the request (registered return address, `code_challenge_method=S256` mandatory) and redirects to the web app's
   `#/connect` page. An invalid request is shown as an error and **never redirected**: the return address is not trusted
   until it matches the registration. The page needs the normal Google login (an unauthenticated visitor is sent to the login
@@ -278,9 +278,11 @@ their family: rows get that family and that `user_id`.
   rows, so only rows that were previewed, by that person, can be added; changed rows are refused. Rows the family already has
   are skipped, so sending the same statement twice adds nothing twice. The family row is locked while checking and adding, and
   it is all or nothing.
-- The tool descriptions tell the AI to show the preview and add only after the person confirms. Text inside a document is
-  untrusted: the narrow tools, the preview binding and the Claude app's own approval of tool calls are what limit what it can
-  make the connector do.
+- The tool descriptions tell the AI to show the preview and add only after the person confirms, and the Claude app asks the
+  person to approve tool calls. The server itself cannot see that confirmation: `preview_id` proves the rows were previewed,
+  not that the person said yes. Text inside a document is untrusted, so what limits a manipulated chat is that the tools are
+  narrow: it can only add valid rows (at most 200 per call, 60 calls a minute), never read, change or delete anything.
+- The consent page shows the address the person returns to, because anyone can register an app under any name.
 
 ### 3.4 WhatsApp agent pipeline (`agents/`, `graph/`)
 A LangGraph `StateGraph` (`graph/graph.py`) over `AssistantState`
