@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -54,11 +56,11 @@ def _in_use(used: int) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
-def list_merchants(db: Session, family_id: int) -> list[dict]:
+def list_merchants(db: Session, family_id: UUID) -> list[dict]:
     return [_out(merchant, used) for merchant, used in list_merchants_repo(db, family_id)]
 
 
-def create_family_merchant(db: Session, family_id: int, name: str) -> dict:
+def create_family_merchant(db: Session, family_id: UUID, name: str) -> dict:
     name = _clean_name(name)
     lock_family(db, family_id)
     if find_by_name(db, family_id, name):
@@ -67,7 +69,7 @@ def create_family_merchant(db: Session, family_id: int, name: str) -> dict:
     return _out(create_merchant(db, family_id, name), 0)
 
 
-def rename_family_merchant(db: Session, family_id: int, merchant_id: int, name: str) -> dict:
+def rename_family_merchant(db: Session, family_id: UUID, merchant_id: UUID, name: str) -> dict:
     cleaned = _clean_name(name)
     lock_family(db, family_id)
     merchant = get_family_merchant(db, family_id, merchant_id)
@@ -81,7 +83,7 @@ def rename_family_merchant(db: Session, family_id: int, merchant_id: int, name: 
     return _out(merchant, count_transactions_using(db, merchant.id))
 
 
-def delete_family_merchant(db: Session, family_id: int, merchant_id: int) -> dict:
+def delete_family_merchant(db: Session, family_id: UUID, merchant_id: UUID) -> dict:
     lock_family(db, family_id)
     merchant = get_family_merchant(db, family_id, merchant_id)
     if merchant is None:
@@ -100,7 +102,7 @@ def delete_family_merchant(db: Session, family_id: int, merchant_id: int) -> dic
     return {"message": "Estabelecimento apagado"}
 
 
-def merchant_for_transaction(db: Session, family_id: int, name: str | None) -> int | None:
+def merchant_for_transaction(db: Session, family_id: UUID, name: str | None) -> UUID | None:
     """The id of the family's merchant a transaction names, creating it the first time the name is used.
 
     None (the name was left out) and "" (empty: no merchant) both mean no merchant. Naming one while the family has

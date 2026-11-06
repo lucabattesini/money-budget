@@ -97,9 +97,12 @@ def test_the_seed_repairs_a_missing_default_category_without_touching_the_others
 def test_a_family_with_a_category_of_the_same_name_does_not_stop_the_default_from_being_created(url, engine):
     upgrade_database(url)
     with engine.begin() as conn:
-        conn.execute(text("INSERT INTO families (id) VALUES (1)"))
+        conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid())"))
         conn.execute(
-            text("INSERT INTO categories (family_id, name, group_id) SELECT 1, 'Pets', id FROM category_groups LIMIT 1")
+            text(
+                "INSERT INTO categories (id, family_id, name, group_id) "
+                "SELECT gen_random_uuid(), (SELECT id FROM families), 'Pets', id FROM category_groups LIMIT 1"
+            )
         )
 
     _run(url, "-m", "db.seed")
@@ -137,7 +140,7 @@ def test_a_database_made_by_the_migration_alone_gets_the_missing_categories_from
     with engine.begin() as conn:  # what the migration leaves for an existing database: some defaults, already grouped
         conn.execute(
             text(
-                "INSERT INTO categories (name, group_id) SELECT '💰 Salário', id FROM category_groups WHERE name = 'Receitas'"
+                "INSERT INTO categories (id, name, group_id) SELECT gen_random_uuid(), '💰 Salário', id FROM category_groups WHERE name = 'Receitas'"
             )
         )
 
@@ -154,7 +157,7 @@ def test_a_default_category_that_differs_only_in_case_is_not_added_twice(url, en
     with engine.begin() as conn:  # what the migration leaves when it groups an old "aluguel" by name
         conn.execute(
             text(
-                "INSERT INTO categories (name, group_id) SELECT 'aluguel', id FROM category_groups WHERE name = 'Moradia'"
+                "INSERT INTO categories (id, name, group_id) SELECT gen_random_uuid(), 'aluguel', id FROM category_groups WHERE name = 'Moradia'"
             )
         )
 
@@ -231,7 +234,7 @@ def test_a_default_stored_without_its_emoji_is_not_added_a_second_time(url, engi
     with engine.begin() as conn:  # a database from before the emojis
         conn.execute(
             text(
-                "INSERT INTO categories (name, group_id) SELECT 'Aluguel', id FROM category_groups WHERE name = 'Moradia'"
+                "INSERT INTO categories (id, name, group_id) SELECT gen_random_uuid(), 'Aluguel', id FROM category_groups WHERE name = 'Moradia'"
             )
         )
 

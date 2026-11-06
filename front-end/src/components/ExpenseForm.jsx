@@ -82,7 +82,7 @@ export default function ExpenseForm() {
         const payload = {
             label: description,
             value: cents,
-            category_id: Number(selectedCategory)
+            category_id: selectedCategory
         };
 
         insertNewTransaction(payload, getToken())

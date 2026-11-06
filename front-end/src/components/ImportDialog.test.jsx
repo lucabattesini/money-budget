@@ -794,7 +794,7 @@ describe('import dialog', () => {
 
       expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
       const put = api.mock.calls.find(([url, o]) => o?.method === 'PUT' && String(url).endsWith('/categories'))
-      expect(JSON.parse(put[1].body)).toEqual({ mapping: { Pets: 1 } })
+      expect(JSON.parse(put[1].body)).toEqual({ mapping: { Pets: '1' } })
     })
 
     it('creates a new category with the name from the file, in Outros by default, and chooses it', async () => {
@@ -819,11 +819,11 @@ describe('import dialog', () => {
 
       await waitFor(() => expect(screen.getByLabelText('Categoria para "Pets"')).toHaveValue('99'))
       const post = api.mock.calls.find(([, o]) => o?.method === 'POST' && String(o.body).includes('group_id'))
-      expect(JSON.parse(post[1].body)).toEqual({ name: 'Pets', group_id: 11 })
+      expect(JSON.parse(post[1].body)).toEqual({ name: 'Pets', group_id: '11' })
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByText('3 transações serão importadas')
       const put = api.mock.calls.find(([url, o]) => o?.method === 'PUT' && String(url).endsWith('/categories'))
-      expect(JSON.parse(put[1].body)).toEqual({ mapping: { Pets: 99 } })
+      expect(JSON.parse(put[1].body)).toEqual({ mapping: { Pets: '99' } })
     })
 
     it('lets the user rename the new category and pick its group before creating it', async () => {
@@ -839,7 +839,7 @@ describe('import dialog', () => {
 
       await waitFor(() => expect(requestsMade(api)).toContain('POST /categories'))
       const post = api.mock.calls.find(([, o]) => o?.method === 'POST' && String(o.body).includes('Animais'))
-      expect(JSON.parse(post[1].body)).toEqual({ name: 'Animais', group_id: 10 })
+      expect(JSON.parse(post[1].body)).toEqual({ name: 'Animais', group_id: '10' })
     })
 
     it('shows why a category could not be created and stays on the step', async () => {
@@ -954,7 +954,7 @@ describe('import dialog', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
 
       expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
-      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': 1 } })
+      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': '1' } })
     })
 
     it('keeps the matched ones as they are when the person does not change them', async () => {
@@ -965,7 +965,7 @@ describe('import dialog', () => {
       await userEvent.click(await screen.findByRole('button', { name: 'Próximo' }))
 
       await screen.findByText('3 transações serão importadas')
-      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': 2 } })
+      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': '2' } })
     })
 
     it('asks for a choice for each name that matched nobody, and cannot go on until all are chosen', async () => {
@@ -986,7 +986,7 @@ describe('import dialog', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
 
       expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
-      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': 2, Bia: 2 } })
+      expect(putPeople(api)).toEqual({ mapping: { 'Bia Souza': '2', Bia: '2' } })
     })
 
     it('shows the message of the server when the choice is refused and stays on the step', async () => {

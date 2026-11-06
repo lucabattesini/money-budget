@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Response, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -30,8 +32,8 @@ def _data(db: Session, job) -> dict:
 @router.post("")
 async def upload_import_router(
     file: UploadFile = File(...),
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """Step 1: read the file. The answer has its columns, a suggestion of which is which and a few rows to recognise them."""
@@ -42,9 +44,9 @@ async def upload_import_router(
 
 @router.get("/{job_id}")
 async def get_import_router(
-    job_id: int,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    job_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     return JSONResponse(content=_data(db, get_import(db, job_id, family_id, user_id)), status_code=status.HTTP_200_OK)
@@ -52,10 +54,10 @@ async def get_import_router(
 
 @router.put("/{job_id}/columns")
 async def match_import_columns_router(
-    job_id: int,
+    job_id: UUID,
     choice: ImportColumnsChoice,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """Step 2: which column of the file is which field. Checks the whole file: answers 422 with the list of problems if
@@ -77,10 +79,10 @@ async def match_import_columns_router(
 
 @router.put("/{job_id}/categories")
 async def choose_import_categories_router(
-    job_id: int,
+    job_id: UUID,
     choice: ImportCategoriesChoice,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """Step 3: which category of the family each unknown name in the file stands for."""
@@ -90,10 +92,10 @@ async def choose_import_categories_router(
 
 @router.put("/{job_id}/people")
 async def choose_import_people_router(
-    job_id: int,
+    job_id: UUID,
     choice: ImportPeopleChoice,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """Step 3: which member of the family each name of the Pessoa column that matched nobody stands for."""
@@ -103,10 +105,10 @@ async def choose_import_people_router(
 
 @router.post("/{job_id}/start")
 async def start_import_router(
-    job_id: int,
+    job_id: UUID,
     background_tasks: BackgroundTasks,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """Step 4: queue the import. Answers at once; poll GET /imports/{id} until it is done."""
@@ -117,9 +119,9 @@ async def start_import_router(
 
 @router.delete("/{job_id}")
 async def cancel_import_router(
-    job_id: int,
-    user_id: int = Depends(get_current_user_id),
-    family_id: int = Depends(get_current_family_id),
+    job_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
 ):
     """Give up before starting: throws the checked file away."""

@@ -1,5 +1,6 @@
 from datetime import datetime, time, timedelta
 from typing import Literal, Optional
+from uuid import UUID
 
 from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
@@ -30,7 +31,7 @@ PERIOD_PARTS = {
 GroupBy = Literal["category", "merchant", "day", "month", "year", "weekday"]
 
 
-def create_transaction(db: Session, t: Transaction, family_id: int, user_id: int, merchant_id: Optional[int] = None):
+def create_transaction(db: Session, t: Transaction, family_id: UUID, user_id: UUID, merchant_id: Optional[UUID] = None):
     try:
         data = t.model_dump(exclude={"merchant"})
         data["merchant_id"] = merchant_id
@@ -45,7 +46,7 @@ def create_transaction(db: Session, t: Transaction, family_id: int, user_id: int
         raise
 
 
-def get_transactions(db: Session, start: Optional[datetime], end: Optional[datetime], family_id: int):
+def get_transactions(db: Session, start: Optional[datetime], end: Optional[datetime], family_id: UUID):
     """The family's transactions, newest first. start is included and end excluded; None means open."""
     query = db.query(TransactionDB).filter(TransactionDB.family_id == family_id)
     if start is not None:
@@ -56,7 +57,7 @@ def get_transactions(db: Session, start: Optional[datetime], end: Optional[datet
 
 
 def get_transactions_summed_by_category(
-    db: Session, start: Optional[datetime], end: Optional[datetime], family_id: int
+    db: Session, start: Optional[datetime], end: Optional[datetime], family_id: UUID
 ):
     query = (
         db.query(TransactionDB.category_id, func.sum(TransactionDB.value).label("total"))
@@ -72,7 +73,7 @@ def get_transactions_summed_by_category(
     return query.all()
 
 
-def _apply_filters(query, family_id: int, f: TransactionFilters):
+def _apply_filters(query, family_id: UUID, f: TransactionFilters):
     """Scope the query to the family and apply every filter that was set."""
     query = query.filter(TransactionDB.family_id == family_id)
 
@@ -103,7 +104,7 @@ def _apply_filters(query, family_id: int, f: TransactionFilters):
 
 def list_transactions(
     db: Session,
-    family_id: int,
+    family_id: UUID,
     filters: TransactionFilters,
     order_by: Literal["date", "value"] = "date",
     order_dir: Literal["asc", "desc"] = "desc",
@@ -125,7 +126,7 @@ def list_transactions(
     return _to_out(rows)
 
 
-def list_all_transactions(db: Session, family_id: int) -> list[TransactionOut]:
+def list_all_transactions(db: Session, family_id: UUID) -> list[TransactionOut]:
     """Every transaction of the family, newest first. No page limit: meant for exports."""
     query = _with_names(db.query(TransactionDB, Categories.name, Users.name, Merchants.name))
     rows = (
@@ -168,7 +169,7 @@ def _to_out(rows) -> list[TransactionOut]:
 
 def aggregate_transactions(
     db: Session,
-    family_id: int,
+    family_id: UUID,
     filters: TransactionFilters,
     group_by: Optional[GroupBy] = None,
 ) -> list[TransactionAggregate]:
@@ -213,7 +214,7 @@ def aggregate_transactions(
     return results
 
 
-def delete_transaction(db: Session, id, family_id: int):
+def delete_transaction(db: Session, id, family_id: UUID):
     transaction = db.query(TransactionDB).filter_by(id=id, family_id=family_id).first()
     if transaction:
         db.delete(transaction)
@@ -222,13 +223,13 @@ def delete_transaction(db: Session, id, family_id: int):
     return False
 
 
-def category_exists(db: Session, category_id: int, family_id: int) -> bool:
+def category_exists(db: Session, category_id: UUID, family_id: UUID) -> bool:
     """True if the category is a default one or belongs to the family."""
     return category_visible_to_family(db, category_id, family_id)
 
 
 def update_transaction(
-    db: Session, id: int, family_id: int, changes: TransactionUpdate, merchant_id: Optional[int] = None
+    db: Session, id: UUID, family_id: UUID, changes: TransactionUpdate, merchant_id: Optional[UUID] = None
 ):
     """Update one of the family's transactions. Returns it, or None if it is missing or not the family's."""
     transaction = db.query(TransactionDB).filter_by(id=id, family_id=family_id).first()

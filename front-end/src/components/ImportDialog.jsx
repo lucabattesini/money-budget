@@ -367,7 +367,7 @@ function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
             return;
         }
         setCreating(true);
-        const result = await createCategory({ name, group_id: Number(row.groupId) }, getToken());
+        const result = await createCategory({ name, group_id: row.groupId }, getToken());
         setCreating(false);
         if (result.ok) {
             setError("");
@@ -701,7 +701,7 @@ export default function ImportDialog({ open, onClose }) {
     const handleChosen = async () => {
         setBusy(true);
         setCategoryError("");
-        const mapping = Object.fromEntries(unknown.map((item) => [item.name, Number(rows[item.name].value)]));
+        const mapping = Object.fromEntries(unknown.map((item) => [item.name, rows[item.name].value]));
         const result = await chooseImportCategories(job.id, mapping, getToken());
         setBusy(false);
         if (!result.ok) {
@@ -716,7 +716,7 @@ export default function ImportDialog({ open, onClose }) {
     const handlePeopleChosen = async () => {
         setBusy(true);
         setPeopleError("");
-        const mapping = Object.fromEntries(filePeople.map((item) => [item.name, Number(peopleChoices[item.name])]));
+        const mapping = Object.fromEntries(filePeople.map((item) => [item.name, peopleChoices[item.name]]));
         const result = await chooseImportPeople(job.id, mapping, getToken());
         setBusy(false);
         if (!result.ok) {

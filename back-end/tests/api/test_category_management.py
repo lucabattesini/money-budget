@@ -6,6 +6,7 @@
 import pytest
 
 from schemas.tables import Categories, CategoryGroups, TransactionDB
+from tests.conftest import MISSING_ID
 
 
 def _post(client, headers, **body):
@@ -78,9 +79,9 @@ def test_adding_a_category_makes_it_the_familys_own_and_lists_it_with_its_group(
     created = response.json()["data"]
     assert (created["name"], created["group_id"], created["group_name"], created["family_id"]) == (
         "Jogos",
-        viagem.id,
+        str(viagem.id),
         "Viagem e Estilo de Vida",
-        user.family_id,
+        str(user.family_id),
     )
     assert _list(client, auth_headers)["Jogos"]["id"] == created["id"]
 
@@ -114,7 +115,7 @@ def test_a_name_longer_than_the_database_allows_is_refused(client, auth_headers)
 
 
 def test_a_group_that_does_not_exist_is_refused_and_nothing_is_saved(client, auth_headers):
-    response = _post(client, auth_headers, name="Fantasma", group_id=999_999)
+    response = _post(client, auth_headers, name="Fantasma", group_id=MISSING_ID)
 
     assert response.status_code == 422
     assert "Fantasma" not in _list(client, auth_headers)
@@ -143,7 +144,7 @@ def test_another_family_may_use_the_same_name_and_gets_its_own_category(
 
     assert response.status_code == 201
     theirs = response.json()["data"]
-    assert theirs["id"] != own["id"] and theirs["family_id"] == other_user.family_id
+    assert theirs["id"] != own["id"] and theirs["family_id"] == str(other_user.family_id)
     assert _list(client, auth_headers)["Plantas"]["id"] == own["id"]  # each family sees only its own
 
 
@@ -165,7 +166,7 @@ def test_a_category_can_be_renamed_and_keeps_its_group_and_its_transactions(
     data = response.json()["data"]
     assert (data["id"], data["name"], data["group_name"]) == (own["id"], "Jardim", own["group_name"])
     db.expire_all()
-    assert db.get(TransactionDB, row.id).category_id == own["id"]  # the same category, so the transaction follows
+    assert str(db.get(TransactionDB, row.id).category_id) == own["id"]  # the same category, so the transaction follows
 
 
 def test_a_category_can_change_group_without_changing_name(client, db, auth_headers, own):
@@ -173,7 +174,11 @@ def test_a_category_can_change_group_without_changing_name(client, db, auth_head
 
     data = _patch(client, auth_headers, own["id"], group_id=viagem.id).json()["data"]
 
-    assert (data["name"], data["group_id"], data["group_name"]) == ("Plantas", viagem.id, "Viagem e Estilo de Vida")
+    assert (data["name"], data["group_id"], data["group_name"]) == (
+        "Plantas",
+        str(viagem.id),
+        "Viagem e Estilo de Vida",
+    )
 
 
 def test_name_and_group_can_change_together(client, db, auth_headers, own):
@@ -199,7 +204,7 @@ def test_renaming_onto_another_category_of_the_family_or_a_default_is_refused(cl
     assert _list(client, auth_headers)["Plantas"]["id"] == own["id"]  # unchanged
 
 
-@pytest.mark.parametrize("body", [{}, {"name": "  "}, {"name": ""}, {"group_id": 999_999}])
+@pytest.mark.parametrize("body", [{}, {"name": "  "}, {"name": ""}, {"group_id": MISSING_ID}])
 def test_a_bad_change_is_refused_and_leaves_the_category_as_it_was(client, auth_headers, own, body):
     response = _patch(client, auth_headers, own["id"], **body)
 
@@ -213,7 +218,7 @@ def test_a_default_category_cannot_be_renamed_or_regrouped(client, db, auth_head
 
     renamed = _patch(client, auth_headers, default["id"], name="Comida")
     regrouped = _patch(client, auth_headers, default["id"], group_id=_group(db, "Viagem e Estilo de Vida").id)
-    missing = _patch(client, auth_headers, 999_999, name="x")
+    missing = _patch(client, auth_headers, MISSING_ID, name="x")
 
     assert (renamed.status_code, regrouped.status_code) == (404, 404)
     assert renamed.json() == missing.json()  # indistinguishable from a category that does not exist
@@ -227,7 +232,7 @@ def test_another_familys_category_cannot_be_changed_and_answers_like_a_missing_o
     stranger = headers_for(other_user)
 
     renamed = _patch(client, stranger, own["id"], name="Roubada")
-    missing = _patch(client, stranger, 999_999, name="Roubada")
+    missing = _patch(client, stranger, MISSING_ID, name="Roubada")
 
     assert renamed.status_code == 404 and renamed.json() == missing.json()
     assert _list(client, auth_headers)["Plantas"]["id"] == own["id"]
@@ -257,7 +262,7 @@ def test_a_category_in_use_is_not_deleted_and_the_message_says_how_many_transact
     assert message in response.json()["detail"]
     assert "Plantas" in _list(client, auth_headers)
     db.expire_all()
-    assert all(db.get(TransactionDB, row.id).category_id == own["id"] for row in rows)  # nothing was touched
+    assert all(str(db.get(TransactionDB, row.id).category_id) == own["id"] for row in rows)  # nothing was touched
 
 
 def test_a_category_can_be_deleted_once_its_transactions_are_gone(
@@ -275,7 +280,7 @@ def test_a_default_category_cannot_be_deleted_even_when_unused(client, db, auth_
     default = _list(client, auth_headers)["Aluguel"]
 
     response = client.delete(f"/categories/{default['id']}", headers=auth_headers)
-    missing = client.delete("/categories/999999", headers=auth_headers)
+    missing = client.delete(f"/categories/{MISSING_ID}", headers=auth_headers)
 
     assert response.status_code == 404 and response.json() == missing.json()
     assert "Aluguel" in _list(client, auth_headers)

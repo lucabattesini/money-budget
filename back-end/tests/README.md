@@ -132,3 +132,12 @@ separately in `tests/db/test_migrations.py`, on a throwaway database named
 the migrations build exactly what the models describe, that every revision can be undone, that databases
 from before Alembic are upgraded without losing data, and that seeding is a command and not a side effect
 of importing a module.
+
+## Ids are UUIDs (TKT-74)
+
+Ids are random UUIDs, so they have no order and JSON carries them as text. In tests:
+
+- compare ids from a response with `str(row.id)`; the `client` fixture turns UUIDs in `json=`/`params=` into text for you;
+- use `MISSING_ID` (from `tests.conftest`) for "a well-formed id nobody has" (404). A counting number such as `42` is not an id any more: it answers 422;
+- never rely on id order (insertion order). Sort by something real (date, name) or compare sets;
+- migration tests insert rows with `gen_random_uuid()` from 0019 on, and stop at `BEFORE_UUIDS` (revision 0018) when they test older migrations with counting numbers.

@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ def parse_month(text: str) -> date:
     return date(int(year), int(month), 1)
 
 
-def get_month_budget(db: Session, family_id: int, month_text: str) -> dict:
+def get_month_budget(db: Session, family_id: UUID, month_text: str) -> dict:
     """The family's plan and spending for one month, by group and category. Amounts are in cents.
 
     A plan stays in force until it is changed, so `budgeted` is the amount of the latest month up to this one that
@@ -32,7 +33,7 @@ def get_month_budget(db: Session, family_id: int, month_text: str) -> dict:
     planned = effective_budgets(db, family_id, month)
     spent = {row.category_id: int(row.total) for row in get_transactions_summed_by_category(db, start, end, family_id)}
 
-    groups: dict[int, dict] = {}
+    groups: dict[UUID, dict] = {}
     for category, group in budgetable_categories(db, family_id):
         entry = groups.setdefault(group.id, {"id": group.id, "name": group.name, "categories": []})
         entry["categories"].append(
@@ -58,7 +59,7 @@ def get_month_budget(db: Session, family_id: int, month_text: str) -> dict:
     return {"month": month_text, "totals": totals, "groups": result}
 
 
-def set_category_budget(db: Session, family_id: int, category_id: int, month_text: str, amount: int) -> dict:
+def set_category_budget(db: Session, family_id: UUID, category_id: UUID, month_text: str, amount: int) -> dict:
     # Under the same lock the categories use: two requests cannot both create the row, and a category being deleted
     # at this very moment is seen as gone
     lock_family(db, family_id)

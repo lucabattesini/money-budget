@@ -1,4 +1,7 @@
+from uuid import UUID
+
 from schemas.tables import Categories, CategoryGroups
+from tests.conftest import MISSING_ID
 
 
 def test_lists_exactly_the_default_categories(client, auth_headers):
@@ -20,7 +23,7 @@ def test_each_category_has_an_id_and_name(client, auth_headers):
     category = client.get("/categories/", headers=auth_headers).json()["data"][0]
 
     assert set(category) >= {"id", "name"}
-    assert isinstance(category["id"], int)
+    assert UUID(category["id"])  # an id is a UUID written as text
 
 
 def test_listing_requires_login(client):
@@ -114,14 +117,14 @@ def test_a_category_made_with_a_group_keeps_it(client, db, user, auth_headers):
 
     created = {c["name"]: c for c in client.get("/categories/", headers=auth_headers).json()["data"]}["Jogos"]
 
-    assert (created["group_id"], created["group_name"]) == (viagem.id, "Viagem e Estilo de Vida")
+    assert (created["group_id"], created["group_name"]) == (str(viagem.id), "Viagem e Estilo de Vida")
 
 
 def test_a_category_cannot_be_saved_with_a_group_that_does_not_exist(db, user):
     import pytest
     from sqlalchemy.exc import IntegrityError
 
-    db.add(Categories(name="Fantasma", family_id=user.family_id, group_id=999_999))
+    db.add(Categories(name="Fantasma", family_id=user.family_id, group_id=MISSING_ID))
 
     with pytest.raises(IntegrityError):
         db.commit()

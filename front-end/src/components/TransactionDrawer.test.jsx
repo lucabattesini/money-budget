@@ -93,6 +93,30 @@ describe('transaction sidebar', () => {
     expect(amount()).toHaveValue('')
   })
 
+  it('sends the ids of the category and the person exactly as it got them (they are UUIDs, not numbers)', async () => {
+    const CAT = '7c1f5f0e-52a4-4d8c-9b7e-0a6c1d2f3e44'
+    const PERSON = '0b9d6a1c-3f58-4e2a-8c47-91d5e6f7a802'
+    saveToken('tok')
+    const api = mockApi({ 'POST /transactions/create': () => jsonResponse({ data: {} }, 201) })
+    renderApp(
+      <TransactionDrawer
+        open onClose={vi.fn()} onSaved={vi.fn()}
+        categories={[{ id: CAT, name: 'Alimentação' }]}
+        members={[{ id: PERSON, name: 'Bia Souza', picture: null }, { id: 'other', name: 'Clara', picture: null }]}
+        me={PERSON}
+      />,
+    )
+    await userEvent.type(amount(), '1000')
+    await userEvent.type(description(), 'Pão')
+    await userEvent.selectOptions(category(), 'Alimentação')
+
+    await userEvent.click(save())
+
+    await waitFor(() => expect(created(api)).toBeTruthy())
+    expect(created(api).category_id).toBe(CAT)
+    expect(created(api).user_id).toBe(PERSON)
+  })
+
   it('saves the amount in cents, without losing the decimals, and closes', async () => {
     const { api, onSaved, onClose } = renderDrawer()
     await userEvent.type(amount(), '2550')
@@ -103,7 +127,7 @@ describe('transaction sidebar', () => {
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     expect(created(api)).toEqual({
-      label: 'Almoço', value: 2550, category_id: 2, type: 'debit', transactioned_at: '2026-03-15T12:00:00',
+      label: 'Almoço', value: 2550, category_id: '2', type: 'debit', transactioned_at: '2026-03-15T12:00:00',
     })
     expect(api.mock.calls.find(([url]) => url.endsWith('/transactions/create'))[1].headers.Authorization).toBe('Bearer tok')
     expect(onClose).toHaveBeenCalled()

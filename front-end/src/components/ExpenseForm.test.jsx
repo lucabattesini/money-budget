@@ -101,7 +101,7 @@ describe('expense form', () => {
     await userEvent.click(submit())
 
     await waitFor(() => expect(customToaster).toHaveBeenCalledWith('Accepted', 'success', 'Your transaction is saved!'))
-    expect(created(api)).toEqual({ label: 'Almoço', value: 2500, category_id: 1 })
+    expect(created(api)).toEqual({ label: 'Almoço', value: 2500, category_id: '1' })
   })
 
   it('clears the form after saving', async () => {

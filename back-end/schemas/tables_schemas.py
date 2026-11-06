@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import List, Literal, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -12,10 +13,10 @@ TransactionType = Literal["credit", "debit"]
 class Transaction(BaseModel):
     label: str
     value: int
-    category_id: int
+    category_id: UUID
     type: TransactionType = "debit"
     transactioned_at: Optional[datetime] = None  # empty means now
-    user_id: Optional[int] = None  # a member of the family it belongs to; empty means the person adding it
+    user_id: Optional[UUID] = None  # a member of the family it belongs to; empty means the person adding it
     merchant: Optional[str] = Field(
         None, max_length=100
     )  # the place or company; only while the family has merchants on
@@ -26,10 +27,10 @@ class TransactionUpdate(BaseModel):
 
     label: str = Field(min_length=1, max_length=100)
     value: int = Field(gt=0, le=2147483647)  # cents, must fit the 32-bit column
-    category_id: int
+    category_id: UUID
     type: Optional[TransactionType] = None  # None keeps the current type
     transactioned_at: Optional[datetime] = None  # None keeps the current date
-    user_id: Optional[int] = None  # a member of the family it belongs to; None keeps the current person
+    user_id: Optional[UUID] = None  # a member of the family it belongs to; None keeps the current person
     merchant: Optional[str] = Field(None, max_length=100)  # None keeps the merchant, "" takes it off
 
 
@@ -38,13 +39,13 @@ class TransactionFilters(BaseModel):
 
     start_date: Optional[date] = None  # inclusive
     end_date: Optional[date] = None  # inclusive
-    category_ids: Optional[List[int]] = None
-    exclude_category_ids: Optional[List[int]] = None
+    category_ids: Optional[List[UUID]] = None
+    exclude_category_ids: Optional[List[UUID]] = None
     search: Optional[str] = None  # case-insensitive match on the label
     min_value: Optional[int] = Field(None, ge=0)  # cents
     max_value: Optional[int] = Field(None, ge=0)  # cents
     weekdays: Optional[List[int]] = None  # 0 = Sunday ... 6 = Saturday
-    merchant_ids: Optional[List[int]] = None
+    merchant_ids: Optional[List[UUID]] = None
 
     @model_validator(mode="after")
     def check_ranges(self):
@@ -58,26 +59,26 @@ class TransactionFilters(BaseModel):
 
 
 class TransactionOut(BaseModel):
-    id: int
+    id: UUID
     label: Optional[str] = None
     value: int  # cents, always positive
     type: TransactionType = "debit"
     transactioned_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    category_id: Optional[int] = None
+    category_id: Optional[UUID] = None
     category_name: Optional[str] = None
-    user_id: Optional[int] = None  # id of the family member it belongs to
+    user_id: Optional[UUID] = None  # id of the family member it belongs to
     user_name: Optional[str] = None  # and their name, for the export
-    merchant_id: Optional[int] = None
+    merchant_id: Optional[UUID] = None
     merchant_name: Optional[str] = None
 
 
 class TransactionAggregate(BaseModel):
     # Only the key matching the group_by used is filled
-    category_id: Optional[int] = None
+    category_id: Optional[UUID] = None
     category_name: Optional[str] = None
-    merchant_id: Optional[int] = None
+    merchant_id: Optional[UUID] = None
     merchant_name: Optional[str] = None
     period: Optional[str] = None  # "2026", "2026-10" or "2026-10-25"
     weekday: Optional[int] = None  # 0 = Sunday ... 6 = Saturday
@@ -95,7 +96,7 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: int
+    id: UUID
     google_id: str
     name: str
     email: str
@@ -114,14 +115,14 @@ class MerchantName(BaseModel):
 
 class CategoryCreate(BaseModel):
     name: str
-    group_id: Optional[int] = None  # empty means "Outros"
+    group_id: Optional[UUID] = None  # empty means "Outros"
 
 
 class CategoryUpdate(BaseModel):
     """What may change on a category of the family. A field left out keeps its value."""
 
     name: Optional[str] = None
-    group_id: Optional[int] = None
+    group_id: Optional[UUID] = None
 
 
 class UserUpdatePhone(BaseModel):
@@ -154,7 +155,7 @@ MONTH_PATTERN = r"^20\d\d-(0[1-9]|1[0-2])$"  # "2026-11"; the years 2000-2099, s
 class BudgetSet(BaseModel):
     """Plan an amount for a category from a month on, until a later month changes it. 0 means nothing from then on."""
 
-    category_id: int
+    category_id: UUID
     month: str = Field(pattern=MONTH_PATTERN)
     amount: int = Field(ge=0, le=2147483647)  # cents, must fit the 32-bit column
 
@@ -187,17 +188,17 @@ class ImportColumnsChoice(BaseModel):
 class ImportCategoriesChoice(BaseModel):
     """Which of the family's categories each category name in the file stands for: {"Pets": 12}."""
 
-    mapping: dict[str, int] = Field(max_length=500)
+    mapping: dict[str, UUID] = Field(max_length=500)
 
 
 class ImportPeopleChoice(BaseModel):
     """Which member of the family each person name in the file stands for: {"Bia": 7}."""
 
-    mapping: dict[str, int] = Field(max_length=500)
+    mapping: dict[str, UUID] = Field(max_length=500)
 
 
 class ExportJobOut(BaseModel):
-    id: int
+    id: UUID
     format: ExportFormat
     status: ExportStatus
     filename: Optional[str] = None  # set once the file is ready

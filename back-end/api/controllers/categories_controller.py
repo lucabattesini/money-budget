@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -32,7 +34,7 @@ def _out(category: Categories, group_name: str) -> dict:
     }
 
 
-def get_all_categories(db: Session, family_id: int):
+def get_all_categories(db: Session, family_id: UUID):
     return [_out(category, group_name) for category, group_name in get_all_categories_repo(db, family_id)]
 
 
@@ -54,7 +56,7 @@ def _clean_name(name: str) -> str:
     return name
 
 
-def _check_group(db: Session, group_id: int | None) -> None:
+def _check_group(db: Session, group_id: UUID | None) -> None:
     if group_id is not None and not group_exists(db, group_id):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Esse grupo não existe.")
 
@@ -68,7 +70,7 @@ def _not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria não encontrada.")
 
 
-def create_family_category(db: Session, family_id: int, name: str, group_id: int | None) -> dict:
+def create_family_category(db: Session, family_id: UUID, name: str, group_id: UUID | None) -> dict:
     name = _clean_name(name)
     _check_group(db, group_id)
     lock_family(db, family_id)
@@ -80,7 +82,7 @@ def create_family_category(db: Session, family_id: int, name: str, group_id: int
 
 
 def update_family_category(
-    db: Session, family_id: int, category_id: int, name: str | None, group_id: int | None
+    db: Session, family_id: UUID, category_id: UUID, name: str | None, group_id: UUID | None
 ) -> dict:
     if name is None and group_id is None:
         raise HTTPException(
@@ -109,7 +111,7 @@ def _in_use(used: int) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
-def delete_family_category(db: Session, family_id: int, category_id: int) -> dict:
+def delete_family_category(db: Session, family_id: UUID, category_id: UUID) -> dict:
     lock_family(db, family_id)
     category = get_family_category(db, family_id, category_id)
     if category is None:

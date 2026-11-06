@@ -1,7 +1,8 @@
 import unicodedata
 from datetime import datetime, timedelta
+from uuid import UUID
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from api.utils.category_names import plain_name
@@ -45,13 +46,13 @@ class OwnerCannotLeave(Exception):
     """The person owns a family with other people in it, so they cannot walk out of it."""
 
 
-def get_family(db: Session, family_id: int) -> Families:
+def get_family(db: Session, family_id: UUID) -> Families:
     return db.query(Families).filter(Families.id == family_id).one()
 
 
 def update_settings(
     db: Session,
-    family_id: int,
+    family_id: UUID,
     currency: str | None,
     language: str | None,
     timezone: str | None = None,
@@ -71,16 +72,21 @@ def update_settings(
     return family
 
 
-def list_members(db: Session, family_id: int) -> list[Users]:
-    return db.query(Users).filter(Users.family_id == family_id).order_by(Users.id).all()
+def list_members(db: Session, family_id: UUID) -> list[Users]:
+    return (
+        db.query(Users)
+        .filter(Users.family_id == family_id)
+        .order_by(case((Users.role == "owner", 0), else_=1), Users.created_at, Users.id)
+        .all()
+    )
 
 
-def is_member(db: Session, user_id: int, family_id: int) -> bool:
+def is_member(db: Session, user_id: UUID, family_id: UUID) -> bool:
     """True if the person is in the family."""
     return db.query(Users.id).filter(Users.id == user_id, Users.family_id == family_id).first() is not None
 
 
-def count_active_invites(db: Session, family_id: int) -> int:
+def count_active_invites(db: Session, family_id: UUID) -> int:
     return _active(db.query(FamilyInvites).filter(FamilyInvites.family_id == family_id)).count()
 
 
@@ -89,7 +95,7 @@ def _active(query):
 
 
 def create_invite(
-    db: Session, family_id: int, user_id: int, code_hash: str, code_hint: str, max_active: int
+    db: Session, family_id: UUID, user_id: UUID, code_hash: str, code_hint: str, max_active: int
 ) -> FamilyInvites:
     """Add a code to the family. The family row is locked while counting, so two requests cannot both fit the last place."""
     db.query(Families).filter(Families.id == family_id).with_for_update().one()
@@ -109,12 +115,12 @@ def create_invite(
     return invite
 
 
-def list_active_invites(db: Session, family_id: int) -> list[FamilyInvites]:
+def list_active_invites(db: Session, family_id: UUID) -> list[FamilyInvites]:
     query = db.query(FamilyInvites).filter(FamilyInvites.family_id == family_id)
-    return _active(query).order_by(FamilyInvites.id.desc()).all()
+    return _active(query).order_by(FamilyInvites.created_at.desc(), FamilyInvites.id).all()
 
 
-def cancel_invite(db: Session, family_id: int, invite_id: int) -> bool:
+def cancel_invite(db: Session, family_id: UUID, invite_id: UUID) -> bool:
     """Delete one of the family's codes that can still be used. False if there is none."""
     query = db.query(FamilyInvites).filter(FamilyInvites.id == invite_id, FamilyInvites.family_id == family_id)
     deleted = _active(query).delete(synchronize_session=False)
@@ -128,7 +134,7 @@ def _fold(name: str | None) -> str:
     return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
 
 
-def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
+def _bring_data(db: Session, old_family_id: UUID, new_family_id: UUID) -> None:
     """Move the family's transactions and categories to the new family. Budgets are not brought: a plan belongs to
     the family that made it, so the ones of the family being left are deleted and the new family keeps its own.
 
@@ -143,7 +149,9 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
         {TransactionDB.family_id: new_family_id}, synchronize_session=False
     )
     _bring_merchants(db, old_family_id, new_family_id)
-    for category in db.query(Categories).filter(Categories.family_id == old_family_id).order_by(Categories.id):
+    for category in (
+        db.query(Categories).filter(Categories.family_id == old_family_id).order_by(Categories.name, Categories.id)
+    ):
         target = kept.get(_fold(category.name))
         if target is None:
             category.family_id = new_family_id
@@ -155,12 +163,14 @@ def _bring_data(db: Session, old_family_id: int, new_family_id: int) -> None:
             db.delete(category)
 
 
-def _bring_merchants(db: Session, old_family_id: int, new_family_id: int) -> None:
+def _bring_merchants(db: Session, old_family_id: UUID, new_family_id: UUID) -> None:
     """Move the merchants of the family being left to the new one, merging those the new family already has (same
     words) the way categories are merged. Their transactions have already been moved, so none may be left pointing
     at a merchant of the old family."""
     kept = {_fold(m.name): m for m in db.query(Merchants).filter(Merchants.family_id == new_family_id)}
-    for merchant in db.query(Merchants).filter(Merchants.family_id == old_family_id).order_by(Merchants.id):
+    for merchant in (
+        db.query(Merchants).filter(Merchants.family_id == old_family_id).order_by(Merchants.name, Merchants.id)
+    ):
         target = kept.get(_fold(merchant.name))
         if target is None:
             merchant.family_id = new_family_id
@@ -172,13 +182,13 @@ def _bring_merchants(db: Session, old_family_id: int, new_family_id: int) -> Non
             db.delete(merchant)
 
 
-def _lock_families(db: Session, *family_ids: int) -> dict[int, Families]:
+def _lock_families(db: Session, *family_ids: UUID) -> dict[UUID, Families]:
     """Lock families in id order, always, so two people moving at once cannot wait on each other forever."""
     rows = db.query(Families).filter(Families.id.in_(family_ids)).order_by(Families.id).with_for_update().all()
     return {f.id: f for f in rows}
 
 
-def _member_count(db: Session, family_id: int) -> int:
+def _member_count(db: Session, family_id: UUID) -> int:
     return db.query(Users.id).filter(Users.family_id == family_id).count()
 
 

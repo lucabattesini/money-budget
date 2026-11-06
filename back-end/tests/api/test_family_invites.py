@@ -14,6 +14,7 @@ from api.controllers.families_controller import _hash
 from api.repositories import families_repo
 from db.connection import session_scope
 from schemas.tables import Categories, FamilyInvites, TransactionDB, Users
+from tests.conftest import MISSING_ID
 
 
 def _invite(client, headers):
@@ -47,14 +48,14 @@ def test_a_new_person_is_the_owner_of_a_family_with_only_them(client, user, auth
     data = client.get("/families/me", headers=auth_headers).json()["data"]
 
     assert data["role"] == "owner"
-    assert data["id"] == user.family_id
-    assert [(m["id"], m["name"], m["role"]) for m in data["members"]] == [(user.id, "Test User", "owner")]
+    assert data["id"] == str(user.family_id)
+    assert [(m["id"], m["name"], m["role"]) for m in data["members"]] == [(str(user.id), "Test User", "owner")]
 
 
 def test_the_family_page_lists_only_the_callers_family(client, user, other_user, auth_headers):
     members = client.get("/families/me", headers=auth_headers).json()["data"]["members"]
 
-    assert [m["id"] for m in members] == [user.id]  # not other_user, who is in another family
+    assert [m["id"] for m in members] == [str(user.id)]  # not other_user, who is in another family
 
 
 @pytest.mark.parametrize(
@@ -121,7 +122,7 @@ def test_a_code_of_another_family_cannot_be_cancelled_or_seen(client, user, othe
     theirs = _invite(client, headers_for(other_user))
 
     stranger = client.delete(f"/families/invites/{theirs['id']}", headers=auth_headers)
-    missing = client.delete("/families/invites/999999", headers=auth_headers)
+    missing = client.delete(f"/families/invites/{MISSING_ID}", headers=auth_headers)
 
     assert stranger.status_code == 404 and stranger.json() == missing.json()
     assert client.get("/families/invites", headers=auth_headers).json()["data"] == []
@@ -158,8 +159,8 @@ def test_joining_puts_the_person_in_the_family_as_a_member(client, db, user, oth
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["id"] == user.family_id and data["role"] == "member"
-    assert [(m["id"], m["role"]) for m in data["members"]] == [(user.id, "owner"), (other_user.id, "member")]
+    assert data["id"] == str(user.family_id) and data["role"] == "member"
+    assert [(m["id"], m["role"]) for m in data["members"]] == [(str(user.id), "owner"), (str(other_user.id), "member")]
     db.expire_all()
     assert db.get(Users, other_user.id).family_id == user.family_id
 
@@ -294,8 +295,8 @@ def test_a_code_works_only_once(client, make_user, user, other_user, auth_header
 
     assert again.status_code == 404
     assert [m["id"] for m in client.get("/families/me", headers=auth_headers).json()["data"]["members"]] == [
-        user.id,
-        other_user.id,
+        str(user.id),
+        str(other_user.id),
     ]
 
 

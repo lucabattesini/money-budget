@@ -156,7 +156,7 @@ def test_a_transaction_can_name_a_new_merchant_and_the_next_one_reuses_it(client
 
     assert db.query(Merchants).count() == 1
     listed = _list(client, auth_headers)
-    assert {t["merchant_id"] for t in listed} == {db.query(Merchants).one().id}
+    assert {t["merchant_id"] for t in listed} == {str(db.query(Merchants).one().id)}
 
 
 def test_a_transaction_without_a_merchant_stays_valid(client, db, auth_headers, on, category_ids):
@@ -233,8 +233,8 @@ def test_bringing_the_data_when_joining_brings_the_merchants_and_merges_the_same
     assert sorted(m.name for m in family_merchants) == ["Netflix", "Uber"]
     assert db.query(Merchants).count() == 2
     by_label = {t["label"]: t["merchant_id"] for t in _list(client, auth_headers)}
-    assert by_label["🚗 uber"] == mine.id  # merged into the family's own
-    assert by_label["Netflix"] == joiners_own.id
+    assert by_label["🚗 uber"] == str(mine.id)  # merged into the family's own
+    assert by_label["Netflix"] == str(joiners_own.id)
 
 
 # --- the assistant ---------------------------------------------------------------------------------------------------------------
@@ -256,7 +256,8 @@ def test_the_assistant_records_the_merchant_only_while_the_family_has_merchants_
     _turn(client, auth_headers, True)
     _record(user, [item], monkeypatch)
     assert db.query(Merchants).one().name == "Uber"
-    assert db.query(TransactionDB).order_by(TransactionDB.id.desc()).first().merchant_id == db.query(Merchants).one().id
+    with_merchant = db.query(TransactionDB).filter(TransactionDB.merchant_id.is_not(None)).all()
+    assert [t.merchant_id for t in with_merchant] == [db.query(Merchants).one().id]  # only the second expense has one
 
 
 def test_a_merchant_that_cannot_be_one_does_not_lose_the_expense(client, db, user, auth_headers, on, monkeypatch):

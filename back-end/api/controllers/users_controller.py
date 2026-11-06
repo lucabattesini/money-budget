@@ -1,4 +1,5 @@
 import re
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -43,11 +44,11 @@ def get_user_by_google_id_ctrl(db: Session, google_id):
     return get_user_by_google_id_repo(db, google_id)
 
 
-def get_user_by_id_ctrl(db: Session, user_id: int):
+def get_user_by_id_ctrl(db: Session, user_id: UUID):
     return get_user_by_id_repo(db, user_id)
 
 
-def update_user_phone_ctrl(db: Session, user_id: int, whatsapp_phone: str):
+def update_user_phone_ctrl(db: Session, user_id: UUID, whatsapp_phone: str):
     try:
         return update_user_phone_repo(db, user_id, normalize_phone(whatsapp_phone))
     except PhoneInUseError:

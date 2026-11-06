@@ -96,9 +96,9 @@ export function spendingByDay(transactions, key, now) {
   }
 }
 
-/** The latest spending first, at most `limit` of it. */
+/** The latest spending first, at most `limit` of it. Ties keep the order the server gave (ids are UUIDs: they have no order). */
 export function latestSpending(transactions, limit = 6) {
   return [...transactions]
-    .sort((a, b) => new Date(b.transactioned_at) - new Date(a.transactioned_at) || b.id - a.id)
+    .sort((a, b) => new Date(b.transactioned_at) - new Date(a.transactioned_at))
     .slice(0, limit)
 }

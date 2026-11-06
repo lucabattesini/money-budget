@@ -11,6 +11,7 @@ from api.controllers import auth_controller
 from graph.nodes import node_recorder
 from schemas.agents_schemas import ExpenseItem, RecorderResponse
 from schemas.tables import Categories, ExportJobDB, TransactionDB, Users
+from tests.conftest import MISSING_ID
 
 
 @pytest.fixture
@@ -100,7 +101,7 @@ def test_the_summary_adds_up_the_whole_family(client, user, partner, auth_header
 
     response = client.post("/transactions/summed-by-category", json={}, headers=auth_headers)
 
-    assert response.json()["data"] == [{"category_id": category_ids["Sem categoria"], "total": 1500}]
+    assert response.json()["data"] == [{"category_id": str(category_ids["Sem categoria"]), "total": 1500}]
 
 
 # --- another family sees and changes nothing -------------------------------------------------
@@ -119,7 +120,7 @@ def test_another_family_cannot_see_edit_or_delete_a_transaction(
         headers=stranger,
     )
     delete = client.delete(f"/transactions/{row.id}", headers=stranger)
-    missing = client.delete("/transactions/999999", headers=stranger)
+    missing = client.delete(f"/transactions/{MISSING_ID}", headers=stranger)
 
     assert (edit.status_code, delete.status_code) == (404, 404)
     assert edit.json() == missing.json()  # a foreign id looks exactly like a missing one
@@ -145,7 +146,7 @@ def test_another_family_cannot_use_a_category_that_is_not_theirs(
         headers=auth_headers,
     )
     unknown = client.post(
-        "/transactions/create", json={"label": "x", "value": 100, "category_id": 999999}, headers=auth_headers
+        "/transactions/create", json={"label": "x", "value": 100, "category_id": MISSING_ID}, headers=auth_headers
     )
 
     assert (create.status_code, update.status_code) == (404, 404)
@@ -252,5 +253,5 @@ def test_the_family_tells_who_is_asking(client, user, partner, headers_for):
     mine = client.get("/families/me", headers=headers_for(user)).json()["data"]
     theirs = client.get("/families/me", headers=headers_for(partner)).json()["data"]
 
-    assert (mine["me"], theirs["me"]) == (user.id, partner.id)
-    assert {m["id"] for m in mine["members"]} == {user.id, partner.id}
+    assert (mine["me"], theirs["me"]) == (str(user.id), str(partner.id))
+    assert {m["id"] for m in mine["members"]} == {str(user.id), str(partner.id)}

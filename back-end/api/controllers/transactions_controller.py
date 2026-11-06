@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -50,13 +51,13 @@ def _parse_date(transaction: GetTransactionsParams):
     return start, end
 
 
-def _check_person(db: Session, person_id: int | None, family_id: int):
+def _check_person(db: Session, person_id: UUID | None, family_id: UUID):
     """The person a transaction belongs to must be in the family. Same answer for "missing" and "another family's"."""
     if person_id is not None and not is_member(db, person_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
 
 
-def create_transaction(db: Session, transaction: Transaction, family_id: int, user_id: int):
+def create_transaction(db: Session, transaction: Transaction, family_id: UUID, user_id: UUID):
     if transaction.category_id is not None and not category_exists(db, transaction.category_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
     _check_person(db, transaction.user_id, family_id)
@@ -66,25 +67,25 @@ def create_transaction(db: Session, transaction: Transaction, family_id: int, us
     return create_transaction_repo(db, transaction, family_id, user_id, merchant_id)
 
 
-def get_transactions(db: Session, transaction: GetTransactionsParams, family_id: int):
+def get_transactions(db: Session, transaction: GetTransactionsParams, family_id: UUID):
     start, end = _parse_date(transaction)
     return get_transactions_repo(db, start, end, family_id)
 
 
-def get_transactions_summed_by_category(db: Session, transaction: GetTransactionsParams, family_id: int):
+def get_transactions_summed_by_category(db: Session, transaction: GetTransactionsParams, family_id: UUID):
     start, end = _parse_date(transaction)
     rows = get_transactions_summed_by_category_repo(db, start, end, family_id)
     return [{"category_id": category_id, "total": total} for category_id, total in rows]
 
 
-def delete_transaction(db: Session, id, family_id: int):
+def delete_transaction(db: Session, id, family_id: UUID):
     # Same answer for "missing" and "another family's", so other families' ids are not revealed
     if not delete_transaction_repo(db, id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return {"message": "Transaction deleted"}
 
 
-def update_transaction(db: Session, id: int, changes: TransactionUpdate, family_id: int):
+def update_transaction(db: Session, id: UUID, changes: TransactionUpdate, family_id: UUID):
     if not category_exists(db, changes.category_id, family_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
     _check_person(db, changes.user_id, family_id)

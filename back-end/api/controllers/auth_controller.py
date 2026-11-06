@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -48,10 +49,10 @@ def verify_google_token(token: str) -> dict:
     return payload
 
 
-def create_jwt(user_id: int) -> str:
+def create_jwt(user_id: UUID) -> str:
     """Generate a signed JWT for the given user_id."""
     expiry = datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRY_DAYS)
-    payload = {"user_id": user_id, "exp": expiry}
+    payload = {"user_id": str(user_id), "exp": expiry}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -60,23 +61,26 @@ def decode_jwt(token: str) -> dict:
     return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
 
-def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> int:
+def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UUID:
     """
     Extract and validate a Bearer JWT using FastAPI's HTTPBearer.
     Returns the user_id encoded in the token payload.
     """
     try:
         payload = decode_jwt(credentials.credentials)
-        return payload["user_id"]
+        # Tokens made before ids became UUIDs hold a number: they do not parse, so those users log in again (TKT-74)
+        return UUID(payload["user_id"])
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except (KeyError, ValueError, TypeError, AttributeError):
         raise HTTPException(status_code=401, detail="Invalid token")
     except Exception:
         raise HTTPException(status_code=401, detail="Authorization header malformed")
 
 
-def get_current_family_id(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)) -> int:
+def get_current_family_id(user_id: UUID = Depends(get_current_user_id), db: Session = Depends(get_db)) -> UUID:
     """The family of the logged-in user: the scope of every list, edit, delete and export."""
     user = get_user_by_id_ctrl(db, user_id)
     if user is None:

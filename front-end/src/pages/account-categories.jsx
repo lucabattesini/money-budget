@@ -102,7 +102,7 @@ function CategoryDrawer({ open, onClose, groups, category, defaultGroupId, onSav
             return;
         }
         setSaving(true);
-        const payload = { name: fullName, group_id: Number(groupId) };
+        const payload = { name: fullName, group_id: groupId };
         const result = editing
             ? await updateCategory(category.id, payload, getToken())
             : await createCategory(payload, getToken());

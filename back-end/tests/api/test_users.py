@@ -2,14 +2,15 @@ import pytest
 
 from api.controllers.auth_controller import create_jwt
 from schemas.tables import Users
+from tests.conftest import MISSING_ID
 
 
 def test_me_returns_the_logged_in_user_and_not_someone_else(client, user, other_user, headers_for):
     mine = client.get("/user/me", headers=headers_for(user)).json()["data"]
     theirs = client.get("/user/me", headers=headers_for(other_user)).json()["data"]
 
-    assert (mine["id"], mine["email"]) == (user.id, user.email)
-    assert (theirs["id"], theirs["email"]) == (other_user.id, other_user.email)
+    assert (mine["id"], mine["email"]) == (str(user.id), user.email)
+    assert (theirs["id"], theirs["email"]) == (str(other_user.id), other_user.email)
 
 
 def test_me_requires_authentication(client):
@@ -17,7 +18,7 @@ def test_me_requires_authentication(client):
 
 
 def test_me_for_a_token_of_a_deleted_user_is_not_found(client, db):
-    token = create_jwt(999_999)
+    token = create_jwt(MISSING_ID)
 
     response = client.get("/user/me", headers={"Authorization": f"Bearer {token}"})
 
@@ -45,7 +46,7 @@ def test_update_phone_requires_authentication(client):
 
 
 def test_update_phone_for_a_deleted_user_is_not_found(client):
-    token = create_jwt(999_999)
+    token = create_jwt(MISSING_ID)
 
     response = client.patch(
         "/user/me/phone", json={"whatsapp_phone": "5511999999999"}, headers={"Authorization": f"Bearer {token}"}

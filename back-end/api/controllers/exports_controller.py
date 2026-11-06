@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -27,7 +28,7 @@ FAILED_MESSAGE = "Não foi possível gerar o arquivo."
 STUCK_MESSAGE = "A exportação demorou demais e foi cancelada."
 
 
-def enqueue_export(db: Session, family_id: int, user_id: int, file_format: str) -> ExportJobDB:
+def enqueue_export(db: Session, family_id: UUID, user_id: UUID, file_format: str) -> ExportJobDB:
     """Record the request. The file is built later by run_export_job.
 
     One export at a time per family: every job loads all its transactions and keeps a copy of the file.
@@ -41,7 +42,7 @@ def enqueue_export(db: Session, family_id: int, user_id: int, file_format: str) 
     return create_export_job(db, family_id, user_id, file_format)
 
 
-def get_export(db: Session, job_id: int, family_id: int, user_id: int, with_file: bool = False) -> ExportJobDB:
+def get_export(db: Session, job_id: UUID, family_id: UUID, user_id: UUID, with_file: bool = False) -> ExportJobDB:
     job = get_export_job(db, job_id, family_id, user_id, with_file=with_file)
     # Missing, another family's, another person's and expired all look the same, so ids of other users are not revealed
     if job is None or is_expired(job, db):
@@ -52,14 +53,14 @@ def get_export(db: Session, job_id: int, family_id: int, user_id: int, with_file
     return job
 
 
-def get_export_file(db: Session, job_id: int, family_id: int, user_id: int) -> ExportJobDB:
+def get_export_file(db: Session, job_id: UUID, family_id: UUID, user_id: UUID) -> ExportJobDB:
     job = get_export(db, job_id, family_id, user_id, with_file=True)
     if job.status != "done":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Export is {job.status}, not ready")
     return job
 
 
-def run_export_job(job_id: int) -> None:
+def run_export_job(job_id: UUID) -> None:
     """Build the file for a queued job. Runs in the background, after the response was sent."""
     with session_scope() as db:
         job = get_export_job(db, job_id)

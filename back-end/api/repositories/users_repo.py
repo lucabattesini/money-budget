@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -64,7 +65,7 @@ def get_user_by_google_id_repo(db: Session, google_id: str):
     return db.query(Users).filter(Users.google_id == google_id).first()
 
 
-def get_user_by_id_repo(db: Session, user_id: int):
+def get_user_by_id_repo(db: Session, user_id: UUID):
     return db.query(Users).filter(Users.id == user_id).first()
 
 
@@ -73,7 +74,7 @@ def get_user_by_whatsapp_phone(db: Session, phone: str):
     return db.query(Users).filter(Users.whatsapp_phone == re.sub(r"\D", "", phone or "")).first()
 
 
-def update_user_phone_repo(db: Session, user_id: int, whatsapp_phone: str):
+def update_user_phone_repo(db: Session, user_id: UUID, whatsapp_phone: str):
     user = db.query(Users).filter(Users.id == user_id).first()
     if user:
         user.whatsapp_phone = whatsapp_phone
