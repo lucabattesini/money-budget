@@ -37,7 +37,7 @@ describe('transactions page: many at once', () => {
     await startSelecting()
     expect(screen.getByRole('checkbox', { name: 'Selecionar Almoço' })).toBeInTheDocument()
     await tick('Almoço')
-    await userEvent.click(screen.getByRole('button', { name: 'Cancelar seleção' }))
+    await userEvent.click(screen.getByRole('button', { name: /Cancelar$/ }))
 
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.queryByText('1 selecionada')).not.toBeInTheDocument()

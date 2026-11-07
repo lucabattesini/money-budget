@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from "react";
-import { Badge, Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
+import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
 import { useLocation } from "react-router-dom";
 import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
@@ -14,7 +14,7 @@ import TransactionDrawer from "../components/TransactionDrawer";
 import TransactionFilters from "../components/TransactionFilters";
 import { BulkDeleteDialog, BulkEditDialog } from "../components/BulkActions";
 import PersonAvatar from "../components/PersonAvatar";
-import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
+import { LuEllipsisVertical, LuListChecks, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 // "Todo o Resto" can be long, so it is shown in pages
 const PAGE_SIZE = 30;
@@ -250,7 +250,7 @@ export default function TransactionsDisplay() {
                     <Flex gap={2}>
                         <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
                             <Popover.Trigger asChild>
-                                <Button size="sm" variant="outline" minH={{ base: "44px", md: "auto" }}>
+                                <Button size="sm" variant="outline" minH={{ base: "44px", md: "auto" }} minW="9.5rem">
                                     <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
                                 </Button>
                             </Popover.Trigger>
@@ -270,10 +270,10 @@ export default function TransactionsDisplay() {
                                 </Popover.Positioner>
                             </Portal>
                         </Popover.Root>
-                        <Button size="sm" variant={selecting ? "solid" : "outline"} minH={{ base: "44px", md: "auto" }} onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
-                            {selecting ? "Cancelar seleção" : "Selecionar"}
+                        <Button size="sm" variant={selecting ? "solid" : "outline"} minH={{ base: "44px", md: "auto" }} minW="9.5rem" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
+                            <LuListChecks /> {selecting ? "Cancelar" : "Selecionar"}
                         </Button>
-                        <Button size="sm" minH={{ base: "44px", md: "auto" }} onClick={() => setAdding(true)}>
+                        <Button size="sm" minH={{ base: "44px", md: "auto" }} minW="9.5rem" onClick={() => setAdding(true)}>
                             <LuPlus /> Adicionar
                         </Button>
                     </Flex>
