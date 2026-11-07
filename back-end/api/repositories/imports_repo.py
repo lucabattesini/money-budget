@@ -5,7 +5,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from api.utils.totals import excluded_by_default
-from schemas.tables import ImportJobDB, TransactionDB
+from schemas.tables import Categories, ImportJobDB, TransactionDB
 
 KEEP_JOBS_FOR = timedelta(days=1)
 # A job that has been queued or running for longer than this is stuck (for example the server restarted)
@@ -170,6 +170,32 @@ def existing_transaction_keys(db: Session, family_id: UUID, first: date, last: d
         .all()
     )
     return {(r.transactioned_at.date(), (r.label or "").strip(), r.value, str(r.category_id), r.type) for r in rows}
+
+
+def lookalike_transactions(db: Session, family_id: UUID, first: date, last: date) -> dict[tuple, list[tuple]]:
+    """The family's transactions from `first` to `last` grouped by (day, value in cents, type), each as
+    (description, category name). Same rule as the duplicate check on the transactions (TKT-96)."""
+    rows = (
+        db.query(
+            TransactionDB.transactioned_at,
+            TransactionDB.value,
+            TransactionDB.type,
+            TransactionDB.label,
+            Categories.name,
+        )
+        .outerjoin(Categories, TransactionDB.category_id == Categories.id)
+        .filter(
+            TransactionDB.family_id == family_id,
+            TransactionDB.transactioned_at >= datetime.combine(first, time.min),
+            TransactionDB.transactioned_at < datetime.combine(last + timedelta(days=1), time.min),
+        )
+        .order_by(TransactionDB.created_at, TransactionDB.id)
+        .all()
+    )
+    found: dict[tuple, list[tuple]] = {}
+    for r in rows:
+        found.setdefault((r.transactioned_at.date(), r.value, r.type), []).append(((r.label or "").strip(), r.name))
+    return found
 
 
 def add_transactions(db: Session, family_id: UUID, user_id: UUID, items: list[dict]) -> None:

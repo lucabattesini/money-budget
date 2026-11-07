@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from api.controllers.merchants_controller import merchant_for_transaction
 from api.repositories.families_repo import get_family, is_member
 from api.repositories.transactions_repo import (
+    bulk_delete_transactions,
+    bulk_update_transactions,
     category_exists,
+    find_duplicate_groups,
+    get_family_transactions_by_ids,
 )
 from api.repositories.transactions_repo import (
     create_transaction as create_transaction_repo,
@@ -25,7 +29,14 @@ from api.repositories.transactions_repo import (
     update_transaction as update_transaction_repo,
 )
 from api.utils.clock import family_now
-from schemas.tables_schemas import GetTransactionsParams, Transaction, TransactionUpdate
+from schemas.tables_schemas import (
+    DuplicatesParams,
+    GetTransactionsParams,
+    Transaction,
+    TransactionBulkDelete,
+    TransactionBulkUpdate,
+    TransactionUpdate,
+)
 
 
 def _parse_date(transaction: GetTransactionsParams):
@@ -108,3 +119,31 @@ def update_transaction(db: Session, id: UUID, changes: TransactionUpdate, family
         "merchant_id": transaction.merchant_id,
         "excluded": transaction.excluded,
     }
+
+
+def _own_rows(db: Session, ids: list[UUID], family_id: UUID):
+    """The family's transactions for `ids`. If any is missing or another family's, nothing is done (same answer for both)."""
+    rows = get_family_transactions_by_ids(db, ids, family_id)
+    if len(rows) != len(set(ids)):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return rows
+
+
+def bulk_update_transactions_controller(db: Session, changes: TransactionBulkUpdate, family_id: UUID):
+    if changes.category_id is not None and not category_exists(db, changes.category_id, family_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    _check_person(db, changes.user_id, family_id)
+    rows = _own_rows(db, changes.ids, family_id)
+    merchant_id = merchant_for_transaction(db, family_id, changes.merchant)
+    bulk_update_transactions(db, rows, changes, merchant_id)
+    return {"updated": len(rows)}
+
+
+def bulk_delete_transactions_controller(db: Session, params: TransactionBulkDelete, family_id: UUID):
+    rows = _own_rows(db, params.ids, family_id)
+    bulk_delete_transactions(db, rows)
+    return {"deleted": len(rows)}
+
+
+def get_duplicate_groups(db: Session, params: DuplicatesParams, family_id: UUID):
+    return find_duplicate_groups(db, family_id, params.start_date, params.end_date, params.ignore_excluded)

@@ -37,6 +37,38 @@ class TransactionUpdate(BaseModel):
     excluded: Optional[bool] = None  # None keeps it as it is
 
 
+class TransactionBulkUpdate(BaseModel):
+    """Change the same things on many transactions. A field left out keeps what each one has."""
+
+    ids: List[UUID] = Field(min_length=1, max_length=500)
+    category_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None  # a member of the family
+    merchant: Optional[str] = Field(None, max_length=100)  # "" takes the merchant off
+    excluded: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def _something_to_change(self):
+        if all(v is None for v in (self.category_id, self.user_id, self.merchant, self.excluded)):
+            raise ValueError("choose at least one thing to change")
+        return self
+
+
+class TransactionBulkDelete(BaseModel):
+    ids: List[UUID] = Field(min_length=1, max_length=500)
+
+
+class DuplicatesParams(BaseModel):
+    start_date: date  # inclusive
+    end_date: date  # inclusive
+    ignore_excluded: bool = False  # leave out transactions that do not count in the totals
+
+    @model_validator(mode="after")
+    def _ordered(self):
+        if self.start_date > self.end_date:
+            raise ValueError("start_date must be before end_date")
+        return self
+
+
 class TransactionFilters(BaseModel):
     """Where-clause filters shared by the transaction listing and aggregation queries."""
 

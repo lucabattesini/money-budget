@@ -7,14 +7,24 @@ from sqlalchemy.orm import Session
 
 from api.controllers.auth_controller import get_current_family_id, get_current_user_id
 from api.controllers.transactions_controller import (
+    bulk_delete_transactions_controller,
+    bulk_update_transactions_controller,
     create_transaction,
     delete_transaction,
+    get_duplicate_groups,
     get_transactions,
     get_transactions_summed_by_category,
     update_transaction,
 )
 from db.connection import get_db
-from schemas.tables_schemas import GetTransactionsParams, Transaction, TransactionUpdate
+from schemas.tables_schemas import (
+    DuplicatesParams,
+    GetTransactionsParams,
+    Transaction,
+    TransactionBulkDelete,
+    TransactionBulkUpdate,
+    TransactionUpdate,
+)
 
 router = APIRouter(prefix="/transactions", tags=["transactions"], responses={404: {"description": "Not found"}})
 
@@ -51,6 +61,36 @@ async def create_transaction_router(
 ):
     json_result = jsonable_encoder(create_transaction(db, params, family_id, user_id))
     return JSONResponse(content={"data": json_result}, status_code=status.HTTP_201_CREATED)
+
+
+@router.post("/bulk-update")
+async def bulk_update_transactions_router(
+    params: TransactionBulkUpdate,
+    family_id: UUID = Depends(get_current_family_id),
+    db: Session = Depends(get_db),
+):
+    json_result = jsonable_encoder(bulk_update_transactions_controller(db, params, family_id))
+    return JSONResponse(content={"data": json_result}, status_code=status.HTTP_200_OK)
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_transactions_router(
+    params: TransactionBulkDelete,
+    family_id: UUID = Depends(get_current_family_id),
+    db: Session = Depends(get_db),
+):
+    json_result = jsonable_encoder(bulk_delete_transactions_controller(db, params, family_id))
+    return JSONResponse(content={"data": json_result}, status_code=status.HTTP_200_OK)
+
+
+@router.post("/duplicates")
+async def duplicate_transactions_router(
+    params: DuplicatesParams,
+    family_id: UUID = Depends(get_current_family_id),
+    db: Session = Depends(get_db),
+):
+    json_result = jsonable_encoder(get_duplicate_groups(db, params, family_id))
+    return JSONResponse(content={"data": json_result}, status_code=status.HTTP_200_OK)
 
 
 @router.delete("/{id}")
