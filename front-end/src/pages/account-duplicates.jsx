@@ -8,6 +8,7 @@ import { formatCents } from "../lib/money";
 import { familyNow, formatDate } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
+const MAX_DELETE_AT_ONCE = 500; // what the server accepts in one request
 const KEEP_ALL = "all"; // the choice of a group the person wants to leave alone
 const two = (n) => String(n).padStart(2, "0");
 const iso = (d) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
@@ -44,6 +45,8 @@ export default function AccountDuplicates() {
     const toDelete = (groups ?? []).flatMap((group, index) =>
         keep[index] === KEEP_ALL ? [] : group.filter((transaction) => transaction.id !== keep[index]).map((transaction) => transaction.id));
     const groupsToClean = (groups ?? []).filter((_, index) => keep[index] !== KEEP_ALL).length;
+
+    const tooMany = toDelete.length > MAX_DELETE_AT_ONCE;
 
     const remove = async () => {
         setDeleting(true);
@@ -120,9 +123,14 @@ export default function AccountDuplicates() {
                         </Box>
                     ))}
 
-                    <Button alignSelf="start" colorPalette="red" disabled={toDelete.length === 0} onClick={() => setConfirming(true)}>
+                    <Button alignSelf="start" colorPalette="red" disabled={toDelete.length === 0 || tooMany} onClick={() => setConfirming(true)}>
                         Excluir {count(toDelete.length, "duplicada", "duplicadas")}
                     </Button>
+                    {tooMany && (
+                        <Text color="fg.error" fontSize="sm">
+                            São mais de {MAX_DELETE_AT_ONCE} de uma vez. Escolha um período menor ou marque "manter todas" em alguns grupos.
+                        </Text>
+                    )}
                 </Stack>
             )}
 

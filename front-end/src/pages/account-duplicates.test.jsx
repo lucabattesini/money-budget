@@ -95,4 +95,16 @@ describe('duplicates page', () => {
 
     expect(await screen.findByText(/Não foi possível procurar duplicatas/)).toBeInTheDocument()
   })
+
+  it('does not offer to delete more than the server accepts at once', async () => {
+    const big = Array.from({ length: 501 }, (_, n) => [tx(`k${n}`, 'Café'), tx(`d${n}`, 'CAFE')])
+    mockApi({ 'POST /transactions/duplicates': { data: big } })
+    renderApp(<AccountDuplicates />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Procurar' }))
+
+    await screen.findByText('501 grupos encontrados')
+    expect(screen.getByRole('button', { name: 'Excluir 501 duplicadas' })).toBeDisabled()
+    expect(screen.getByText(/mais de 500 de uma vez/)).toBeInTheDocument()
+  })
 })

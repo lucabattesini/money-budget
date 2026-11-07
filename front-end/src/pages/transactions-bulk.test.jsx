@@ -126,4 +126,21 @@ describe('transactions page: many at once', () => {
     await userEvent.click((await dialog('Excluir 1 transação?')).getByRole('button', { name: 'Excluir' }))
     await waitFor(() => expect(bodies(mock, 'POST /transactions/bulk-delete')).toEqual([{ ids: ['3'] }]))
   })
+
+  it('opens the editor on "Não alterar" every time, not on what was chosen last time', async () => {
+    api({ 'POST /transactions/bulk-update': { data: { updated: 1 } } })
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('Almoço')
+    await tick('Almoço')
+    await userEvent.click(screen.getByRole('button', { name: /editar selecionadas/i }))
+    const first = await dialog('Editar 1 transação')
+    await userEvent.selectOptions(first.getByLabelText('Categoria'), 'Transporte')
+    await userEvent.click(first.getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByText('Editar 1 transação')).not.toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: /editar selecionadas/i }))
+    const second = await dialog('Editar 1 transação')
+    expect(second.getByLabelText('Categoria')).toHaveValue('')
+    expect(second.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+  })
 })

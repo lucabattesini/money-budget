@@ -362,6 +362,8 @@ export default function TransactionsDisplay() {
                 )}
             </Stack>
 
+            {/* mounted only while open, so every opening starts on "Não alterar" */}
+            {bulkEditing && (
             <BulkEditDialog
                 ids={selectedIds}
                 open={bulkEditing}
@@ -371,6 +373,7 @@ export default function TransactionsDisplay() {
                 merchants={merchantsEnabled ? merchants : null}
                 onDone={afterBulk}
             />
+            )}
             <BulkDeleteDialog ids={selectedIds} open={bulkDeleting} onClose={() => setBulkDeleting(false)} onDone={afterBulk} />
             <TransactionDrawer
                 open={adding}
