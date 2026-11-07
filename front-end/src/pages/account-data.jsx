@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Button, Code, Heading, List, RadioGroup, Separator, Stack, Table, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "react-router-dom";
-import { LuCopyCheck, LuDownload, LuUpload } from "react-icons/lu";
+import { LuDownload, LuUpload } from "react-icons/lu";
 import ImportDialog from "../components/ImportDialog";
 import { enqueueExport, followExport } from "../lib/exportJobs";
 
@@ -84,18 +83,6 @@ export default function AccountData() {
                     <LuUpload /> Importar planilha
                 </Button>
                 <ImportDialog open={importing} onClose={() => setImporting(false)} />
-            </Stack>
-
-            <Separator />
-
-            <Stack gap={4}>
-                <Heading size="md">Duplicatas</Heading>
-                <Text color="fg.muted">
-                    Procure transações que parecem ter sido lançadas duas vezes (mesmo dia, valor e tipo) em um período e escolha quais manter.
-                </Text>
-                <Button alignSelf="start" variant="outline" asChild>
-                    <RouterLink to="/account/data/duplicates"><LuCopyCheck /> Procurar duplicatas</RouterLink>
-                </Button>
             </Stack>
 
             <Separator />

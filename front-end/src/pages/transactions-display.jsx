@@ -250,7 +250,7 @@ export default function TransactionsDisplay() {
                     <Flex gap={2}>
                         <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
                             <Popover.Trigger asChild>
-                                <Button size="sm" variant="outline" minH={{ base: "44px", md: "auto" }} minW="9.5rem">
+                                <Button size="sm" variant="outline" h={{ base: "44px", md: "9" }} minW="9.5rem">
                                     <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
                                 </Button>
                             </Popover.Trigger>
@@ -270,10 +270,10 @@ export default function TransactionsDisplay() {
                                 </Popover.Positioner>
                             </Portal>
                         </Popover.Root>
-                        <Button size="sm" variant={selecting ? "solid" : "outline"} minH={{ base: "44px", md: "auto" }} minW="9.5rem" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
+                        <Button size="sm" variant={selecting ? "solid" : "outline"} h={{ base: "44px", md: "9" }} minW="9.5rem" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
                             <LuListChecks /> {selecting ? "Cancelar" : "Selecionar"}
                         </Button>
-                        <Button size="sm" minH={{ base: "44px", md: "auto" }} minW="9.5rem" onClick={() => setAdding(true)}>
+                        <Button size="sm" h={{ base: "44px", md: "9" }} minW="9.5rem" onClick={() => setAdding(true)}>
                             <LuPlus /> Adicionar
                         </Button>
                     </Flex>

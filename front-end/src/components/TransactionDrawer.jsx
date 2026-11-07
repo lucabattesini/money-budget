@@ -127,10 +127,6 @@ export default function TransactionDrawer({ open, onClose, categories, members =
                         </Drawer.Header>
                         <Drawer.Body>
                             <Stack gap={5}>
-                                <Text fontSize="xs" color="fg.muted">
-                                    <Text as="span" color="red.500" fontWeight="bold">*</Text> campo obrigatório
-                                </Text>
-
                                 <Field.Root>
                                     <Field.Label>Tipo</Field.Label>
                                     <RadioGroup.Root value={type} onValueChange={(e) => setType(e.value)}>

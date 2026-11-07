@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { Box, Button, Checkbox, Dialog, Field, Flex, Heading, Input, Portal, RadioGroup, Stack, Table, Text } from "@chakra-ui/react";
-import { LuArrowLeft } from "react-icons/lu";
 import { bulkDeleteTransactions, getDuplicateTransactions } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { formatCents } from "../lib/money";
@@ -9,6 +7,7 @@ import { familyNow, formatDate } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 
 const MAX_DELETE_AT_ONCE = 500; // what the server accepts in one request
+const DELETE_ALL = "none"; // the person wants none of the group kept
 const KEEP_ALL = "all"; // the choice of a group the person wants to leave alone
 const two = (n) => String(n).padStart(2, "0");
 const iso = (d) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
@@ -24,7 +23,7 @@ export default function AccountDuplicates() {
     const [searching, setSearching] = useState(false);
     const [groups, setGroups] = useState(null); // null: not searched yet
     const [keep, setKeep] = useState({}); // group index -> id of the one kept, or KEEP_ALL
-    const [confirming, setConfirming] = useState(false);
+    const [pending, setPending] = useState(null); // ids waiting for the final confirmation, or null
     const [deleting, setDeleting] = useState(false);
 
     const rangeError = !start || !end ? "Informe as duas datas" : start > end ? "A data inicial não pode ser depois da final" : null;
@@ -46,14 +45,15 @@ export default function AccountDuplicates() {
     const toDelete = (groups ?? []).flatMap((group, index) =>
         keep[index] === KEEP_ALL ? [] : group.filter((transaction) => transaction.id !== keep[index]).map((transaction) => transaction.id));
     const groupsToClean = (groups ?? []).filter((_, index) => keep[index] !== KEEP_ALL).length;
+    const wholeList = pending !== null && pending.length === toDelete.length && pending.every((id) => toDelete.includes(id));
 
     const tooMany = toDelete.length > MAX_DELETE_AT_ONCE;
 
     const remove = async () => {
         setDeleting(true);
-        const result = await bulkDeleteTransactions(toDelete, getToken());
+        const result = await bulkDeleteTransactions(pending, getToken());
         setDeleting(false);
-        setConfirming(false);
+        setPending(null);
         if (!result?.ok) {
             customToaster("Erro", "error", "Não foi possível excluir as transações. Nada foi excluído.");
             return;
@@ -65,9 +65,6 @@ export default function AccountDuplicates() {
     return (
         <Stack gap={6} maxW="3xl">
             <Stack gap={1}>
-                <Button asChild variant="ghost" size="xs" alignSelf="start" ml={-2}>
-                    <RouterLink to="/account/data"><LuArrowLeft /> Importar e exportar</RouterLink>
-                </Button>
                 <Heading size="xl">Duplicatas</Heading>
                 <Text color="fg.muted">
                     Transações do mesmo dia, com o mesmo valor e o mesmo tipo aparecem juntas. Em cada grupo, escolha qual manter; as outras são excluídas.
@@ -114,11 +111,12 @@ export default function AccountDuplicates() {
                                             <Table.ColumnHeader hideBelow="md">Categoria</Table.ColumnHeader>
                                             <Table.ColumnHeader hideBelow="md" w="140px">Quem</Table.ColumnHeader>
                                             <Table.ColumnHeader hideBelow="md" w="120px">Salva em</Table.ColumnHeader>
+                                            <Table.ColumnHeader w="90px" />
                                         </Table.Row>
                                     </Table.Header>
                                     <Table.Body>
                                         {group.map((transaction) => {
-                                            const deleted = keep[index] !== KEEP_ALL && keep[index] !== transaction.id;
+                                            const deleted = keep[index] !== KEEP_ALL && keep[index] !== transaction.id; // marked to go when the group is cleaned
                                             return (
                                                 <Table.Row key={transaction.id} opacity={deleted ? 0.5 : 1} bg={deleted ? "bg.muted" : undefined}>
                                                     <Table.Cell>
@@ -135,21 +133,31 @@ export default function AccountDuplicates() {
                                                     <Table.Cell hideBelow="md" color="fg.muted">{transaction.category_name ?? "Sem categoria"}</Table.Cell>
                                                     <Table.Cell hideBelow="md" color="fg.muted">{transaction.user_name ?? ""}</Table.Cell>
                                                     <Table.Cell hideBelow="md" color="fg.muted">{transaction.created_at ? formatDate(transaction.created_at) : ""}</Table.Cell>
+                                                    <Table.Cell textAlign="end">
+                                                        <Button size="xs" variant="ghost" colorPalette="red" aria-label={`Excluir só ${transaction.label}`} onClick={() => setPending([transaction.id])}>Excluir</Button>
+                                                    </Table.Cell>
                                                 </Table.Row>
                                             );
                                         })}
                                     </Table.Body>
                                 </Table.Root>
-                                <RadioGroup.Item value={KEEP_ALL} mt={2}>
+                                <Flex gap={6} wrap="wrap" mt={2}>
+                                <RadioGroup.Item value={DELETE_ALL}>
+                                    <RadioGroup.ItemHiddenInput />
+                                    <RadioGroup.ItemIndicator />
+                                    <RadioGroup.ItemText color="fg.error">Excluir todas</RadioGroup.ItemText>
+                                </RadioGroup.Item>
+                                <RadioGroup.Item value={KEEP_ALL}>
                                     <RadioGroup.ItemHiddenInput />
                                     <RadioGroup.ItemIndicator />
                                     <RadioGroup.ItemText color="fg.muted">Manter todas (não são duplicatas)</RadioGroup.ItemText>
                                 </RadioGroup.Item>
+                                </Flex>
                             </RadioGroup.Root>
                         </Box>
                     ))}
 
-                    <Button alignSelf="start" colorPalette="red" disabled={toDelete.length === 0 || tooMany} onClick={() => setConfirming(true)}>
+                    <Button alignSelf="start" colorPalette="red" disabled={toDelete.length === 0 || tooMany} onClick={() => setPending(toDelete)}>
                         Excluir {count(toDelete.length, "duplicada", "duplicadas")}
                     </Button>
                     {tooMany && (
@@ -160,17 +168,21 @@ export default function AccountDuplicates() {
                 </Stack>
             )}
 
-            <Dialog.Root open={confirming} onOpenChange={(e) => !e.open && setConfirming(false)} placement="center" role="alertdialog" lazyMount unmountOnExit>
+            <Dialog.Root open={pending !== null} onOpenChange={(e) => !e.open && setPending(null)} placement="center" role="alertdialog" lazyMount unmountOnExit>
                 <Portal>
                     <Dialog.Backdrop />
                     <Dialog.Positioner>
                         <Dialog.Content>
-                            <Dialog.Header><Dialog.Title>Excluir {count(toDelete.length, "transação", "transações")}?</Dialog.Title></Dialog.Header>
+                            <Dialog.Header><Dialog.Title>Excluir {count(pending?.length ?? 0, "transação", "transações")}?</Dialog.Title></Dialog.Header>
                             <Dialog.Body>
-                                <Text>Em {count(groupsToClean, "grupo", "grupos")}, a escolhida fica e as outras são excluídas. Isso não pode ser desfeito.</Text>
+                                <Text>
+                                    {wholeList
+                                        ? `Em ${count(groupsToClean, "grupo", "grupos")}, a escolhida fica e as outras são excluídas. Isso não pode ser desfeito.`
+                                        : "Isso não pode ser desfeito."}
+                                </Text>
                             </Dialog.Body>
                             <Dialog.Footer>
-                                <Button variant="outline" onClick={() => setConfirming(false)} disabled={deleting}>Cancelar</Button>
+                                <Button variant="outline" onClick={() => setPending(null)} disabled={deleting}>Cancelar</Button>
                                 <Button colorPalette="red" onClick={remove} loading={deleting}>Excluir</Button>
                             </Dialog.Footer>
                         </Dialog.Content>

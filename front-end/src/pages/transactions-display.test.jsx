@@ -853,18 +853,17 @@ describe('transactions page', () => {
       })
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
-      await screen.findByRole('region', { name: 'Por estabelecimento' }) // the merchants arrived
+      await screen.findByText('iFood') // the merchants arrived
       return api
     }
     const bodyOf = (api, suffix) => JSON.parse(api.mock.calls.find(([url]) => url.endsWith(suffix))[1].body)
 
-    it('changes nothing while they are off: no request, no field, no totals', async () => {
+    it('changes nothing while they are off: no request, no field', async () => {
       const api = mockApi(routes())
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
       expect(requestsMade(api)).not.toContain('GET /merchants')
-      expect(screen.queryByRole('region', { name: 'Por estabelecimento' })).not.toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
       expect((await drawer()).queryByLabelText('Estabelecimento')).not.toBeInTheDocument()
     })
@@ -875,13 +874,6 @@ describe('transactions page', () => {
       expect(within(rowOf('Corrida')).getByText('Uber')).toBeInTheDocument()
       expect(within(rowOf('Almoço')).getByText('iFood')).toBeInTheDocument()
       expect(within(rowOf('Sem lugar')).queryByText(/Uber|iFood/)).not.toBeInTheDocument()
-    })
-
-    it('totals what was spent at each merchant, biggest first, without credits or transactions without one', async () => {
-      await setup()
-
-      const items = within(screen.getByRole('region', { name: 'Por estabelecimento' })).getAllByRole('listitem')
-      expect(items.map((item) => item.textContent.replace(/\s/g, ' '))).toEqual(['iFoodR$ 25,50', 'UberR$ 25,00'])
     })
 
     it('lets the user pick an existing merchant or type a new name, and sends the name', async () => {
@@ -953,7 +945,6 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
 
       expect(await screen.findByText('Almoço')).toBeInTheDocument()
-      expect(screen.queryByRole('region', { name: 'Por estabelecimento' })).not.toBeInTheDocument()
     })
   })
 

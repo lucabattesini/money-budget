@@ -56,7 +56,7 @@ function App() {
               <Route path='merchants' element={<AccountMerchants/>}/>
               <Route path='preferences' element={<AccountPreferences/>}/>
               <Route path='data' element={<AccountData/>}/>
-              <Route path='data/duplicates' element={<AccountDuplicates/>}/>
+              <Route path='duplicates' element={<AccountDuplicates/>}/>
               <Route path='assistants' element={<AccountAssistants/>}/>
             </Route>
           </Route>
