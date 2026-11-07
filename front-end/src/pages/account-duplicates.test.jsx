@@ -119,7 +119,7 @@ describe('duplicates page', () => {
     expect(screen.getByText(/mais de 500 de uma vez/)).toBeInTheDocument()
   }, 20000)
 
-  it('deletes one transaction on its own, after a confirmation, and leaves the rest of the group', async () => {
+  it('applies the choice of one group only, after a confirmation, and leaves the other groups', async () => {
     const mock = mockApi({
       'POST /transactions/duplicates': { data: GROUPS },
       'POST /transactions/bulk-delete': { data: { deleted: 1 } },
@@ -128,11 +128,13 @@ describe('duplicates page', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Procurar' }))
     await screen.findByText('2 grupos encontrados')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Excluir só Cinema 2' }))
-    const confirm = within((await screen.findByText('Excluir 1 transação?')).closest('[role="alertdialog"]'))
+    const cinema = screen.getAllByRole('radiogroup')[1]
+    await userEvent.click(within(cinema).getByRole('radio', { name: 'Manter Cinema 3' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Aplicar escolha do grupo 2' }))
+    const confirm = within((await screen.findByText('Excluir 2 transações?')).closest('[role="alertdialog"]'))
     await userEvent.click(confirm.getByRole('button', { name: 'Excluir' }))
 
-    await waitFor(() => expect(bodyOf(mock, 'POST /transactions/bulk-delete')).toEqual({ ids: ['b2'] }))
+    await waitFor(() => expect(bodyOf(mock, 'POST /transactions/bulk-delete')).toEqual({ ids: ['b1', 'b2'] }))
   })
 
   it('can delete every copy of a group ("excluir todas")', async () => {

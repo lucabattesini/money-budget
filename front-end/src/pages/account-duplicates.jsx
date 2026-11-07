@@ -42,8 +42,9 @@ export default function AccountDuplicates() {
         setKeep(Object.fromEntries(result.data.map((group, index) => [index, group[0].id])));
     };
 
-    const toDelete = (groups ?? []).flatMap((group, index) =>
-        keep[index] === KEEP_ALL ? [] : group.filter((transaction) => transaction.id !== keep[index]).map((transaction) => transaction.id));
+    const idsToDelete = (group, index) =>
+        keep[index] === KEEP_ALL ? [] : group.filter((transaction) => transaction.id !== keep[index]).map((transaction) => transaction.id);
+    const toDelete = (groups ?? []).flatMap(idsToDelete);
     const groupsToClean = (groups ?? []).filter((_, index) => keep[index] !== KEEP_ALL).length;
     const wholeList = pending !== null && pending.length === toDelete.length && pending.every((id) => toDelete.includes(id));
 
@@ -111,7 +112,6 @@ export default function AccountDuplicates() {
                                             <Table.ColumnHeader hideBelow="md">Categoria</Table.ColumnHeader>
                                             <Table.ColumnHeader hideBelow="md" w="140px">Quem</Table.ColumnHeader>
                                             <Table.ColumnHeader hideBelow="md" w="120px">Salva em</Table.ColumnHeader>
-                                            <Table.ColumnHeader w="90px" />
                                         </Table.Row>
                                     </Table.Header>
                                     <Table.Body>
@@ -133,9 +133,6 @@ export default function AccountDuplicates() {
                                                     <Table.Cell hideBelow="md" color="fg.muted">{transaction.category_name ?? "Sem categoria"}</Table.Cell>
                                                     <Table.Cell hideBelow="md" color="fg.muted">{transaction.user_name ?? ""}</Table.Cell>
                                                     <Table.Cell hideBelow="md" color="fg.muted">{transaction.created_at ? formatDate(transaction.created_at) : ""}</Table.Cell>
-                                                    <Table.Cell textAlign="end">
-                                                        <Button size="xs" variant="ghost" colorPalette="red" aria-label={`Excluir só ${transaction.label}`} onClick={() => setPending([transaction.id])}>Excluir</Button>
-                                                    </Table.Cell>
                                                 </Table.Row>
                                             );
                                         })}
@@ -154,6 +151,11 @@ export default function AccountDuplicates() {
                                 </RadioGroup.Item>
                                 </Flex>
                             </RadioGroup.Root>
+                            {/* Does what was chosen for this group only */}
+                            <Button mt={3} size="sm" variant="outline" colorPalette="red" disabled={idsToDelete(group, index).length === 0}
+                                aria-label={`Aplicar escolha do grupo ${index + 1}`} onClick={() => setPending(idsToDelete(group, index))}>
+                                Aplicar neste grupo
+                            </Button>
                         </Box>
                     ))}
 
