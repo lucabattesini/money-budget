@@ -168,7 +168,7 @@ describe('transactions page: many at once', () => {
   })
 
   it('does not offer to act on more than the server accepts at once, and says why', async () => {
-    const many = { data: Array.from({ length: 501 }, (_, n) => t(n + 1, `Compra ${n + 1}`, 100)) }
+    const many = { data: Array.from({ length: 501 }, (_, n) => ({ ...t(n + 1, `Compra ${n + 1}`, 100), transactioned_at: new Date().toISOString().slice(0, 19) })) } // today: the recent groups are never paginated
     api({ 'POST /transactions': many })
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Compra 1')
