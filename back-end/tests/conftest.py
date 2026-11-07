@@ -33,8 +33,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
-from db import connection
 from api.utils.budget_order import GROUP_ORDER
+from db import connection
 from db.seed import DEFAULT_GROUPS
 from schemas.tables import Categories, CategoryGroups, Families, TransactionDB, Users
 
