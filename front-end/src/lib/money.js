@@ -58,23 +58,32 @@ export function budgetEditText(cents) {
   return rest === 0 ? String(reais) : `${reais}${decimalSeparator()}${String(rest).padStart(2, '0')}`
 }
 
+// The most whole units a budget can hold: 21.474.835 reais, so even with 99 cents it fits the 32-bit column
+const MAX_REAIS = 21474835
+
 /**
- * What the person types in a budget field: digits, and optionally a decimal separator ("," or ".", both are taken as
- * the decimal one) with up to two digits after it. Anything else is dropped. "1500" stays "1500", "12.5" -> "12,5".
+ * What the person types in a budget field: digits, and optionally a decimal separator ("," or ".") with up to two
+ * digits after it. Anything else is dropped. The last separator is the decimal one, the ones before it are thousands
+ * separators ("1.500,00" -> "1500,00"); a separator followed by exactly three digits is a thousands separator too when it comes after one to three
+ * digits or after another separator ("1.500" -> "1500", "1,500" -> "1500"). "0,5" and ",5" are both fine as typed.
  */
 export function sanitizeBudgetText(text) {
   const typed = String(text ?? '').replace(/[^\d.,]/g, '')
-  const at = typed.search(/[.,]/)
-  const digits = (at === -1 ? typed : typed.slice(0, at)).replace(/^0+(?=\d)/, '').slice(0, 8) // 8 digits: 21 million fits the database
-  if (at === -1) return digits
-  const decimals = typed.slice(at + 1).replace(/\D/g, '').slice(0, 2)
-  return `${digits || '0'}${decimalSeparator()}${decimals}`
+  const at = Math.max(typed.lastIndexOf('.'), typed.lastIndexOf(','))
+  let whole = (at === -1 ? typed : typed.slice(0, at)).replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  let decimals = at === -1 ? null : typed.slice(at + 1)
+  if (decimals !== null && decimals.length === 3 && /^[1-9]\d*$/.test(whole) && (whole.length <= 3 || /[.,]/.test(typed.slice(0, at)))) {
+    whole += decimals // "1.500": a thousands separator
+    decimals = null
+  }
+  while (Number(whole) > MAX_REAIS) whole = whole.slice(0, -1)
+  return decimals === null ? whole : `${whole}${decimalSeparator()}${decimals.slice(0, 2)}`
 }
 
 /** Typed budget text -> cents: "1500" -> 150000, "12,5" -> 1250, "0" -> 0 (a plan to spend nothing), "" -> null (no plan). Never above what the database holds. */
 export function budgetTextToCents(text) {
   const clean = sanitizeBudgetText(text)
-  if (clean === '') return null
+  if (!/\d/.test(clean)) return null // nothing, or only a separator: no plan
   const [reais = '', decimals = ''] = clean.split(decimalSeparator())
   const cents = (parseInt(reais || '0', 10) || 0) * 100 + parseInt(decimals.padEnd(2, '0') || '0', 10)
   return Math.min(cents, MAX_CENTS)

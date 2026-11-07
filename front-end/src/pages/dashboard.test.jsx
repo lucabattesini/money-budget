@@ -19,7 +19,7 @@ const t = (id, cents, date, category_id = 1, type = 'debit', label = `Compra ${i
 const budgetOf = (month, budgeted, spent, unbudgeted = 0) => ({
   month,
   totals: { budgeted, spent, remaining: budgeted - spent, unbudgeted_spent: unbudgeted },
-  groups: [],
+  groups: [{ id: 1, name: 'Moradia', categories: [{ id: 1, name: 'Aluguel', budgeted: budgeted > 0 ? budgeted : null, spent }] }], // 0 here means nothing planned
 })
 const MARCH = 'GET /budgets?month=2026-03'
 const FEBRUARY = 'GET /budgets?month=2026-02'
@@ -169,6 +169,18 @@ describe('dashboard', () => {
     const panel = within(await waitFor(() => card('Orçamento')))
     expect(await panel.findByText(/Nenhum orçamento definido/)).toBeInTheDocument()
     expect(panel.getByRole('link', { name: 'Definir orçamentos' })).toHaveAttribute('href', '/budgets?month=2026-03')
+  })
+
+  it('shows the ring when every plan is 0: spending nothing is a plan', async () => {
+    const zero = budgetOf('2026-03', 0, 0)
+    zero.groups[0].categories[0].budgeted = 0
+    mockApi({ ...ROUTES, [MARCH]: { data: zero } })
+
+    renderApp(<Dashboard />)
+
+    const panel = within(await waitFor(() => card('Orçamento')))
+    expect(await panel.findByRole('img', { name: '0% do orçamento gasto' })).toBeInTheDocument()
+    expect(panel.queryByText(/Nenhum orçamento definido/)).not.toBeInTheDocument()
   })
 
   it('still shows the rest of the page, without an error message, when the budgets cannot be loaded', async () => {

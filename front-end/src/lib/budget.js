@@ -56,3 +56,6 @@ export function budgetStatus(spent, budgeted) {
   const state = share > 1 ? 'over' : share === 1 ? 'limit' : share >= WARNING_FROM ? 'warn' : 'ok'
   return { state, percent: Math.min(100, Math.round(share * 100)) }
 }
+
+/** Whether any category of the month has a plan. 0 counts: it is a plan to spend nothing. */
+export const hasPlan = (data) => data.groups.some((g) => g.categories.some((c) => c.budgeted != null))

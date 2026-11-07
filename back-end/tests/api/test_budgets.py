@@ -112,6 +112,20 @@ def test_groups_and_categories_come_in_order_of_priority_not_alphabetically(clie
     assert by_group["Moradia"] == ["Aluguel", "Jardim", "Zelador"]
 
 
+def test_a_category_named_like_a_default_of_another_group_is_not_ranked_as_that_default(db, client, auth_headers, user):
+    outros = db.query(CategoryGroups).filter_by(name="Outros").one()
+    # "Aluguel" is the first default of Moradia; here it is the family's own category in Outros, so it goes after the defaults
+    db.add(Categories(name="Aluguel", group_id=outros.id, family_id=user.family_id))
+    _default_in(db, "Outros", "Diversos")
+    db.commit()
+
+    names = [
+        c["name"] for g in _month(client, auth_headers)["groups"] if g["name"] == "Outros" for c in g["categories"]
+    ]
+
+    assert names.index("Diversos") < names.index("Aluguel")
+
+
 def test_a_family_sees_its_own_categories_and_never_anothers(client, db, auth_headers, user, other_user, headers_for):
     group = db.query(CategoryGroups).filter_by(name="Outros").one()
     mine = Categories(name="Plantas", group_id=group.id, family_id=user.family_id)

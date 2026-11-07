@@ -46,9 +46,10 @@ PRIORITY: dict[str, list[str]] = {
 # Income and transfers have no budget, but they keep a place so every list agrees: income first, transfers last
 GROUP_ORDER = ["Receitas", *PRIORITY, "Transferências"]
 
-_RANK = {name_key(name): rank for names in PRIORITY.values() for rank, name in enumerate(names)}
+_RANK = {(group, name_key(name)): rank for group, names in PRIORITY.items() for rank, name in enumerate(names)}
 
 
-def category_sort_key(name: str) -> tuple[int, str]:
-    """For sort(): default categories in the order above, then the family's own, A-Z."""
-    return (_RANK.get(name_key(name), len(_RANK)), plain_name(name).casefold())
+def category_sort_key(group: str, name: str) -> tuple[int, str]:
+    """For sort(): the group's default categories in the order above, then the family's own, A-Z.
+    A category that shares its name with a default of another group is not ranked as that default."""
+    return (_RANK.get((group, name_key(name)), len(_RANK)), plain_name(name).casefold())

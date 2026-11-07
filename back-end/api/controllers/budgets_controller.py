@@ -50,7 +50,7 @@ def get_month_budget(db: Session, family_id: UUID, month_text: str) -> dict:
     result = []
     totals = {"budgeted": 0, "spent": 0, "unbudgeted_spent": 0}
     for entry in groups.values():
-        entry["categories"].sort(key=lambda c: category_sort_key(c["name"]))
+        entry["categories"].sort(key=lambda c: category_sort_key(entry["name"], c["name"]))
         entry["budgeted"] = sum(c["budgeted"] or 0 for c in entry["categories"])
         entry["spent"] = sum(c["spent"] for c in entry["categories"] if c["budgeted"] is not None)
         totals["budgeted"] += entry["budgeted"]

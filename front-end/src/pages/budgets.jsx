@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp } from "react-icons/lu";
 import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { budgetStatus, FIRST_MONTH, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
+import { budgetStatus, FIRST_MONTH, hasPlan, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { plainName } from "../lib/categoryName";
 import { currencySymbol, familyNow, useLocale } from "../lib/locale";
 import { budgetEditText, budgetFieldText, budgetTextToCents, formatBudgetCents, sanitizeBudgetText } from "../lib/money";
@@ -33,9 +33,6 @@ function Stat({ label, value, color }) {
         </Stack>
     );
 }
-
-// Whether any category has a plan (0 counts: it is a plan to spend nothing)
-const hasPlan = (data) => data.groups.some((g) => g.categories.some((c) => c.budgeted != null));
 
 // What is left of a plan, or how much it was exceeded by
 function leftText(spent, budgeted) {
