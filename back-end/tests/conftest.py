@@ -33,6 +33,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
+from api.utils.budget_order import GROUP_ORDER
 from db import connection
 from db.seed import DEFAULT_GROUPS
 from schemas.tables import Categories, CategoryGroups, Families, TransactionDB, Users
@@ -74,7 +75,9 @@ def database():
     connection.Base.metadata.drop_all(engine)
     connection.Base.metadata.create_all(engine)
     with connection.LocalSession() as db:
-        groups = {name: CategoryGroups(name=name, position=i) for i, name in enumerate(DEFAULT_GROUPS, start=1)}
+        groups = {
+            name: CategoryGroups(name=name, position=i) for i, name in enumerate(GROUP_ORDER, start=1)
+        }  # as migration 0023 leaves them
         db.add_all(groups.values())
         db.flush()
         group_of = {category: group for group, names in DEFAULT_GROUPS.items() for category in names}

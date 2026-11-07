@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from api.utils.budget_order import GROUP_ORDER
 from schemas.tables import Categories, CategoryGroups
 from tests.conftest import MISSING_ID
 
@@ -79,22 +80,7 @@ def test_the_groups_are_the_same_fixed_set_for_every_family_in_a_stable_order(
     mine = _groups(client, auth_headers)
 
     assert mine == _groups(client, headers_for(other_user))
-    assert [g["name"] for g in mine] == [
-        "Receitas",
-        "Presentes e Doações",
-        "Auto e Transporte",
-        "Moradia",
-        "Contas e Serviços",
-        "Alimentação",
-        "Compras",
-        "Viagem e Estilo de Vida",
-        "Filhos",
-        "Educação",
-        "Saúde e Bem-estar",
-        "Finanças",
-        "Outros",
-        "Transferências",
-    ]
+    assert [g["name"] for g in mine] == GROUP_ORDER  # in order of priority (migration 0023)
 
 
 def test_listing_the_groups_requires_login(client):

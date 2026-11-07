@@ -83,6 +83,49 @@ def test_the_groups_come_in_the_order_they_are_shown_everywhere(client, db, auth
     assert shown == [name for name in order if name in shown]
 
 
+def test_groups_and_categories_come_in_order_of_priority_not_alphabetically(client, db, auth_headers, user):
+    _default_in(db, "Contas e Serviços", "Água")  # A-Z would put it before "Luz e gás"
+    _default_in(db, "Contas e Serviços", "Luz e gás")
+    _default_in(db, "Contas e Serviços", "Internet e TV")
+    mine = [
+        Categories(
+            name="Zelador",
+            group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id,
+            family_id=user.family_id,
+        ),
+        Categories(
+            name="Jardim",
+            group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id,
+            family_id=user.family_id,
+        ),
+    ]
+    db.add_all(mine)
+    db.commit()
+
+    data = _month(client, auth_headers)
+
+    groups = [g["name"] for g in data["groups"]]
+    assert groups.index("Moradia") < groups.index("Alimentação") < groups.index("Educação") < groups.index("Outros")
+    by_group = {g["name"]: [c["name"] for c in g["categories"]] for g in data["groups"]}
+    assert by_group["Contas e Serviços"] == ["Luz e gás", "Água", "Internet e TV"]
+    # The family's own categories come after the default ones, A-Z
+    assert by_group["Moradia"] == ["Aluguel", "Jardim", "Zelador"]
+
+
+def test_a_category_named_like_a_default_of_another_group_is_not_ranked_as_that_default(db, client, auth_headers, user):
+    outros = db.query(CategoryGroups).filter_by(name="Outros").one()
+    # "Aluguel" is the first default of Moradia; here it is the family's own category in Outros, so it goes after the defaults
+    db.add(Categories(name="Aluguel", group_id=outros.id, family_id=user.family_id))
+    _default_in(db, "Outros", "Diversos")
+    db.commit()
+
+    names = [
+        c["name"] for g in _month(client, auth_headers)["groups"] if g["name"] == "Outros" for c in g["categories"]
+    ]
+
+    assert names.index("Diversos") < names.index("Aluguel")
+
+
 def test_a_family_sees_its_own_categories_and_never_anothers(client, db, auth_headers, user, other_user, headers_for):
     group = db.query(CategoryGroups).filter_by(name="Outros").one()
     mine = Categories(name="Plantas", group_id=group.id, family_id=user.family_id)
@@ -118,18 +161,61 @@ def test_planning_again_changes_the_amount_and_keeps_one_row(client, db, auth_he
     assert db.query(Budgets).count() == 1
 
 
-def test_zero_removes_the_budget(client, db, auth_headers, food):
+def test_null_removes_the_budget(client, db, auth_headers, food):
     _plan(client, auth_headers, food, 50000)
 
-    response = _plan(client, auth_headers, food, 0)
+    response = _plan(client, auth_headers, food, None)
 
     assert response.status_code == 200
     assert _row(response.json()["data"], food)["budgeted"] is None
     assert db.query(Budgets).count() == 0
 
 
+def test_zero_is_a_plan_to_spend_nothing(client, db, auth_headers, food, user, make_transaction):
+    response = _plan(client, auth_headers, food, 0)
+
+    assert response.status_code == 200
+    row = _row(response.json()["data"], food)
+    assert row["budgeted"] == 0 and row["since"] == NOV  # a plan, not "nothing planned"
+    assert db.query(Budgets).one().amount == 0
+
+    make_transaction(user, food, value=1500, when=datetime(2026, 11, 5, 12, 0, 0))
+    data = _month(client, auth_headers)
+    assert _row(data, food)["spent"] == 1500
+    assert data["totals"] == {
+        "budgeted": 0,
+        "spent": 1500,
+        "unbudgeted_spent": 0,
+        "remaining": -1500,
+    }  # counted against the plan
+
+
+def test_a_zero_plan_is_repeated_in_later_months_until_changed(client, auth_headers, food):
+    _plan(client, auth_headers, food, 50000, month="2026-10")
+    _plan(client, auth_headers, food, 0, month="2026-11")
+
+    assert _row(_month(client, auth_headers, "2026-10"), food)["budgeted"] == 50000
+    assert _row(_month(client, auth_headers, "2027-02"), food)["budgeted"] == 0
+    assert _row(_month(client, auth_headers, "2027-02"), food)["since"] == NOV
+
+
+def test_a_zero_plan_can_be_cleared_and_is_different_from_clearing(client, db, auth_headers, food):
+    _plan(client, auth_headers, food, 0)
+
+    response = _plan(client, auth_headers, food, None)
+
+    assert _row(response.json()["data"], food)["budgeted"] is None
+    assert db.query(Budgets).count() == 0
+
+
+def test_the_amount_must_be_sent_even_to_clear_it(client, auth_headers, food):
+    response = client.put("/budgets", json={"category_id": str(food), "month": NOV}, headers=auth_headers)
+
+    assert response.status_code == 422
+
+
 def test_removing_a_budget_that_was_never_set_is_fine(client, auth_headers, food):
-    assert _plan(client, auth_headers, food, 0).status_code == 200
+    assert _plan(client, auth_headers, food, None).status_code == 200
 
 
 @pytest.mark.parametrize(
@@ -498,7 +584,7 @@ def test_changing_an_earlier_month_does_not_touch_a_later_month_that_has_its_own
 def test_clearing_a_month_stops_the_plan_from_then_on_and_keeps_the_earlier_months(client, db, auth_headers, food):
     _plan(client, auth_headers, food, 50000, month="2026-10")
 
-    _plan(client, auth_headers, food, 0, month="2026-12")
+    _plan(client, auth_headers, food, None, month="2026-12")
 
     assert [_budgeted(client, auth_headers, food, m) for m in ("2026-10", "2026-11", "2026-12", "2027-03")] == [
         50000,
@@ -506,12 +592,15 @@ def test_clearing_a_month_stops_the_plan_from_then_on_and_keeps_the_earlier_mont
         None,
         None,
     ]
-    assert sorted(b.amount for b in db.query(Budgets)) == [0, 50000]  # the 0 is what remembers "stopped here"
+    assert sorted((b.amount is None, b.amount) for b in db.query(Budgets)) == [
+        (False, 50000),
+        (True, None),
+    ]  # the empty row is what remembers "stopped here"
 
 
 def test_a_new_plan_after_a_stop_starts_again_from_that_month(client, auth_headers, food):
     _plan(client, auth_headers, food, 50000, month="2026-10")
-    _plan(client, auth_headers, food, 0, month="2026-11")
+    _plan(client, auth_headers, food, None, month="2026-11")
     _plan(client, auth_headers, food, 30000, month="2027-01")
 
     assert [
@@ -526,7 +615,7 @@ def test_a_new_plan_after_a_stop_starts_again_from_that_month(client, auth_heade
 
 
 def test_clearing_where_nothing_applies_keeps_no_row(client, db, auth_headers, food):
-    _plan(client, auth_headers, food, 0, month="2026-12")
+    _plan(client, auth_headers, food, None, month="2026-12")
 
     assert db.query(Budgets).count() == 0
 
@@ -547,7 +636,7 @@ def test_asking_for_what_already_applies_keeps_no_row_of_its_own(client, db, aut
 
 def test_removing_the_stop_row_brings_the_plan_back(client, db, auth_headers, food):
     _plan(client, auth_headers, food, 50000, month="2026-10")
-    _plan(client, auth_headers, food, 0, month="2026-11")
+    _plan(client, auth_headers, food, None, month="2026-11")
 
     _plan(client, auth_headers, food, 50000, month="2026-11")
 
@@ -609,7 +698,7 @@ def test_a_later_month_that_repeats_the_new_amount_keeps_its_own_row_and_the_num
 
 def test_a_stop_in_the_middle_of_three_changes_splits_them_cleanly(client, auth_headers, food):
     _plan(client, auth_headers, food, 100, month="2026-09")
-    _plan(client, auth_headers, food, 0, month="2026-10")
+    _plan(client, auth_headers, food, None, month="2026-10")
     _plan(client, auth_headers, food, 150, month="2026-11")
 
     assert [_budgeted(client, auth_headers, food, m) for m in ("2026-09", "2026-10", "2026-11", "2026-12")] == [

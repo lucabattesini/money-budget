@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Box, Heading, HStack, IconButton, Input, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Heading, HStack, IconButton, Input, InputGroup, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
 import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp } from "react-icons/lu";
 import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { budgetStatus, FIRST_MONTH, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
-import { compareCategories, plainName } from "../lib/categoryName";
-import { familyNow, useLocale } from "../lib/locale";
-import { digitsToCents, formatCents, maskAmount } from "../lib/money";
+import { budgetStatus, FIRST_MONTH, hasPlan, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
+import { plainName } from "../lib/categoryName";
+import { currencySymbol, familyNow, useLocale } from "../lib/locale";
+import { budgetEditText, budgetFieldText, budgetTextToCents, formatBudgetCents, sanitizeBudgetText } from "../lib/money";
 import customToaster from "../utils/customToaster";
 
-const BAR_COLORS = { ok: "green", warn: "orange", over: "red", none: "gray" };
-
-const asText = (cents) => (cents ? maskAmount(String(cents)) : "");
+const BAR_COLORS = { ok: "green", warn: "orange", limit: "blue", over: "red", none: "gray" };
 
 // A thin bar showing how much of the plan is spent
 function SpentBar({ spent, budgeted, label }) {
@@ -38,14 +36,16 @@ function Stat({ label, value, color }) {
 
 // What is left of a plan, or how much it was exceeded by
 function leftText(spent, budgeted) {
-    if (!budgeted) return "";
+    if (budgeted == null) return "";
     const left = budgeted - spent;
-    return left >= 0 ? `Restam ${formatCents(left)}` : `Estourou ${formatCents(-left)}`;
+    if (left === 0) return "Dentro do orçamento: nada sobrando";
+    return left > 0 ? `Restam ${formatBudgetCents(left)}` : `Estourou ${formatBudgetCents(-left)}`;
 }
 
 // One month of the family's plan: what is planned for each spending category, what was spent and what is left.
 export default function Budgets() {
-    const { timezone } = useLocale(); // amounts and the month name follow the family's currency and language
+    const { timezone } = useLocale();
+    const symbol = currencySymbol(); // amounts and the month name follow the family's currency and language
     const [params] = useSearchParams();
     // Opens on the month the link asks for (the dashboard sends the month it shows), this month otherwise
     // "This month" is read on the family's clock, again when its timezone arrives (the settings load after the first paint)
@@ -92,9 +92,9 @@ export default function Budgets() {
     const save = async (category) => {
         const typed = drafts[category.id];
         if (typed === undefined) return;
-        const cents = digitsToCents(typed);
+        const cents = budgetTextToCents(typed);
         const forMonth = month;
-        if (cents === (category.budgeted ?? 0)) {
+        if (cents === (category.budgeted ?? null)) {
             clearDraft(category.id);
             return;
         }
@@ -142,23 +142,23 @@ export default function Budgets() {
                     <Box borderWidth="1px" borderRadius="lg" p={{ base: 4, md: 5 }}>
                         <Stack gap={4}>
                             <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
-                                <Stat label="Orçado" value={formatCents(data.totals.budgeted)} />
-                                <Stat label="Gasto" value={formatCents(data.totals.spent)} />
+                                <Stat label="Orçado" value={formatBudgetCents(data.totals.budgeted)} />
+                                <Stat label="Gasto" value={formatBudgetCents(data.totals.spent)} />
                                 <Stat
                                     label={data.totals.remaining < 0 ? "Estourou" : "Restante"}
-                                    value={formatCents(Math.abs(data.totals.remaining))}
+                                    value={formatBudgetCents(Math.abs(data.totals.remaining))}
                                     color={data.totals.remaining < 0 ? "fg.error" : undefined}
                                 />
                             </SimpleGrid>
-                            <SpentBar spent={data.totals.spent} budgeted={data.totals.budgeted} label="Total gasto do orçamento do mês" />
-                            {data.totals.budgeted === 0 && (
+                            {hasPlan(data) && <SpentBar spent={data.totals.spent} budgeted={data.totals.budgeted} label="Total gasto do orçamento do mês" />}
+                            {!hasPlan(data) && (
                                 <Text color="fg.muted" fontSize="sm">
                                     Nada planejado para este mês. Digite um valor em uma categoria abaixo: ele vale para este mês e os seguintes.
                                 </Text>
                             )}
                             {data.totals.unbudgeted_spent > 0 && (
                                 <Text color="fg.muted" fontSize="sm">
-                                    Gasto em categorias sem orçamento: {formatCents(data.totals.unbudgeted_spent)}
+                                    Gasto em categorias sem orçamento: {formatBudgetCents(data.totals.unbudgeted_spent)}
                                 </Text>
                             )}
                         </Stack>
@@ -186,13 +186,13 @@ export default function Budgets() {
                                     <Text fontWeight="semibold">{group.name}</Text>
                                 </HStack>
                                 <Text fontSize="sm" color="fg.muted">
-                                    {formatCents(group.spent)} de {formatCents(group.budgeted)}
+                                    {formatBudgetCents(group.spent)} de {formatBudgetCents(group.budgeted)}
                                 </Text>
                             </HStack>
 
                             {isOpen(group) && (
                                 <Stack as="ul" listStyleType="none" gap={0} aria-label={group.name}>
-                                    {[...group.categories].sort(compareCategories).map((category) => {
+                                    {group.categories.map((category) => {
                                         const name = plainName(category.name);
                                         const { state } = budgetStatus(category.spent, category.budgeted);
                                         return (
@@ -200,23 +200,25 @@ export default function Budgets() {
                                                 <HStack justify="space-between" gap={4} wrap="wrap">
                                                     <Text flex="1" minW={{ base: "full", sm: "10rem" }}>{category.name}</Text>
                                                     <Text fontSize="sm" color="fg.muted" aria-label={`Gasto em ${name}`}>
-                                                        {formatCents(category.spent)} gastos
+                                                        {formatBudgetCents(category.spent)} gastos
                                                     </Text>
-                                                    <Input
-                                                        size="sm"
-                                                        minH={{ base: "44px", md: "auto" }}
-                                                        w={{ base: "full", sm: "9rem" }}
-                                                        textAlign="right"
-                                                        inputMode="numeric"
-                                                        placeholder={maskAmount("0")}
-                                                        aria-label={`Orçamento de ${name}`}
-                                                        value={drafts[category.id] ?? asText(category.budgeted)}
-                                                        onChange={(e) => setDrafts({ ...drafts, [category.id]: maskAmount(e.target.value) })}
-                                                        onBlur={() => save(category)}
-                                                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                                                    />
+                                                    <InputGroup w={{ base: "full", sm: "10rem" }} startElement={<Text fontSize="sm" color="fg.muted">{symbol}</Text>}>
+                                                        <Input
+                                                            size="sm"
+                                                            minH={{ base: "44px", md: "auto" }}
+                                                            textAlign="right"
+                                                            inputMode="decimal"
+                                                            placeholder="0"
+                                                            aria-label={`Orçamento de ${name}`}
+                                                            value={drafts[category.id] ?? budgetFieldText(category.budgeted)}
+                                                            onFocus={() => drafts[category.id] === undefined && setDrafts({ ...drafts, [category.id]: budgetEditText(category.budgeted) })}
+                                                            onChange={(e) => setDrafts({ ...drafts, [category.id]: sanitizeBudgetText(e.target.value) })}
+                                                            onBlur={() => save(category)}
+                                                            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                                                        />
+                                                    </InputGroup>
                                                 </HStack>
-                                                {category.budgeted > 0 && (
+                                                {category.budgeted != null && (
                                                     <>
                                                         <SpentBar spent={category.spent} budgeted={category.budgeted} label={`Gasto de ${name} no orçamento`} />
                                                         <HStack justify="space-between">
@@ -226,6 +228,7 @@ export default function Budgets() {
                                                             </Text>
                                                             {state === "over" && <Badge colorPalette="red">Acima do orçamento</Badge>}
                                                             {state === "warn" && <Badge colorPalette="orange">Perto do limite</Badge>}
+                                                            {state === "limit" && <Badge colorPalette="blue">No limite</Badge>}
                                                         </HStack>
                                                     </>
                                                 )}

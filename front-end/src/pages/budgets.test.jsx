@@ -94,9 +94,9 @@ describe('budgets page: what it shows', () => {
     renderApp(<Budgets />)
 
     expect(await screen.findByText('Orçado')).toBeInTheDocument()
-    expect(screen.getByText('R$ 2.400,00')).toBeInTheDocument()
-    expect(screen.getByText('R$ 1.850,00')).toBeInTheDocument()
-    expect(screen.getByText('R$ 550,00')).toBeInTheDocument()
+    expect(screen.getByText('R$ 2.400')).toBeInTheDocument()
+    expect(screen.getByText('R$ 1.850')).toBeInTheDocument()
+    expect(screen.getByText('R$ 550')).toBeInTheDocument()
     expect(screen.getByText('Restante')).toBeInTheDocument()
     for (const name of ['Alimentação', 'Moradia', 'Auto e Transporte']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${name}:`) })).toBeInTheDocument()
@@ -108,10 +108,10 @@ describe('budgets page: what it shows', () => {
 
     renderApp(<Budgets />)
 
-    expect(await screen.findByLabelText('Orçamento de Restaurantes e Bares')).toHaveValue('500,00')
-    expect(screen.getByLabelText('Orçamento de Aluguel')).toHaveValue('1.800,00')
+    expect(await screen.findByLabelText('Orçamento de Restaurantes e Bares')).toHaveValue('500')
+    expect(screen.getByLabelText('Orçamento de Aluguel')).toHaveValue('1.800')
     expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('')
-    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveAttribute('placeholder', '0,00')
+    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveAttribute('placeholder', '0')
   })
 
   it('says what is left for a category and warns when it is close or over', async () => {
@@ -120,10 +120,10 @@ describe('budgets page: what it shows', () => {
     renderApp(<Budgets />)
 
     await screen.findByText('Orçado')
-    expect(within(screen.getByRole('list', { name: 'Alimentação' })).getByText('Restam R$ 300,00')).toBeInTheDocument() // 200 of 500
+    expect(within(screen.getByRole('list', { name: 'Alimentação' })).getByText('Restam R$ 300')).toBeInTheDocument() // 200 of 500
     expect(within(screen.getByRole('list', { name: 'Moradia' })).getByText('Perto do limite')).toBeInTheDocument() // 1.500 of 1.800 is 83%
     expect(within(screen.getByRole('list', { name: 'Alimentação' })).queryByText('Perto do limite')).not.toBeInTheDocument()
-    expect(screen.getByText('Estourou R$ 50,00')).toBeInTheDocument() // Transport: 150 of 100
+    expect(screen.getByText('Estourou R$ 50')).toBeInTheDocument() // Transport: 150 of 100
     expect(screen.getByText('Acima do orçamento')).toBeInTheDocument()
   })
 
@@ -135,9 +135,9 @@ describe('budgets page: what it shows', () => {
 
     renderApp(<Budgets />)
 
-    expect(await screen.findByLabelText('Gasto em Supermercado')).toHaveTextContent('R$ 80,00')
+    expect(await screen.findByLabelText('Gasto em Supermercado')).toHaveTextContent('R$ 80')
     expect(screen.queryByLabelText('Gasto de Supermercado no orçamento')).not.toBeInTheDocument()
-    expect(screen.getByText(/Gasto em categorias sem orçamento: R\$ 80,00/)).toBeInTheDocument()
+    expect(screen.getByText(/Gasto em categorias sem orçamento: R\$ 80/)).toBeInTheDocument()
   })
 
   it('says "Estourou" with the amount over when the month is over budget', async () => {
@@ -150,7 +150,7 @@ describe('budgets page: what it shows', () => {
     renderApp(<Budgets />)
 
     expect(await screen.findByText('Estourou')).toBeInTheDocument()
-    expect(screen.getByText('R$ 60,00')).toBeInTheDocument()
+    expect(screen.getByText('R$ 60')).toBeInTheDocument()
     expect(screen.queryByText('Restante')).not.toBeInTheDocument()
   })
 
@@ -182,7 +182,7 @@ describe('budgets page: what it shows', () => {
     expect(screen.getByLabelText('Orçamento de Aluguel')).toBeInTheDocument()
   })
 
-  it('lists the categories of a group A-Z in Portuguese order, accents and emoji aside', async () => {
+  it('lists the categories of a group in the order the server sends them (by priority, not A-Z)', async () => {
     const data = month(NOW)
     data.groups[0].categories = [
       category(1, '🅱️ Zebra'),
@@ -196,10 +196,10 @@ describe('budgets page: what it shows', () => {
 
     const list = await screen.findByRole('list', { name: 'Alimentação' })
     expect(within(list).getAllByRole('listitem').map((item) => within(item).getByRole('textbox').getAttribute('aria-label'))).toEqual([
-      'Orçamento de Abelha',
-      'Orçamento de Água',
-      'Orçamento de Cafeterias',
       'Orçamento de Zebra',
+      'Orçamento de Água',
+      'Orçamento de Abelha',
+      'Orçamento de Cafeterias',
     ])
   })
 
@@ -222,8 +222,8 @@ describe('budgets page: what it shows', () => {
 
     renderApp(<Budgets />)
 
-    expect(await screen.findByText('US$2,400.00')).toBeInTheDocument()
-    expect(screen.getByLabelText('Orçamento de Restaurantes e Bares')).toHaveValue('500.00')
+    expect(await screen.findByText('US$2,400')).toBeInTheDocument()
+    expect(screen.getByLabelText('Orçamento de Restaurantes e Bares')).toHaveValue('500')
   })
 
   it('says so when the month cannot be loaded', async () => {
@@ -249,13 +249,68 @@ describe('budgets page: planning', () => {
     renderApp(<Budgets />)
 
     const field = await screen.findByLabelText('Orçamento de Supermercado')
-    await userEvent.type(field, '30000')
-    expect(field).toHaveValue('300,00') // masked as it is typed
+    await userEvent.type(field, '300')
+    expect(field).toHaveValue('300')
     await userEvent.tab()
 
-    await waitFor(() => expect(screen.getByText('R$ 2.700,00')).toBeInTheDocument())
-    expect(calls(api, 'PUT')).toEqual([{ url: 'http://api.test/budgets', body: { category_id: 11, month: NOW, amount: 30000 } }])
-    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('300,00')
+    await waitFor(() => expect(screen.getByText('R$ 2.700')).toBeInTheDocument())
+    expect(calls(api, 'PUT')).toEqual([{ url: 'http://api.test/budgets', body: { category_id: 11, month: NOW, amount: 30000 } }]) // 300 reais, in cents
+    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('300')
+  })
+
+  it('takes whole amounts by default and decimals only when typed', async () => {
+    const api = mockApi({
+      [`GET /budgets?month=${NOW}`]: { data: month(NOW) },
+      'PUT /budgets': { data: planned(month(NOW), 11, 150050) },
+    })
+    renderApp(<Budgets />)
+
+    const field = await screen.findByLabelText('Orçamento de Supermercado')
+    await userEvent.type(field, '1500.5')
+    expect(field).toHaveValue('1500,5') // the dot is read as the decimal separator
+    await userEvent.tab()
+
+    await waitFor(() => expect(calls(api, 'PUT')[0].body.amount).toBe(150050))
+    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('1.500,50')
+  })
+
+  it('shows the currency symbol beside every field', async () => {
+    mockApi({ [`GET /budgets?month=${NOW}`]: { data: month(NOW) } })
+
+    renderApp(<Budgets />)
+
+    const row = (await screen.findByLabelText('Orçamento de Aluguel')).closest('li')
+    expect(within(row).getByText('R$')).toBeInTheDocument()
+  })
+
+  it('saves a 0 as a plan to spend nothing, and shows it', async () => {
+    const api = mockApi({
+      [`GET /budgets?month=${NOW}`]: { data: month(NOW) },
+      'PUT /budgets': { data: planned(month(NOW), 11, 0) },
+    })
+    renderApp(<Budgets />)
+
+    await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '0')
+    await userEvent.tab()
+
+    await waitFor(() => expect(calls(api, 'PUT')[0].body).toEqual({ category_id: 11, month: NOW, amount: 0 }))
+    const row = within(screen.getByLabelText('Orçamento de Supermercado').closest('li'))
+    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('0')
+    expect(row.getByLabelText('Gasto de Supermercado no orçamento')).toHaveAttribute('data-state-name', 'limit')
+  })
+
+  it('says a category is at its limit, not close to it, when exactly the plan was spent', async () => {
+    const data = month(NOW)
+    data.groups[1].categories[0] = category(20, '🏠 Aluguel', 180000, 180000)
+    mockApi({ [`GET /budgets?month=${NOW}`]: { data } })
+
+    renderApp(<Budgets />)
+
+    const rent = within((await screen.findByLabelText('Orçamento de Aluguel')).closest('li'))
+    expect(rent.getByLabelText('Gasto de Aluguel no orçamento')).toHaveAttribute('data-state-name', 'limit')
+    expect(rent.getByText('No limite')).toBeInTheDocument()
+    expect(rent.queryByText('Perto do limite')).not.toBeInTheDocument()
+    expect(rent.queryByText('Acima do orçamento')).not.toBeInTheDocument()
   })
 
   it('saves with Enter as well', async () => {
@@ -265,10 +320,10 @@ describe('budgets page: planning', () => {
     })
     renderApp(<Budgets />)
 
-    await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '1234{Enter}')
+    await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '12,34{Enter}')
 
     await waitFor(() => expect(calls(api, 'PUT')).toHaveLength(1))
-    expect(calls(api, 'PUT')[0].body.amount).toBe(1234)
+    expect(calls(api, 'PUT')[0].body.amount).toBe(1234) // 12,34
   })
 
   it('removes the budget when the field is emptied', async () => {
@@ -282,7 +337,7 @@ describe('budgets page: planning', () => {
     await userEvent.tab()
 
     await waitFor(() => expect(calls(api, 'PUT')).toHaveLength(1))
-    expect(calls(api, 'PUT')[0].body).toEqual({ category_id: 10, month: NOW, amount: 0 })
+    expect(calls(api, 'PUT')[0].body).toEqual({ category_id: 10, month: NOW, amount: null })
     await waitFor(() => expect(screen.getByLabelText('Orçamento de Restaurantes e Bares')).toHaveValue(''))
   })
 
@@ -370,7 +425,7 @@ describe('budgets page: months', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(screen.getByText(/Nada planejado/)).toBeInTheDocument()
-    expect(within(document.body).queryByText('R$ 2.400,00')).not.toBeInTheDocument()
+    expect(within(document.body).queryByText('R$ 2.400')).not.toBeInTheDocument()
   })
 })
 
@@ -395,17 +450,17 @@ describe('budgets page: slow and failing answers', () => {
       },
     })
     renderApp(<Budgets />)
-    await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '30000')
+    await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '300')
     await userEvent.tab() // the first save is still on its way
-    await userEvent.type(screen.getByLabelText('Orçamento de Pets'), '70000')
+    await userEvent.type(screen.getByLabelText('Orçamento de Pets'), '700')
     await userEvent.tab()
-    await waitFor(() => expect(screen.getByLabelText('Orçamento de Pets')).toHaveValue('700,00'))
+    await waitFor(() => expect(screen.getByLabelText('Orçamento de Pets')).toHaveValue('700'))
 
     finishFirst() // the older answer arrives last, and knows nothing about Pets
 
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(screen.getByLabelText('Orçamento de Pets')).toHaveValue('700,00')
-    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('300,00')
+    expect(screen.getByLabelText('Orçamento de Pets')).toHaveValue('700')
+    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('300')
   })
 
   it('stops showing the error once another month loads', async () => {

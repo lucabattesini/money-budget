@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from api.repositories.budgets_repo import budgetable_categories, effective_budgets, month_bounds, set_budget
 from api.repositories.categories_repo import lock_family
 from api.repositories.transactions_repo import get_transactions_summed_by_category
+from api.utils.budget_order import category_sort_key
 
 
 def month_key(day: date) -> str:
@@ -49,17 +50,18 @@ def get_month_budget(db: Session, family_id: UUID, month_text: str) -> dict:
     result = []
     totals = {"budgeted": 0, "spent": 0, "unbudgeted_spent": 0}
     for entry in groups.values():
+        entry["categories"].sort(key=lambda c: category_sort_key(entry["name"], c["name"]))
         entry["budgeted"] = sum(c["budgeted"] or 0 for c in entry["categories"])
-        entry["spent"] = sum(c["spent"] for c in entry["categories"] if c["budgeted"])
+        entry["spent"] = sum(c["spent"] for c in entry["categories"] if c["budgeted"] is not None)
         totals["budgeted"] += entry["budgeted"]
         totals["spent"] += entry["spent"]
-        totals["unbudgeted_spent"] += sum(c["spent"] for c in entry["categories"] if not c["budgeted"])
+        totals["unbudgeted_spent"] += sum(c["spent"] for c in entry["categories"] if c["budgeted"] is None)
         result.append(entry)
     totals["remaining"] = totals["budgeted"] - totals["spent"]  # negative when over
     return {"month": month_text, "totals": totals, "groups": result}
 
 
-def set_category_budget(db: Session, family_id: UUID, category_id: UUID, month_text: str, amount: int) -> dict:
+def set_category_budget(db: Session, family_id: UUID, category_id: UUID, month_text: str, amount: int | None) -> dict:
     # Under the same lock the categories use: two requests cannot both create the row, and a category being deleted
     # at this very moment is seen as gone
     lock_family(db, family_id)

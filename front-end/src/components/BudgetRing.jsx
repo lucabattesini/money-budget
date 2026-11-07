@@ -1,12 +1,12 @@
 import { Box, chakra, Link, Spinner, Stack, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "react-router-dom";
-import { budgetStatus, budgetsLink } from "../lib/budget";
+import { budgetStatus, budgetsLink, hasPlan } from "../lib/budget";
 import { useLocale } from "../lib/locale";
 import { formatCents } from "../lib/money";
 import DashboardCard from "./DashboardCard";
 
 const Path = chakra.path; // (an upper case name, so the linter sees it used)
-const COLORS = { ok: "green.500", warn: "orange.500", over: "red.500", none: "gray.400" };
+const COLORS = { ok: "green.500", warn: "orange.500", limit: "blue.500", over: "red.500", none: "gray.400" };
 const ARC = "M 10 100 A 90 90 0 0 1 190 100"; // a half circle
 const ARC_LENGTH = Math.PI * 90;
 
@@ -15,7 +15,7 @@ const ARC_LENGTH = Math.PI * 90;
 export default function BudgetRing({ budget, month }) {
     useLocale(); // amounts follow the family's currency
     const totals = budget?.totals;
-    const planned = totals?.budgeted > 0;
+    const planned = budget ? hasPlan(budget) : false; // a 0 is a plan too
     const { state, percent } = planned ? budgetStatus(totals.spent, totals.budgeted) : { state: "none", percent: 0 };
     const over = state === "over";
 

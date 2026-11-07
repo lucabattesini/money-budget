@@ -33,7 +33,8 @@ describe('how a category is going', () => {
     [0, 10000, 'ok', 0],
     [7999, 10000, 'ok', 80],
     [8000, 10000, 'warn', 80], // from 80% on the bar warns
-    [10000, 10000, 'warn', 100], // spending exactly the plan is not over it
+    [9999, 10000, 'warn', 100],
+    [10000, 10000, 'limit', 100], // exactly the plan: not over it, still within
     [10001, 10000, 'over', 100], // the bar never grows past full
     [25000, 10000, 'over', 100],
   ])('spent %i of %i is %s (bar at %i%%)', (spent, budgeted, state, percent) => {
@@ -41,8 +42,13 @@ describe('how a category is going', () => {
   })
 
   it('has no bar when nothing is planned, however much was spent', () => {
-    expect(budgetStatus(5000, 0)).toEqual({ state: 'none', percent: 0 })
     expect(budgetStatus(5000, null)).toEqual({ state: 'none', percent: 0 })
+    expect(budgetStatus(5000, undefined)).toEqual({ state: 'none', percent: 0 })
+  })
+
+  it('treats 0 as a plan: spending nothing is within it, anything is over', () => {
+    expect(budgetStatus(0, 0)).toEqual({ state: 'limit', percent: 0 })
+    expect(budgetStatus(1, 0)).toEqual({ state: 'over', percent: 100 })
   })
 })
 
