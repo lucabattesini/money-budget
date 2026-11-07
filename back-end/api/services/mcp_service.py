@@ -54,8 +54,10 @@ TOOLS = [
     {
         "name": "preview_transactions",
         "description": "Check transactions you read from a document, without saving anything. Says which rows are "
-        "invalid and which the family already has (so sending the same statement twice adds nothing twice). Show the "
-        "result to the person. Returns a preview_id when every row is valid.",
+        "invalid and which the family already has (so sending the same statement twice adds nothing twice). Also flags "
+        "possible duplicates: rows on the same day with the same amount and type as a transaction the family has "
+        "(similar_existing) or as an earlier row of the same call (same_as_rows_in_this_call). Show the result, the "
+        "possible duplicates especially, to the person. Returns a preview_id when every row is valid.",
         "inputSchema": {
             "type": "object",
             "properties": {"rows": _ROWS},

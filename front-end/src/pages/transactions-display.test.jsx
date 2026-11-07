@@ -29,7 +29,7 @@ const TRANSACTIONS = {
 
 const GROUP_TITLES = ['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto']
 const rowOf = (label) => screen.getByText(label).closest('tr')
-// Rows with transactions have 6 cells; the group headings are one wide cell
+// Rows with transactions have 7 cells (the first is the tick box); the group headings are one wide cell
 const rowsOnPage = () => [...document.querySelectorAll('tbody tr')].filter((row) => row.children.length > 1)
 // The group of a row is the closest heading row above it
 const groupOf = (label) => {
@@ -129,7 +129,7 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0) // no header row, just the transactions
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
-    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
+    expect(cells.slice(1, 6)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
   })
 
   it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
@@ -143,7 +143,7 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
     await screen.findByText('inteiro')
 
-    const amountOf = (label) => rowOf(label).children[4].textContent
+    const amountOf = (label) => rowOf(label).children[5].textContent
     expect(['inteiro', 'centavos', 'mil', 'milhão'].map(amountOf)).toEqual(
       ['- R$ 18,00', '- R$ 0,05', '- R$ 1.234,56', '- R$ 1.000.000,00'],
     )
@@ -337,7 +337,7 @@ describe('transactions page', () => {
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
       expect(await screen.findByText('Cinema')).toBeInTheDocument()
-      expect(rowOf('Cinema').children[4].textContent).toBe('- R$ 12.345,67')
+      expect(rowOf('Cinema').children[5].textContent).toBe('- R$ 12.345,67')
       expect(within(rowOf('Cinema')).getByText('Transporte')).toBeInTheDocument()
       expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/create'))[1].body).value).toBe(1234567)
       await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
@@ -450,7 +450,7 @@ describe('transactions page', () => {
       })
       expect(put[1].headers.Authorization).toBe('Bearer tok')
       expect(screen.queryByText('Almoço')).not.toBeInTheDocument()
-      expect(rowOf('Jantar').children[4].textContent).toBe('- R$ 30,99')
+      expect(rowOf('Jantar').children[5].textContent).toBe('- R$ 30,99')
       await waitFor(() => expect(screen.queryByText(/^(Nova|Editar) transação$/)).not.toBeInTheDocument())
     })
 
@@ -489,7 +489,7 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Salário')
 
-    expect(['Salário', 'Mercado', 'Antigo sem tipo'].map((l) => rowOf(l).children[4].textContent)).toEqual(
+    expect(['Salário', 'Mercado', 'Antigo sem tipo'].map((l) => rowOf(l).children[5].textContent)).toEqual(
       ['+ R$ 1.500,00', '- R$ 30,00', '- R$ 10,00'],
     )
   })
@@ -532,7 +532,7 @@ describe('transactions page', () => {
         t(4, 'Presente', 5000, '2026-02-20T10:00:00', 2),
       ],
     }
-    const labelsShown = () => rowsOnPage().map((row) => row.children[1].textContent)
+    const labelsShown = () => rowsOnPage().map((row) => row.children[2].textContent)
     const setup = async () => {
       mockApi(routes(FILTERED))
       renderApp(<TransactionsDisplay />)
@@ -638,7 +638,7 @@ describe('transactions page', () => {
     const old = Array.from({ length: 73 }, (_, i) =>
       t(100 + i, `antigo ${String(i + 1).padStart(2, '0')}`, 1000, new Date(2026, 0, 20 - i % 5, 10 - (i % 3)).toISOString().slice(0, 19), 1))
     const DATA = { data: [t(1, 'hoje', 500, '2026-03-15T09:00:00'), ...old] }
-    const oldRows = () => rowsOnPage().map((row) => row.children[1].textContent).filter((l) => l.startsWith('antigo'))
+    const oldRows = () => rowsOnPage().map((row) => row.children[2].textContent).filter((l) => l.startsWith('antigo'))
 
     it('shows 30 per page with a page indicator, and the recent groups are never paginated', async () => {
       mockApi(routes(DATA))
@@ -752,7 +752,7 @@ describe('transactions page', () => {
 
       // the last cell of a row is the phone-only icon; the category cell keeps the name (the emoji is only for wider screens)
       expect(['A', 'B', 'C'].map((l) => rowOf(l).lastElementChild.textContent)).toEqual(['🎁', '🇨🇦', '👨‍👩‍👧'])
-      expect(['A', 'B', 'C'].map((l) => rowOf(l).children[2].textContent)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
+      expect(['A', 'B', 'C'].map((l) => rowOf(l).children[3].textContent)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
     })
 
     it('has the logged-in person chosen in a new transaction, and sends it', async () => {
@@ -825,7 +825,7 @@ describe('transactions page', () => {
 
       await userEvent.selectOptions(screen.getByLabelText('Quem'), 'Bia Souza')
 
-      expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['Uber', 'Mercado'])
+      expect(rowsOnPage().map((row) => row.children[2].textContent)).toEqual(['Uber', 'Mercado'])
     })
   })
 
@@ -918,7 +918,7 @@ describe('transactions page', () => {
 
       await userEvent.selectOptions(screen.getByLabelText('Estabelecimento'), 'Uber')
 
-      expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['CorridaUber', 'VoltaUber', 'SalárioUber'])
+      expect(rowsOnPage().map((row) => row.children[2].textContent)).toEqual(['CorridaUber', 'VoltaUber', 'SalárioUber'])
     })
 
     it('does not touch the merchant of an edited transaction when the merchants could not be loaded', async () => {

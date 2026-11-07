@@ -318,3 +318,14 @@ export function deleteTransaction(id, token) {
     .then(checkSession)
     .catch(error => console.error("Failed to delete transaction", error));
 }
+
+// ─── Many transactions at once ────────────────────────────────────────────────
+
+// Change the same things on many transactions: changes = { category_id, user_id, merchant ("" takes it off), excluded }
+// (what is left out stays as it is). All or none. Resolves { ok, data: { updated } } like the other calls.
+export const bulkUpdateTransactions = (ids, changes, token) =>
+    jsonCall(endpoints.transactions + "/bulk-update", "post", token, { ids, ...changes });
+export const bulkDeleteTransactions = (ids, token) => jsonCall(endpoints.transactions + "/bulk-delete", "post", token, { ids });
+// Groups of transactions of the same day, amount and type between two days ("2026-03-01"), both included.
+export const getDuplicateTransactions = (startDate, endDate, token) =>
+    jsonCall(endpoints.transactions + "/duplicates", "post", token, { start_date: startDate, end_date: endDate });

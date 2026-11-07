@@ -13,6 +13,7 @@ import Budgets from './pages/budgets';
 import Account from './pages/account';
 import AccountLayout from './pages/account-layout';
 import AccountData from './pages/account-data';
+import AccountDuplicates from './pages/account-duplicates';
 import AccountFamily from './pages/account-family';
 import AccountCategories from './pages/account-categories';
 import AccountPreferences from './pages/account-preferences';
@@ -55,6 +56,7 @@ function App() {
               <Route path='merchants' element={<AccountMerchants/>}/>
               <Route path='preferences' element={<AccountPreferences/>}/>
               <Route path='data' element={<AccountData/>}/>
+              <Route path='data/duplicates' element={<AccountDuplicates/>}/>
               <Route path='assistants' element={<AccountAssistants/>}/>
             </Route>
           </Route>
