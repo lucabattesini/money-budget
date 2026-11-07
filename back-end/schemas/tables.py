@@ -148,7 +148,7 @@ class Budgets(Base):
     """How much a family plans to spend in a category from one month on (integer cents, like every amount).
 
     A plan stays in force until a later month changes it, so a month with no row of its own uses the latest earlier
-    row. A row of 0 means "nothing from this month on"."""
+    row. 0 is a plan like any other (spend nothing); no amount (NULL) means "no plan from this month on"."""
 
     __tablename__ = "budgets"
     __table_args__ = (UniqueConstraint("family_id", "category_id", "month", name="uq_budgets_family_category_month"),)
@@ -157,7 +157,7 @@ class Budgets(Base):
     family_id = Column(Uuid, ForeignKey("families.id"), nullable=False)
     category_id = Column(Uuid, ForeignKey("categories.id"), nullable=False)
     month = Column(Date, nullable=False)  # always the first day of the month
-    amount = Column(Integer, nullable=False)  # cents; 0 stops the plan from this month on
+    amount = Column(Integer, nullable=True)  # cents; 0 is a real plan, NULL stops the plan from this month on
 
 
 class ImportJobDB(Base):

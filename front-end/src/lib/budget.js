@@ -45,12 +45,14 @@ export function monthLabel(key) {
 export const WARNING_FROM = 0.8
 
 /**
- * How a category is going. Nothing planned has no bar. With a plan: "ok" until 80% of it is spent, "warn" from
- * 80% up to the plan itself, "over" once more than the plan was spent. `percent` is for the bar (never above 100).
+ * How a category is going. No plan (null) has no bar. With a plan, 0 included: "ok" until 80% of it is spent, "warn"
+ * from 80% up to just under the plan, "limit" when exactly the plan was spent (still within it), "over" once more than
+ * the plan was spent. `percent` is for the bar (never above 100).
  */
 export function budgetStatus(spent, budgeted) {
-  if (!budgeted) return { state: 'none', percent: 0 }
+  if (budgeted == null) return { state: 'none', percent: 0 }
+  if (budgeted === 0) return spent > 0 ? { state: 'over', percent: 100 } : { state: 'limit', percent: 0 }
   const share = spent / budgeted
-  const state = share > 1 ? 'over' : share >= WARNING_FROM ? 'warn' : 'ok'
+  const state = share > 1 ? 'over' : share === 1 ? 'limit' : share >= WARNING_FROM ? 'warn' : 'ok'
   return { state, percent: Math.min(100, Math.round(share * 100)) }
 }

@@ -10,7 +10,7 @@ import { currencySymbol, familyNow, useLocale } from "../lib/locale";
 import { budgetEditText, budgetFieldText, budgetTextToCents, formatBudgetCents, sanitizeBudgetText } from "../lib/money";
 import customToaster from "../utils/customToaster";
 
-const BAR_COLORS = { ok: "green", warn: "orange", over: "red", none: "gray" };
+const BAR_COLORS = { ok: "green", warn: "orange", limit: "blue", over: "red", none: "gray" };
 
 // A thin bar showing how much of the plan is spent
 function SpentBar({ spent, budgeted, label }) {
@@ -34,11 +34,15 @@ function Stat({ label, value, color }) {
     );
 }
 
+// Whether any category has a plan (0 counts: it is a plan to spend nothing)
+const hasPlan = (data) => data.groups.some((g) => g.categories.some((c) => c.budgeted != null));
+
 // What is left of a plan, or how much it was exceeded by
 function leftText(spent, budgeted) {
-    if (!budgeted) return "";
+    if (budgeted == null) return "";
     const left = budgeted - spent;
-    return left >= 0 ? `Restam ${formatBudgetCents(left)}` : `Estourou ${formatBudgetCents(-left)}`;
+    if (left === 0) return "Dentro do orçamento: nada sobrando";
+    return left > 0 ? `Restam ${formatBudgetCents(left)}` : `Estourou ${formatBudgetCents(-left)}`;
 }
 
 // One month of the family's plan: what is planned for each spending category, what was spent and what is left.
@@ -93,7 +97,7 @@ export default function Budgets() {
         if (typed === undefined) return;
         const cents = budgetTextToCents(typed);
         const forMonth = month;
-        if (cents === (category.budgeted ?? 0)) {
+        if (cents === (category.budgeted ?? null)) {
             clearDraft(category.id);
             return;
         }
@@ -149,8 +153,8 @@ export default function Budgets() {
                                     color={data.totals.remaining < 0 ? "fg.error" : undefined}
                                 />
                             </SimpleGrid>
-                            <SpentBar spent={data.totals.spent} budgeted={data.totals.budgeted} label="Total gasto do orçamento do mês" />
-                            {data.totals.budgeted === 0 && (
+                            {hasPlan(data) && <SpentBar spent={data.totals.spent} budgeted={data.totals.budgeted} label="Total gasto do orçamento do mês" />}
+                            {!hasPlan(data) && (
                                 <Text color="fg.muted" fontSize="sm">
                                     Nada planejado para este mês. Digite um valor em uma categoria abaixo: ele vale para este mês e os seguintes.
                                 </Text>
@@ -217,7 +221,7 @@ export default function Budgets() {
                                                         />
                                                     </InputGroup>
                                                 </HStack>
-                                                {category.budgeted > 0 && (
+                                                {category.budgeted != null && (
                                                     <>
                                                         <SpentBar spent={category.spent} budgeted={category.budgeted} label={`Gasto de ${name} no orçamento`} />
                                                         <HStack justify="space-between">
@@ -227,6 +231,7 @@ export default function Budgets() {
                                                             </Text>
                                                             {state === "over" && <Badge colorPalette="red">Acima do orçamento</Badge>}
                                                             {state === "warn" && <Badge colorPalette="orange">Perto do limite</Badge>}
+                                                            {state === "limit" && <Badge colorPalette="blue">No limite</Badge>}
                                                         </HStack>
                                                     </>
                                                 )}

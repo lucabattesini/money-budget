@@ -33,7 +33,8 @@ def effective_budgets(db: Session, family_id: UUID, month: date) -> dict[UUID, t
     """What the family has planned for the month, by category: category id -> (cents, the month the amount was set).
 
     A plan stays in force until it is changed: a month with no row of its own uses the most recent earlier one.
-    A row of 0 is the family saying "nothing from this month on", so that category has no plan until a later row.
+    A row with no amount is the family saying "no plan from this month on", so that category has none until a later
+    row. A row of 0 is a plan: spend nothing.
     """
     rows = (
         db.query(Budgets.category_id, Budgets.month, Budgets.amount)
@@ -44,22 +45,23 @@ def effective_budgets(db: Session, family_id: UUID, month: date) -> dict[UUID, t
     latest: dict[UUID, tuple[int, date]] = {}
     for category_id, set_in, amount in rows:  # oldest first, so the last one for a category wins
         latest[category_id] = (amount, set_in)
-    return {category_id: found for category_id, found in latest.items() if found[0] > 0}
+    return {category_id: found for category_id, found in latest.items() if found[0] is not None}
 
 
-def _amount_before(db: Session, family_id: UUID, category_id: UUID, month: date) -> int:
-    """What would be planned for the category in the month if the month had no row of its own (0: nothing)."""
+def _amount_before(db: Session, family_id: UUID, category_id: UUID, month: date) -> int | None:
+    """What would be planned for the category in the month if the month had no row of its own (None: no plan)."""
     row = (
         db.query(Budgets.amount)
         .filter(Budgets.family_id == family_id, Budgets.category_id == category_id, Budgets.month < month)
         .order_by(Budgets.month.desc())
         .first()
     )
-    return row.amount if row else 0
+    return row.amount if row else None
 
 
-def set_budget(db: Session, family_id: UUID, category_id: UUID, month: date, amount: int) -> None:
-    """Plan `amount` cents for the category from this month on (until a later month changes it); 0 means nothing.
+def set_budget(db: Session, family_id: UUID, category_id: UUID, month: date, amount: int | None) -> None:
+    """Plan `amount` cents for the category from this month on (until a later month changes it); 0 is a plan to
+    spend nothing and None removes the plan.
 
     A row is only kept when it says something the earlier months do not: asking for what already applies from an
     earlier month removes this month's own row, so the month goes back to following the earlier plan.

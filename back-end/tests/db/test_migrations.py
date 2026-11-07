@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0023"
+LATEST = "0024"
 BEFORE_CONNECTOR = "0020"
 BEFORE_INDEX = "0021"
 BEFORE_UUIDS = "0018"  # the migrations of the older tests below end here: ids were still counting numbers
@@ -1479,3 +1479,29 @@ def test_the_groups_are_put_in_order_of_priority_and_a_group_of_its_own_goes_las
         names = conn.execute(text("SELECT name FROM category_groups ORDER BY position")).scalars().all()
     assert names == [*GROUP_ORDER, "Meu grupo"]  # the migration's own copy of the order must match the page's
     assert names.index("Moradia") < names.index("Alimentação") < names.index("Compras")
+
+
+# --- 0024: a budget of 0 is a plan, "no plan" is a missing amount ---------------------------------------------------------
+
+
+def test_old_zero_budgets_become_empty_rows_so_they_keep_meaning_stop(url, engine):
+    command.upgrade(alembic_config(url), "0023")
+    with engine.begin() as conn:
+        family = conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid()) RETURNING id")).scalar()
+        group = conn.execute(text("SELECT id FROM category_groups LIMIT 1")).scalar()
+        category = conn.execute(
+            text("INSERT INTO categories (id, name, group_id) VALUES (gen_random_uuid(), 'X', :g) RETURNING id"), {"g": group}
+        ).scalar()
+        for month, amount in (("2026-10-01", 500), ("2026-11-01", 0)):
+            conn.execute(
+                text("INSERT INTO budgets (id, family_id, category_id, month, amount) VALUES (gen_random_uuid(), :f, :c, :m, :a)"),
+                {"f": family, "c": category, "m": month, "a": amount},
+            )
+
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT amount FROM budgets ORDER BY month")).scalars().all() == [500, None]
+    command.downgrade(alembic_config(url), "0023")
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT amount FROM budgets ORDER BY month")).scalars().all() == [500, 0]

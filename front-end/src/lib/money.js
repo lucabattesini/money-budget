@@ -46,13 +46,13 @@ export const decimalSeparator = () => new Intl.NumberFormat(languageTag()).forma
 
 /** A saved amount in the field when it is not being edited, without the symbol (it sits beside the field): 150000 -> "1.500", 150050 -> "1.500,50". */
 export function budgetFieldText(cents) {
-  if (!cents) return ''
+  if (cents == null) return '' // no plan: an empty field; 0 is a plan and shows as "0"
   return new Intl.NumberFormat(languageTag(), isWhole(cents) ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100)
 }
 
 /** A saved amount to be edited, with no thousands separators: 150000 -> "1500", 150050 -> "1500,50". */
 export function budgetEditText(cents) {
-  if (!cents) return ''
+  if (cents == null) return ''
   const reais = Math.floor(cents / 100)
   const rest = cents % 100
   return rest === 0 ? String(reais) : `${reais}${decimalSeparator()}${String(rest).padStart(2, '0')}`
@@ -71,9 +71,11 @@ export function sanitizeBudgetText(text) {
   return `${digits || '0'}${decimalSeparator()}${decimals}`
 }
 
-/** Typed budget text -> cents: "1500" -> 150000, "12,5" -> 1250, "" -> 0. Never above what the database holds. */
+/** Typed budget text -> cents: "1500" -> 150000, "12,5" -> 1250, "0" -> 0 (a plan to spend nothing), "" -> null (no plan). Never above what the database holds. */
 export function budgetTextToCents(text) {
-  const [reais = '', decimals = ''] = sanitizeBudgetText(text).split(decimalSeparator())
+  const clean = sanitizeBudgetText(text)
+  if (clean === '') return null
+  const [reais = '', decimals = ''] = clean.split(decimalSeparator())
   const cents = (parseInt(reais || '0', 10) || 0) * 100 + parseInt(decimals.padEnd(2, '0') || '0', 10)
   return Math.min(cents, MAX_CENTS)
 }

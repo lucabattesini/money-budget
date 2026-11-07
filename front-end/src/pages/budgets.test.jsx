@@ -283,6 +283,36 @@ describe('budgets page: planning', () => {
     expect(within(row).getByText('R$')).toBeInTheDocument()
   })
 
+  it('saves a 0 as a plan to spend nothing, and shows it', async () => {
+    const api = mockApi({
+      [`GET /budgets?month=${NOW}`]: { data: month(NOW) },
+      'PUT /budgets': { data: planned(month(NOW), 11, 0) },
+    })
+    renderApp(<Budgets />)
+
+    await userEvent.type(await screen.findByLabelText('Orçamento de Supermercado'), '0')
+    await userEvent.tab()
+
+    await waitFor(() => expect(calls(api, 'PUT')[0].body).toEqual({ category_id: 11, month: NOW, amount: 0 }))
+    const row = within(screen.getByLabelText('Orçamento de Supermercado').closest('li'))
+    expect(screen.getByLabelText('Orçamento de Supermercado')).toHaveValue('0')
+    expect(row.getByLabelText('Gasto de Supermercado no orçamento')).toHaveAttribute('data-state-name', 'limit')
+  })
+
+  it('says a category is at its limit, not close to it, when exactly the plan was spent', async () => {
+    const data = month(NOW)
+    data.groups[1].categories[0] = category(20, '🏠 Aluguel', 180000, 180000)
+    mockApi({ [`GET /budgets?month=${NOW}`]: { data } })
+
+    renderApp(<Budgets />)
+
+    const rent = within((await screen.findByLabelText('Orçamento de Aluguel')).closest('li'))
+    expect(rent.getByLabelText('Gasto de Aluguel no orçamento')).toHaveAttribute('data-state-name', 'limit')
+    expect(rent.getByText('No limite')).toBeInTheDocument()
+    expect(rent.queryByText('Perto do limite')).not.toBeInTheDocument()
+    expect(rent.queryByText('Acima do orçamento')).not.toBeInTheDocument()
+  })
+
   it('saves with Enter as well', async () => {
     const api = mockApi({
       [`GET /budgets?month=${NOW}`]: { data: month(NOW) },
@@ -307,7 +337,7 @@ describe('budgets page: planning', () => {
     await userEvent.tab()
 
     await waitFor(() => expect(calls(api, 'PUT')).toHaveLength(1))
-    expect(calls(api, 'PUT')[0].body).toEqual({ category_id: 10, month: NOW, amount: 0 })
+    expect(calls(api, 'PUT')[0].body).toEqual({ category_id: 10, month: NOW, amount: null })
     await waitFor(() => expect(screen.getByLabelText('Orçamento de Restaurantes e Bares')).toHaveValue(''))
   })
 

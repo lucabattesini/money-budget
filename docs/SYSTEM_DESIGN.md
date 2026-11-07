@@ -469,8 +469,8 @@ family can have one export queued or running at a time. The chatbot state carrie
 spend in each spending category, and a plan **stays in force until it is changed**: the amount set in a month is
 the plan of every later month that has no amount of its own. So `budgets` (family, category, first day of a month,
 amount in cents; unique per family, category and month) mostly holds the months where the amount *changes* (a later
-row that repeats the one before it can exist, and is harmless); the plan of a month is the latest row up to it. A row of 0 means "nothing from this month on" and is what remembers that a plan
-was stopped. Asking for the amount that already applies from an earlier month keeps no row of its own (and removes the
+row that repeats the one before it can exist, and is harmless); the plan of a month is the latest row up to it. A row with no amount (NULL) means "no plan from this month on" and is what remembers that a plan
+was stopped; a row of 0 is a plan like any other: spend nothing (anything spent is over it). Asking for the amount that already applies from an earlier month keeps no row of its own (and removes the
 month's own row if it had one), so the month goes back to following the earlier plan. Categories of the groups
 "Receitas" and "Transferências" have no budget: money coming in or moving between accounts is not spending.
 `GET /budgets?month=YYYY-MM` answers the month by group and category: `budgeted` (null when nothing applies),
@@ -480,7 +480,7 @@ next), and totals. `totals.spent` only counts categories that have a budget, so 
 `totals.remaining` is the difference (negative when over) and `totals.unbudgeted_spent` is what was spent in the
 other spending categories (debits with no category, and debits in an income or transfer category, are in neither
 number, so the two do not add up to every debit of the month). `PUT /budgets {category_id, month, amount}` sets the
-amount from that month on (0 stops the plan from then on) and answers with the month as `GET` shows it; another
+amount from that month on (`null`, which must be sent, removes the plan from then on; 0 is a plan to spend nothing) and answers with the month as `GET` shows it; another
 family's category, an income or transfer one and an unknown id all answer `404`, and a bad month (only the years 2000
 to 2099 are offered, and the page's buttons stop there) or an amount that is negative or over the 32-bit limit `422`.
 `PUT` takes the same family lock as the category changes, so two requests (two members, two tabs) cannot both create
@@ -493,7 +493,7 @@ an amount with cents is shown with two decimals. Groups and categories come in o
 has to pay first (housing, bills, food, transport) to what it can cut first (shopping, leisure, gifts), not A-Z: the
 groups follow their `position` (migration 0023 sets it from the list in `api/utils/budget_order.py`), and the server
 sorts the categories of a group by that list, the family's own after the default ones, A-Z; "Repetido de <month>" says where an amount comes from, and a bar turns orange
-from 80% of the plan and red when it is exceeded. Budgets follow their categories: deleting a category deletes its
+from 80% of the plan, blue when exactly the plan was spent (still within it) and red when it is exceeded. An empty field is no plan, a typed 0 is a plan. Budgets follow their categories: deleting a category deletes its
 budgets, and so does moving it to an income or transfer group (nothing hidden is kept); joining another family with the
 data brings the transactions and categories but not the budgets (a plan belongs to the family that made it: the
 budgets of the family being left are deleted, the family joined keeps its own); a family that is deleted after 30

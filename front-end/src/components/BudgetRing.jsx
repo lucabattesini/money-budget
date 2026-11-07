@@ -6,7 +6,7 @@ import { formatCents } from "../lib/money";
 import DashboardCard from "./DashboardCard";
 
 const Path = chakra.path; // (an upper case name, so the linter sees it used)
-const COLORS = { ok: "green.500", warn: "orange.500", over: "red.500", none: "gray.400" };
+const COLORS = { ok: "green.500", warn: "orange.500", limit: "blue.500", over: "red.500", none: "gray.400" };
 const ARC = "M 10 100 A 90 90 0 0 1 190 100"; // a half circle
 const ARC_LENGTH = Math.PI * 90;
 

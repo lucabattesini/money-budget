@@ -199,11 +199,12 @@ MONTH_PATTERN = r"^20\d\d-(0[1-9]|1[0-2])$"  # "2026-11"; the years 2000-2099, s
 
 
 class BudgetSet(BaseModel):
-    """Plan an amount for a category from a month on, until a later month changes it. 0 means nothing from then on."""
+    """Plan an amount for a category from a month on, until a later month changes it. 0 is a plan (spend nothing);
+    null (the key must be there) means no plan from then on."""
 
     category_id: UUID
     month: str = Field(pattern=MONTH_PATTERN)
-    amount: int = Field(ge=0, le=2147483647)  # cents, must fit the 32-bit column
+    amount: Optional[int] = Field(ge=0, le=2147483647)  # cents, must fit the 32-bit column; null removes the plan
 
 
 class JoinFamily(BaseModel):

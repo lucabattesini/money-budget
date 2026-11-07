@@ -67,10 +67,11 @@ describe('budget amounts', () => {
     ['12,34', 1234],
     ['12,345', 1234],
     ['0,05', 5],
-    ['', 0],
-    ['abc', 0],
+    ['0', 0], // a plan to spend nothing
+    ['', null], // no plan
+    ['abc', null],
     ['99999999', 2147483647],
-  ])('reads "%s" as %i cents', (typed, cents) => {
+  ])('reads "%s" as %s cents', (typed, cents) => {
     expect(budgetTextToCents(typed)).toBe(cents)
   })
 
@@ -78,6 +79,7 @@ describe('budget amounts', () => {
     expect(budgetEditText(150000)).toBe('1500')
     expect(budgetEditText(150050)).toBe('1500,50')
     expect(budgetFieldText(150000)).toBe('1.500')
-    expect(budgetFieldText(0)).toBe('')
+    expect(budgetFieldText(0)).toBe('0')
+    expect(budgetFieldText(null)).toBe('')
   })
 })
