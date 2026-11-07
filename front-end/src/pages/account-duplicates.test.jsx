@@ -24,10 +24,10 @@ describe('duplicates page', () => {
     vi.setSystemTime(new Date(2026, 2, 15, 12, 0, 0))
   })
 
-  it('searches the month so far by default, and the range can be changed', async () => {
+  it('searches the last three months by default, and the range can be changed', async () => {
     const mock = mockApi({ 'POST /transactions/duplicates': { data: [] } })
     renderApp(<AccountDuplicates />)
-    expect(screen.getByLabelText('De')).toHaveValue('2026-03-01')
+    expect(screen.getByLabelText('De')).toHaveValue('2025-12-15')
     expect(screen.getByLabelText('Até')).toHaveValue('2026-03-15')
 
     await userEvent.clear(screen.getByLabelText('De'))
@@ -35,7 +35,18 @@ describe('duplicates page', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Procurar' }))
 
     expect(await screen.findByText('Nenhuma duplicata encontrada nesse período.')).toBeInTheDocument()
-    expect(bodyOf(mock, 'POST /transactions/duplicates')).toEqual({ start_date: '2026-01-05', end_date: '2026-03-15' })
+    expect(bodyOf(mock, 'POST /transactions/duplicates')).toEqual({ start_date: '2026-01-05', end_date: '2026-03-15', ignore_excluded: false })
+  })
+
+  it('can leave out the transactions that do not count in the totals', async () => {
+    const mock = mockApi({ 'POST /transactions/duplicates': { data: [] } })
+    renderApp(<AccountDuplicates />)
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Ignorar as que não contam nos totais' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Procurar' }))
+
+    await screen.findByText('Nenhuma duplicata encontrada nesse período.')
+    expect(bodyOf(mock, 'POST /transactions/duplicates')).toMatchObject({ ignore_excluded: true })
   })
 
   it('does not search when the first day is after the last', async () => {

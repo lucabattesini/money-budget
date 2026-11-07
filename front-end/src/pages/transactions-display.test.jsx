@@ -29,7 +29,7 @@ const TRANSACTIONS = {
 
 const GROUP_TITLES = ['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto']
 const rowOf = (label) => screen.getByText(label).closest('tr')
-// Rows with transactions have 7 cells (the first is the tick box); the group headings are one wide cell
+// Rows with transactions have 6 cells (a tick box is added in front in selection mode); the group headings are one wide cell
 const rowsOnPage = () => [...document.querySelectorAll('tbody tr')].filter((row) => row.children.length > 1)
 // The group of a row is the closest heading row above it
 const groupOf = (label) => {
@@ -129,7 +129,7 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0) // no header row, just the transactions
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
-    expect(cells.slice(1, 6)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
+    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
   })
 
   it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
@@ -412,8 +412,8 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      expect(within(rowOf('Almoço')).getByText('Fora dos totais')).toBeInTheDocument()
-      expect(within(rowOf('Uber')).queryByText('Fora dos totais')).not.toBeInTheDocument()
+      expect(within(rowOf('Almoço')).getByTitle('Não conta nos totais')).toHaveStyle({ opacity: '0.45' })
+      expect(within(rowOf('Uber')).queryByTitle('Não conta nos totais')).not.toBeInTheDocument()
     })
 
     it('opens the same sidebar when the row is clicked', async () => {

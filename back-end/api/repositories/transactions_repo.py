@@ -308,7 +308,7 @@ def bulk_delete_transactions(db: Session, rows: list[TransactionDB]):
         raise
 
 
-def find_duplicate_groups(db: Session, family_id: UUID, start_date, end_date) -> list[list[TransactionOut]]:
+def find_duplicate_groups(db: Session, family_id: UUID, start_date, end_date, ignore_excluded=False) -> list[list[TransactionOut]]:
     """Groups of two or more transactions of the same day, amount and type, between the two days (both included).
     Oldest group first; inside a group, the one saved first comes first."""
     query = _with_names(db.query(TransactionDB, Categories.name, Users.name, Merchants.name))
@@ -316,6 +316,8 @@ def find_duplicate_groups(db: Session, family_id: UUID, start_date, end_date) ->
     groups: dict[tuple, list] = {}
     for row in rows:
         t = row[0]
+        if ignore_excluded and t.excluded:
+            continue
         groups.setdefault((t.transactioned_at.date(), t.value, t.type), []).append(row)
     result = []
     for key in sorted(k for k, v in groups.items() if len(v) > 1):

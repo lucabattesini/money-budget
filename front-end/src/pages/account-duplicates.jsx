@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { Badge, Box, Button, Dialog, Field, Flex, Heading, Input, Portal, RadioGroup, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Checkbox, Dialog, Field, Flex, Heading, Input, Portal, RadioGroup, Stack, Table, Text } from "@chakra-ui/react";
 import { LuArrowLeft } from "react-icons/lu";
 import { bulkDeleteTransactions, getDuplicateTransactions } from "../api/endpoints";
 import { getToken } from "../lib/auth";
@@ -18,8 +18,9 @@ const count = (n, one, many) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 // Find transactions that look entered twice in a period, choose which one to keep in each group, and delete the others.
 export default function AccountDuplicates() {
     const today = familyNow();
-    const [start, setStart] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)));
+    const [start, setStart] = useState(iso(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()))) // three months back;
     const [end, setEnd] = useState(iso(today));
+    const [ignoreExcluded, setIgnoreExcluded] = useState(false); // leave out what does not count in the totals
     const [searching, setSearching] = useState(false);
     const [groups, setGroups] = useState(null); // null: not searched yet
     const [keep, setKeep] = useState({}); // group index -> id of the one kept, or KEEP_ALL
@@ -31,7 +32,7 @@ export default function AccountDuplicates() {
     const search = async () => {
         if (rangeError) return;
         setSearching(true);
-        const result = await getDuplicateTransactions(start, end, getToken());
+        const result = await getDuplicateTransactions(start, end, getToken(), ignoreExcluded);
         setSearching(false);
         if (!result?.ok) {
             customToaster("Erro", "error", "Não foi possível procurar duplicatas. Tente novamente.");
@@ -82,6 +83,11 @@ export default function AccountDuplicates() {
                     <Field.Label>Até</Field.Label>
                     <Input type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} />
                 </Field.Root>
+                <Checkbox.Root checked={ignoreExcluded} onCheckedChange={(e) => setIgnoreExcluded(Boolean(e.checked))} alignSelf="center">
+                    <Checkbox.HiddenInput />
+                    <Checkbox.Control />
+                    <Checkbox.Label>Ignorar as que não contam nos totais</Checkbox.Label>
+                </Checkbox.Root>
                 <Button onClick={search} loading={searching} disabled={Boolean(rangeError)}>Procurar</Button>
             </Flex>
             {rangeError && <Text color="fg.error" fontSize="sm">{rangeError}</Text>}
@@ -94,31 +100,51 @@ export default function AccountDuplicates() {
                 <Stack gap={4}>
                     <Text role="status" fontWeight="semibold">{count(groups.length, "grupo encontrado", "grupos encontrados")}</Text>
                     {groups.map((group, index) => (
-                        <Box key={group.map((t) => t.id).join()} borderWidth="1px" borderRadius="md" p={4}>
+                        <Box key={group.map((t) => t.id).join()} borderWidth="1px" borderRadius="md" p={3}>
                             <Text fontWeight="semibold" mb={2}>
                                 {formatDate(group[0].transactioned_at)} · {group[0].type === "credit" ? "+" : "-"} {formatCents(group[0].value)}
                             </Text>
                             <RadioGroup.Root value={keep[index]} onValueChange={(e) => setKeep((current) => ({ ...current, [index]: e.value }))}>
-                                <Stack gap={2}>
-                                    {group.map((transaction) => (
-                                        <RadioGroup.Item key={transaction.id} value={transaction.id}>
-                                            <RadioGroup.ItemHiddenInput />
-                                            <RadioGroup.ItemIndicator />
-                                            <RadioGroup.ItemText>
-                                                {transaction.label}
-                                                <Text as="span" color="fg.muted" fontSize="sm"> · {transaction.category_name ?? "Sem categoria"}{transaction.user_name ? ` · ${transaction.user_name}` : ""}</Text>
-                                                {keep[index] !== KEEP_ALL && keep[index] !== transaction.id && (
-                                                    <Badge ml={2} colorPalette="red" variant="subtle">será excluída</Badge>
-                                                )}
-                                            </RadioGroup.ItemText>
-                                        </RadioGroup.Item>
-                                    ))}
-                                    <RadioGroup.Item value={KEEP_ALL}>
-                                        <RadioGroup.ItemHiddenInput />
-                                        <RadioGroup.ItemIndicator />
-                                        <RadioGroup.ItemText color="fg.muted">Manter todas (não são duplicatas)</RadioGroup.ItemText>
-                                    </RadioGroup.Item>
-                                </Stack>
+                                {/* One row per transaction with the same columns in every group, so the copies can be compared side by side */}
+                                <Table.Root size="sm" tableLayout="fixed" w="full">
+                                    <Table.Header>
+                                        <Table.Row>
+                                            <Table.ColumnHeader w="90px">Manter</Table.ColumnHeader>
+                                            <Table.ColumnHeader>Descrição</Table.ColumnHeader>
+                                            <Table.ColumnHeader hideBelow="md">Categoria</Table.ColumnHeader>
+                                            <Table.ColumnHeader hideBelow="md" w="140px">Quem</Table.ColumnHeader>
+                                            <Table.ColumnHeader hideBelow="md" w="120px">Salva em</Table.ColumnHeader>
+                                        </Table.Row>
+                                    </Table.Header>
+                                    <Table.Body>
+                                        {group.map((transaction) => {
+                                            const deleted = keep[index] !== KEEP_ALL && keep[index] !== transaction.id;
+                                            return (
+                                                <Table.Row key={transaction.id} opacity={deleted ? 0.5 : 1} bg={deleted ? "bg.muted" : undefined}>
+                                                    <Table.Cell>
+                                                        <RadioGroup.Item value={transaction.id}>
+                                                            <RadioGroup.ItemHiddenInput aria-label={`Manter ${transaction.label}`} />
+                                                            <RadioGroup.ItemIndicator />
+                                                            <RadioGroup.ItemText fontSize="xs" color={deleted ? "fg.error" : "fg.muted"}>{deleted ? "excluir" : "manter"}</RadioGroup.ItemText>
+                                                        </RadioGroup.Item>
+                                                    </Table.Cell>
+                                                    <Table.Cell wordBreak="break-word" textDecoration={deleted ? "line-through" : undefined}>
+                                                        {transaction.label}
+                                                        {transaction.excluded && <Text as="span" color="fg.muted" fontSize="xs"> · fora dos totais</Text>}
+                                                    </Table.Cell>
+                                                    <Table.Cell hideBelow="md" color="fg.muted">{transaction.category_name ?? "Sem categoria"}</Table.Cell>
+                                                    <Table.Cell hideBelow="md" color="fg.muted">{transaction.user_name ?? ""}</Table.Cell>
+                                                    <Table.Cell hideBelow="md" color="fg.muted">{transaction.created_at ? formatDate(transaction.created_at) : ""}</Table.Cell>
+                                                </Table.Row>
+                                            );
+                                        })}
+                                    </Table.Body>
+                                </Table.Root>
+                                <RadioGroup.Item value={KEEP_ALL} mt={2}>
+                                    <RadioGroup.ItemHiddenInput />
+                                    <RadioGroup.ItemIndicator />
+                                    <RadioGroup.ItemText color="fg.muted">Manter todas (não são duplicatas)</RadioGroup.ItemText>
+                                </RadioGroup.Item>
                             </RadioGroup.Root>
                         </Box>
                     ))}

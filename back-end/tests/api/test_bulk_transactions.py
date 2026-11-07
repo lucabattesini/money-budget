@@ -246,6 +246,25 @@ def test_duplicates_only_looks_inside_the_range_including_both_end_days(
     assert [len(g) for g in _duplicates(client, auth_headers, "2026-03-31", "2026-04-01").json()["data"]] == []
 
 
+def test_duplicates_can_leave_out_transactions_that_do_not_count_in_the_totals(
+    client, user, auth_headers, make_transaction, category_ids
+):
+    cat = category_ids["Sem categoria"]
+    make_transaction(user, cat, value=500, when=datetime(2026, 3, 10, 9, 0))
+    left_out = make_transaction(user, cat, value=500, when=datetime(2026, 3, 10, 9, 0))
+    left_out.excluded = True
+
+    both = client.post("/transactions/duplicates", json={"start_date": "2026-03-01", "end_date": "2026-03-31"}, headers=auth_headers)
+    ignoring = client.post(
+        "/transactions/duplicates",
+        json={"start_date": "2026-03-01", "end_date": "2026-03-31", "ignore_excluded": True},
+        headers=auth_headers,
+    )
+
+    assert [len(g) for g in both.json()["data"]] == [2]
+    assert ignoring.json()["data"] == []
+
+
 def test_duplicates_ignores_other_familys_rows(client, user, other_user, auth_headers, make_transaction, category_ids):
     cat = category_ids["Sem categoria"]
     make_transaction(user, cat, value=500, when=datetime(2026, 3, 10, 9, 0))

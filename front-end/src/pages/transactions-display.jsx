@@ -14,7 +14,6 @@ import TransactionDrawer from "../components/TransactionDrawer";
 import TransactionFilters from "../components/TransactionFilters";
 import { BulkDeleteDialog, BulkEditDialog } from "../components/BulkActions";
 import PersonAvatar from "../components/PersonAvatar";
-import MerchantTotals from "../components/MerchantTotals";
 import { LuEllipsisVertical, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
 // "Todo o Resto" can be long, so it is shown in pages
@@ -155,7 +154,7 @@ export default function TransactionsDisplay() {
             key={transaction.id}
             cursor="pointer"
             _hover={{ bg: "bg.muted" }}
-            onClick={() => setEditing(transaction)}
+            onClick={() => (selecting ? toggle(transaction.id, !selected.has(transaction.id)) : setEditing(transaction))} // in selection mode a click ticks the row instead of opening the editor
             // On a phone each row is a small card: the category icon on the left, description above "category · first name", amount on the right
             display={{ base: "grid", md: "table-row" }}
             gridTemplateColumns={selecting ? "32px 36px auto auto minmax(0, 1fr) auto 44px" : "36px auto auto minmax(0, 1fr) auto 44px"}
@@ -182,9 +181,6 @@ export default function TransactionsDisplay() {
             <Table.Cell hideBelow="md" whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
             <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: 2 }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }}>
                 {transaction.label}
-                {transaction.excluded && (
-                    <Badge ml={2} size="xs" variant="subtle" colorPalette="gray" title="Não conta nos totais">Fora dos totais</Badge>
-                )}
                 {merchantsEnabled && merchantName(transaction) && (
                     <Text fontSize="xs" color="fg.muted">{merchantName(transaction)}</Text>
                 )}
@@ -202,7 +198,7 @@ export default function TransactionsDisplay() {
                     </>);
                 })()}
             </Table.Cell>
-            <Table.Cell textAlign="end" whiteSpace="nowrap" gridArea="amount" borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }} color={transaction.type === "credit" ? "green.400" : undefined}>
+            <Table.Cell textAlign="end" whiteSpace="nowrap" gridArea="amount" borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }} color={transaction.type === "credit" ? "green.400" : undefined} opacity={transaction.excluded ? 0.45 : 1} title={transaction.excluded ? "Não conta nos totais" : undefined}>
                 {transaction.type === "credit" ? "+" : "-"} {formatCents(transaction.value)}
             </Table.Cell>
             {/* Clicks here (the menu is rendered elsewhere but still bubbles) must not open the editor */}
@@ -248,8 +244,6 @@ export default function TransactionsDisplay() {
         <Center>
             <Stack gap={6} w="full" maxW={{ base: "4xl", md: "7xl" }} align="center" justify="flex-start" py={{ base: 6, md: 10 }} px={4}>
                 <TransactionSummary transactions={transactions} />
-
-                {merchantsEnabled && merchants && <MerchantTotals transactions={filtered} merchants={merchants} />}
 
                 <Flex w="full" justify="space-between" align="center" wrap="wrap" gap={2}>
                     <Text fontSize="lg" fontWeight="bold">Transações</Text>

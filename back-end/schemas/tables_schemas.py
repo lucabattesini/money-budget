@@ -60,6 +60,7 @@ class TransactionBulkDelete(BaseModel):
 class DuplicatesParams(BaseModel):
     start_date: date  # inclusive
     end_date: date  # inclusive
+    ignore_excluded: bool = False  # leave out transactions that do not count in the totals
 
     @model_validator(mode="after")
     def _ordered(self):

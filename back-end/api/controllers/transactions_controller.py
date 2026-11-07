@@ -146,4 +146,4 @@ def bulk_delete_transactions_controller(db: Session, params: TransactionBulkDele
 
 
 def get_duplicate_groups(db: Session, params: DuplicatesParams, family_id: UUID):
-    return find_duplicate_groups(db, family_id, params.start_date, params.end_date)
+    return find_duplicate_groups(db, family_id, params.start_date, params.end_date, params.ignore_excluded)

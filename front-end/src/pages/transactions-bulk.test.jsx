@@ -57,12 +57,15 @@ describe('transactions page: many at once', () => {
     expect(screen.queryByText('2 selecionadas')).not.toBeInTheDocument()
   })
 
-  it('ticking a row does not open the editor', async () => {
+  it('in selection mode clicking a row ticks it and does not open the editor', async () => {
     api()
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Almoço')
 
-    await tick('Almoço')
+    await startSelecting()
+    await userEvent.click(screen.getByText('Almoço'))
+    expect(screen.getByText('1 selecionada')).toBeInTheDocument()
+    await tick('Mercado')
 
     expect(screen.queryByText('Editar transação')).not.toBeInTheDocument()
   })

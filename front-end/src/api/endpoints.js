@@ -327,5 +327,5 @@ export const bulkUpdateTransactions = (ids, changes, token) =>
     jsonCall(endpoints.transactions + "/bulk-update", "post", token, { ids, ...changes });
 export const bulkDeleteTransactions = (ids, token) => jsonCall(endpoints.transactions + "/bulk-delete", "post", token, { ids });
 // Groups of transactions of the same day, amount and type between two days ("2026-03-01"), both included.
-export const getDuplicateTransactions = (startDate, endDate, token) =>
-    jsonCall(endpoints.transactions + "/duplicates", "post", token, { start_date: startDate, end_date: endDate });
+export const getDuplicateTransactions = (startDate, endDate, token, ignoreExcluded = false) =>
+    jsonCall(endpoints.transactions + "/duplicates", "post", token, { start_date: startDate, end_date: endDate, ignore_excluded: ignoreExcluded });
