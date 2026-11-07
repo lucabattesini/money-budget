@@ -81,10 +81,10 @@ export default function AccountDuplicates() {
                     <Field.Label>Até</Field.Label>
                     <Input type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} />
                 </Field.Root>
-                <Checkbox.Root checked={ignoreExcluded} onCheckedChange={(e) => setIgnoreExcluded(Boolean(e.checked))} alignSelf="center">
+                <Checkbox.Root cursor="pointer" checked={ignoreExcluded} onCheckedChange={(e) => setIgnoreExcluded(Boolean(e.checked))} alignSelf="center">
                     <Checkbox.HiddenInput />
-                    <Checkbox.Control />
-                    <Checkbox.Label>Ignorar as que não contam nos totais</Checkbox.Label>
+                    <Checkbox.Control cursor="pointer" />
+                    <Checkbox.Label cursor="pointer">Ignorar as que não contam nos totais</Checkbox.Label>
                 </Checkbox.Root>
                 <Button onClick={search} loading={searching} disabled={Boolean(rangeError)}>Procurar</Button>
             </Flex>
@@ -120,7 +120,7 @@ export default function AccountDuplicates() {
                                             return (
                                                 <Table.Row key={transaction.id} opacity={deleted ? 0.5 : 1} bg={deleted ? "bg.muted" : undefined}>
                                                     <Table.Cell>
-                                                        <RadioGroup.Item value={transaction.id}>
+                                                        <RadioGroup.Item cursor="pointer" value={transaction.id}>
                                                             <RadioGroup.ItemHiddenInput aria-label={`Manter ${transaction.label}`} />
                                                             <RadioGroup.ItemIndicator />
                                                             <RadioGroup.ItemText fontSize="xs" color={deleted ? "fg.error" : "fg.muted"}>{deleted ? "excluir" : "manter"}</RadioGroup.ItemText>
@@ -139,12 +139,12 @@ export default function AccountDuplicates() {
                                     </Table.Body>
                                 </Table.Root>
                                 <Flex gap={6} wrap="wrap" mt={2} align="center">
-                                <RadioGroup.Item value={DELETE_ALL}>
+                                <RadioGroup.Item cursor="pointer" value={DELETE_ALL}>
                                     <RadioGroup.ItemHiddenInput />
                                     <RadioGroup.ItemIndicator />
                                     <RadioGroup.ItemText color="fg.error">Excluir todas</RadioGroup.ItemText>
                                 </RadioGroup.Item>
-                                <RadioGroup.Item value={KEEP_ALL}>
+                                <RadioGroup.Item cursor="pointer" value={KEEP_ALL}>
                                     <RadioGroup.ItemHiddenInput />
                                     <RadioGroup.ItemIndicator />
                                     <RadioGroup.ItemText color="fg.muted">Manter todas (não são duplicatas)</RadioGroup.ItemText>

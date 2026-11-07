@@ -250,7 +250,7 @@ export default function TransactionsDisplay() {
                     <Flex gap={2}>
                         <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
                             <Popover.Trigger asChild>
-                                <Button size="sm" variant="outline" h={{ base: "44px", md: "9" }} minW="9.5rem">
+                                <Button size="sm" variant="outline" h={{ base: "44px", md: "9" }}>
                                     <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
                                 </Button>
                             </Popover.Trigger>
@@ -270,42 +270,42 @@ export default function TransactionsDisplay() {
                                 </Popover.Positioner>
                             </Portal>
                         </Popover.Root>
-                        <Button size="sm" variant={selecting ? "solid" : "outline"} h={{ base: "44px", md: "9" }} minW="9.5rem" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
+                        <Button size="sm" variant={selecting ? "solid" : "outline"} h={{ base: "44px", md: "9" }} onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
                             <LuListChecks /> {selecting ? "Cancelar" : "Selecionar"}
                         </Button>
-                        <Button size="sm" h={{ base: "44px", md: "9" }} minW="9.5rem" onClick={() => setAdding(true)}>
+                        <Button size="sm" h={{ base: "44px", md: "9" }} onClick={() => setAdding(true)}>
                             <LuPlus /> Adicionar
                         </Button>
                     </Flex>
                 </Flex>
 
-                {selecting && selectedIds.length > 0 && (
-                    <Flex w="full" align="center" justify="space-between" wrap="wrap" gap={2} p={3} borderWidth="1px" borderRadius="md" bg="bg.muted" role="region" aria-label="Ações para as selecionadas">
-                        <Text fontSize="sm" fontWeight="semibold" role="status">
-                            {selectedIds.length === 1 ? "1 selecionada" : `${selectedIds.length} selecionadas`}
-                        </Text>
-                        <Flex gap={2} wrap="wrap">
-                            <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>Limpar seleção</Button>
-                            <Button size="sm" onClick={() => setBulkEditing(true)}><LuPencil /> Editar selecionadas</Button>
-                            <Button size="sm" colorPalette="red" variant="outline" onClick={() => setBulkDeleting(true)}><LuTrash2 /> Excluir selecionadas</Button>
-                        </Flex>
-                    </Flex>
-                )}
-
                 {selecting && !loading && shownIds.length > 0 && (
-                    <Flex w="full">
-                        <Checkbox.Root
-                            checked={allShownTicked}
-                            onCheckedChange={(e) => setSelected((current) => {
-                                const next = new Set(current);
-                                shownIds.forEach((id) => (e.checked ? next.add(id) : next.delete(id)));
-                                return next;
-                            })}
-                        >
-                            <Checkbox.HiddenInput />
-                            <Checkbox.Control />
-                            <Checkbox.Label fontSize="sm">Selecionar todas as exibidas</Checkbox.Label>
-                        </Checkbox.Root>
+                    <Flex w="full" align="center" justify="space-between" wrap="wrap" gap={2} p={3} borderWidth="1px" borderRadius="md" bg="bg.muted" role="region" aria-label="Ações para as selecionadas">
+                        <Flex align="center" gap={4} wrap="wrap">
+                            <Checkbox.Root
+                                cursor="pointer"
+                                checked={allShownTicked}
+                                onCheckedChange={(e) => setSelected((current) => {
+                                    const next = new Set(current);
+                                    shownIds.forEach((id) => (e.checked ? next.add(id) : next.delete(id)));
+                                    return next;
+                                })}
+                            >
+                                <Checkbox.HiddenInput />
+                                <Checkbox.Control cursor="pointer" />
+                                <Checkbox.Label fontSize="sm" cursor="pointer">Selecionar todas as exibidas</Checkbox.Label>
+                            </Checkbox.Root>
+                            <Text fontSize="sm" fontWeight="semibold" role="status">
+                                {selectedIds.length === 0 ? "Nenhuma selecionada" : selectedIds.length === 1 ? "1 selecionada" : `${selectedIds.length} selecionadas`}
+                            </Text>
+                        </Flex>
+                        {selectedIds.length > 0 && (
+                            <Flex gap={2} wrap="wrap">
+                                <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>Limpar seleção</Button>
+                                <Button size="sm" onClick={() => setBulkEditing(true)}><LuPencil /> Editar selecionadas</Button>
+                                <Button size="sm" colorPalette="red" variant="outline" onClick={() => setBulkDeleting(true)}><LuTrash2 /> Excluir selecionadas</Button>
+                            </Flex>
+                        )}
                     </Flex>
                 )}
 
