@@ -14,6 +14,8 @@ const iso = (d) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate(
 
 const count = (n, one, many) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
+const groupKey = (group) => group.map((transaction) => transaction.id).join();
+
 // Find transactions that look entered twice in a period, choose which one to keep in each group, and delete the others.
 export default function AccountDuplicates() {
     const today = familyNow();
@@ -22,7 +24,7 @@ export default function AccountDuplicates() {
     const [ignoreExcluded, setIgnoreExcluded] = useState(false); // leave out what does not count in the totals
     const [searching, setSearching] = useState(false);
     const [groups, setGroups] = useState(null); // null: not searched yet
-    const [keep, setKeep] = useState({}); // group index -> id of the one kept, or KEEP_ALL
+    const [keep, setKeep] = useState({}); // group key -> id of the one kept, or KEEP_ALL, or DELETE_ALL
     const [pending, setPending] = useState(null); // ids waiting for the final confirmation, or null
     const [deleting, setDeleting] = useState(false);
 
@@ -39,13 +41,17 @@ export default function AccountDuplicates() {
         }
         setGroups(result.data);
         // The first one saved is kept unless the person says otherwise
-        setKeep(Object.fromEntries(result.data.map((group, index) => [index, group[0].id])));
+        // Choices already made survive a refresh for the groups that are still the same
+        setKeep((current) => Object.fromEntries(result.data.map((group) => {
+            const before = current[groupKey(group)];
+            return [groupKey(group), before ?? group[0].id];
+        })));
     };
 
-    const idsToDelete = (group, index) =>
-        keep[index] === KEEP_ALL ? [] : group.filter((transaction) => transaction.id !== keep[index]).map((transaction) => transaction.id);
+    const idsToDelete = (group) =>
+        keep[groupKey(group)] === KEEP_ALL ? [] : group.filter((transaction) => transaction.id !== keep[groupKey(group)]).map((transaction) => transaction.id);
     const toDelete = (groups ?? []).flatMap(idsToDelete);
-    const groupsToClean = (groups ?? []).filter((_, index) => keep[index] !== KEEP_ALL).length;
+    const groupsToClean = (groups ?? []).filter((group) => keep[groupKey(group)] !== KEEP_ALL).length;
     const wholeList = pending !== null && pending.length === toDelete.length && pending.every((id) => toDelete.includes(id));
 
     const tooMany = toDelete.length > MAX_DELETE_AT_ONCE;
@@ -98,11 +104,11 @@ export default function AccountDuplicates() {
                 <Stack gap={4}>
                     <Text role="status" fontWeight="semibold">{count(groups.length, "grupo encontrado", "grupos encontrados")}</Text>
                     {groups.map((group, index) => (
-                        <Box key={group.map((t) => t.id).join()} borderWidth="1px" borderRadius="md" p={3}>
+                        <Box key={groupKey(group)} borderWidth="1px" borderRadius="md" p={3}>
                             <Text fontWeight="semibold" mb={2}>
                                 {formatDate(group[0].transactioned_at)} · {group[0].type === "credit" ? "+" : "-"} {formatCents(group[0].value)}
                             </Text>
-                            <RadioGroup.Root value={keep[index]} onValueChange={(e) => setKeep((current) => ({ ...current, [index]: e.value }))}>
+                            <RadioGroup.Root value={keep[groupKey(group)]} onValueChange={(e) => setKeep((current) => ({ ...current, [groupKey(group)]: e.value }))}>
                                 {/* One row per transaction with the same columns in every group, so the copies can be compared side by side */}
                                 <Table.Root size="sm" tableLayout="fixed" w="full">
                                     <Table.Header>
@@ -116,7 +122,7 @@ export default function AccountDuplicates() {
                                     </Table.Header>
                                     <Table.Body>
                                         {group.map((transaction) => {
-                                            const deleted = keep[index] !== KEEP_ALL && keep[index] !== transaction.id; // marked to go when the group is cleaned
+                                            const deleted = keep[groupKey(group)] !== KEEP_ALL && keep[groupKey(group)] !== transaction.id; // marked to go when the group is cleaned
                                             return (
                                                 <Table.Row key={transaction.id} opacity={deleted ? 0.5 : 1} bg={deleted ? "bg.muted" : undefined}>
                                                     <Table.Cell>
@@ -150,8 +156,8 @@ export default function AccountDuplicates() {
                                     <RadioGroup.ItemText color="fg.muted">Manter todas (não são duplicatas)</RadioGroup.ItemText>
                                 </RadioGroup.Item>
                             {/* Does what was chosen for this group only */}
-                            <Button ml="auto" size="sm" variant="outline" colorPalette="red" disabled={idsToDelete(group, index).length === 0}
-                                aria-label={`Aplicar escolha do grupo ${index + 1}`} onClick={() => setPending(idsToDelete(group, index))}>
+                            <Button ml="auto" size="sm" variant="outline" colorPalette="red" disabled={idsToDelete(group).length === 0}
+                                aria-label={`Aplicar escolha do grupo ${index + 1}`} onClick={() => setPending(idsToDelete(group))}>
                                 Aplicar neste grupo
                             </Button>
                                 </Flex>

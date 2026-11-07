@@ -166,4 +166,18 @@ describe('transactions page: many at once', () => {
     expect(second.getByLabelText('Categoria')).toHaveValue('')
     expect(second.getByRole('button', { name: 'Salvar' })).toBeDisabled()
   })
+
+  it('does not offer to act on more than the server accepts at once, and says why', async () => {
+    const many = { data: Array.from({ length: 501 }, (_, n) => t(n + 1, `Compra ${n + 1}`, 100)) }
+    api({ 'POST /transactions': many })
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('Compra 1')
+
+    await startSelecting()
+    await userEvent.click(screen.getByRole('checkbox', { name: /selecionar todas as exibidas/i }))
+
+    expect(screen.getByText(/mais de 500 de uma vez/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /excluir selecionadas/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /editar selecionadas/i })).toBeDisabled()
+  }, 20000)
 })

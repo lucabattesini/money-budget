@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
-import { mockApi, renderApp } from '../test/helpers'
+import { jsonResponse, mockApi, renderApp } from '../test/helpers'
 import AccountDuplicates from './account-duplicates'
 
 const tx = (id, label) => ({
@@ -153,5 +153,25 @@ describe('duplicates page', () => {
     await userEvent.click(within((await screen.findByText('Excluir 2 transações?')).closest('[role="alertdialog"]')).getByRole('button', { name: 'Excluir' }))
 
     await waitFor(() => expect(bodyOf(mock, 'POST /transactions/bulk-delete')).toEqual({ ids: ['a1', 'a2'] }))
+  })
+
+  it('keeps the choices made in other groups after one group is applied', async () => {
+    let searches = 0
+    const mock = mockApi({
+      'POST /transactions/duplicates': () => jsonResponse({ data: searches++ === 0 ? GROUPS : [GROUPS[1]] }),
+      'POST /transactions/bulk-delete': { data: { deleted: 1 } },
+    })
+    renderApp(<AccountDuplicates />)
+    await userEvent.click(screen.getByRole('button', { name: 'Procurar' }))
+    await screen.findByText('2 grupos encontrados')
+    const [padaria, cinema] = screen.getAllByRole('radiogroup')
+    await userEvent.click(within(cinema).getByRole('radio', { name: /Manter todas/ }))
+    await userEvent.click(screen.getAllByRole('button', { name: /Aplicar escolha/ })[0])
+    await userEvent.click(within((await screen.findByText('Excluir 1 transação?')).closest('[role="alertdialog"]')).getByRole('button', { name: 'Excluir' }))
+
+    await waitFor(() => expect(bodyOf(mock, 'POST /transactions/bulk-delete')).toEqual({ ids: ['a2'] }))
+    await screen.findByText('1 grupo encontrado')
+    expect(within(screen.getByRole('radiogroup')).getByRole('radio', { name: /Manter todas/ })).toBeChecked()
+    expect(padaria).toBeDefined()
   })
 })

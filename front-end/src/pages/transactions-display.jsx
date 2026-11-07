@@ -115,6 +115,7 @@ export default function TransactionsDisplay() {
 
     const filtered = applyFilters(transactions, filters);
     // A row that the filters now hide is not acted on, even if it was ticked before
+    const MAX_BULK = 500; // what the server accepts in one request
     const selectedIds = filtered.filter((transaction) => selected.has(transaction.id)).map((transaction) => transaction.id);
     const activeFilters = countActiveFilters(filters);
 
@@ -299,11 +300,14 @@ export default function TransactionsDisplay() {
                                 {selectedIds.length === 0 ? "Nenhuma selecionada" : selectedIds.length === 1 ? "1 selecionada" : `${selectedIds.length} selecionadas`}
                             </Text>
                         </Flex>
+                        {selectedIds.length > MAX_BULK && (
+                            <Text fontSize="sm" color="fg.error">São mais de {MAX_BULK} de uma vez. Use os filtros para escolher menos.</Text>
+                        )}
                         {selectedIds.length > 0 && (
                             <Flex gap={2} wrap="wrap">
                                 <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>Limpar seleção</Button>
-                                <Button size="sm" onClick={() => setBulkEditing(true)}><LuPencil /> Editar selecionadas</Button>
-                                <Button size="sm" colorPalette="red" variant="outline" onClick={() => setBulkDeleting(true)}><LuTrash2 /> Excluir selecionadas</Button>
+                                <Button size="sm" disabled={selectedIds.length > MAX_BULK} onClick={() => setBulkEditing(true)}><LuPencil /> Editar selecionadas</Button>
+                                <Button size="sm" colorPalette="red" variant="outline" disabled={selectedIds.length > MAX_BULK} onClick={() => setBulkDeleting(true)}><LuTrash2 /> Excluir selecionadas</Button>
                             </Flex>
                         )}
                     </Flex>
