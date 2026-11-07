@@ -11,6 +11,7 @@ from schemas.tables import Categories, Merchants, TransactionDB, Users
 from schemas.tables_schemas import (
     Transaction,
     TransactionAggregate,
+    TransactionBulkUpdate,
     TransactionFilters,
     TransactionOut,
     TransactionUpdate,
@@ -265,3 +266,63 @@ def update_transaction(
     transaction.updated_at = datetime.now()
     db.commit()
     return transaction
+
+
+def get_family_transactions_by_ids(db: Session, ids: list[UUID], family_id: UUID) -> list[TransactionDB]:
+    """The family's transactions among `ids` (others, and other families', are simply not returned)."""
+    return db.query(TransactionDB).filter(TransactionDB.family_id == family_id, TransactionDB.id.in_(set(ids))).all()
+
+
+def bulk_update_transactions(
+    db: Session,
+    rows: list[TransactionDB],
+    changes: TransactionBulkUpdate,
+    merchant_id: Optional[UUID],
+):
+    """Apply the same changes to rows already checked to be the family's. All or none."""
+    try:
+        now = datetime.now()
+        for t in rows:
+            if changes.category_id is not None:
+                t.category_id = changes.category_id
+            if changes.user_id is not None:
+                t.user_id = changes.user_id
+            if changes.merchant is not None:  # "" (merchant_id None) takes it off
+                t.merchant_id = merchant_id
+            if changes.excluded is not None:
+                t.excluded = changes.excluded
+            t.updated_at = now
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def bulk_delete_transactions(db: Session, rows: list[TransactionDB]):
+    try:
+        for t in rows:
+            db.delete(t)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def find_duplicate_groups(
+    db: Session, family_id: UUID, start_date, end_date, ignore_excluded=False
+) -> list[list[TransactionOut]]:
+    """Groups of two or more transactions of the same day, amount and type, between the two days (both included).
+    Oldest group first; inside a group, the one saved first comes first."""
+    query = _with_names(db.query(TransactionDB, Categories.name, Users.name, Merchants.name))
+    rows = _apply_filters(query, family_id, TransactionFilters(start_date=start_date, end_date=end_date)).all()
+    groups: dict[tuple, list] = {}
+    for row in rows:
+        t = row[0]
+        if ignore_excluded and t.excluded:
+            continue
+        groups.setdefault((t.transactioned_at.date(), t.value, t.type), []).append(row)
+    result = []
+    for key in sorted(k for k, v in groups.items() if len(v) > 1):
+        members = sorted(groups[key], key=lambda r: (r[0].created_at is None, r[0].created_at, str(r[0].id)))
+        result.append(_to_out(members))
+    return result

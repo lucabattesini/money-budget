@@ -24,7 +24,7 @@ const currentEntry = () =>
   menu().getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page').map((l) => l.textContent)
 
 describe('account area', () => {
-  it('has a menu with Perfil, Família, Categorias, Preferências, Importar e exportar and Assistentes de IA', () => {
+  it('has a menu with Perfil, Família, Categorias, Preferências, Importar e exportar, Duplicatas and Assistentes de IA', () => {
     renderAccount()
 
     expect(menu().getAllByRole('link').map((link) => link.textContent)).toEqual([
@@ -33,6 +33,7 @@ describe('account area', () => {
       'Categorias',
       'Preferências',
       'Importar e exportar',
+      'Duplicatas',
       'Assistentes de IA',
     ])
   })
@@ -82,6 +83,7 @@ describe('account area', () => {
       'Estabelecimentos',
       'Preferências',
       'Importar e exportar',
+      'Duplicatas',
       'Assistentes de IA',
     ])
   })

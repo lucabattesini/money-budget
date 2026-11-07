@@ -20,7 +20,12 @@ from api.controllers.imports_controller import _category_lookup
 from api.repositories.categories_repo import get_all_categories as get_all_categories_repo
 from api.repositories.categories_repo import lock_family
 from api.repositories.families_repo import get_family
-from api.repositories.imports_repo import add_transactions, count_recent_additions, existing_transaction_keys
+from api.repositories.imports_repo import (
+    add_transactions,
+    count_recent_additions,
+    existing_transaction_keys,
+    lookalike_transactions,
+)
 from api.services.import_service import FIRST_YEAR, MAX_CENTS, MAX_LABEL
 from api.utils.category_names import name_key
 from api.utils.clock import family_today, utc_now
@@ -164,6 +169,35 @@ def _split_duplicates(db: Session, user: Users, checked: list[dict]) -> list[boo
     ]
 
 
+MAX_LOOKALIKES_SHOWN = 3
+
+
+def _has_lookalike(row: dict) -> bool:
+    return bool(row.get("similar_existing") or row.get("same_as_rows_in_this_call"))
+
+
+def _flag_lookalikes(db: Session, user: Users, checked: list[dict], out_rows: list[dict]) -> None:
+    """On each row that is `new`, say what looks like it: transactions the family already has, and earlier rows of this
+    same call, on the same day with the same amount and type. They are only a warning, the person decides: two coffees
+    for the same price on the same day are legitimate."""
+    if not checked:
+        return
+    days = [date.fromisoformat(row["date"]) for row in checked]
+    saved = lookalike_transactions(db, user.family_id, min(days), max(days))
+    seen: dict[tuple, list[int]] = {}
+    for row, out in zip(checked, out_rows):
+        key = (date.fromisoformat(row["date"]), row["value"], row["type"])
+        if out["status"] == "new":
+            similar = saved.get(key, [])
+            if similar:
+                out["similar_existing"] = [
+                    {"description": label, "category": category} for label, category in similar[:MAX_LOOKALIKES_SHOWN]
+                ]
+            if seen.get(key):
+                out["same_as_rows_in_this_call"] = list(seen[key])
+        seen.setdefault(key, []).append(out["row"])
+
+
 def _problems_out(problems: list[dict]) -> dict:
     return {
         "problems": problems[:MAX_PROBLEMS_SHOWN],
@@ -185,13 +219,18 @@ def preview_rows(db: Session, user: Users, rows) -> dict:
     for row, is_duplicate in zip(shown, duplicate):
         out_rows.append({**row, "status": "already_exists" if is_duplicate else "new"})
     new = duplicate.count(False)
+    _flag_lookalikes(db, user, checked, out_rows)
     return {
         "ok": True,
         "summary": {"new": new, "already_exist": len(duplicate) - new},
+        "possible_duplicates": sum(1 for r in out_rows if r["status"] == "new" and _has_lookalike(r)),
         "rows": out_rows,
         "preview_id": _preview_id(user.id, checked, int(utc_now().timestamp()) + PREVIEW_MINUTES * 60),
         "next_step": "Show these rows to the person. Only after they confirm, call add_transactions with the same "
-        "rows and this preview_id. Rows marked already_exists are skipped.",
+        "rows and this preview_id. Rows marked already_exists are skipped. Rows with similar_existing or "
+        "same_as_rows_in_this_call look like duplicates (same day, amount and type but not the same description or "
+        "category): show them to the person and ask whether to keep each one. Rows they do not want must be left "
+        "out of the rows you send, and previewed again.",
     }
 
 

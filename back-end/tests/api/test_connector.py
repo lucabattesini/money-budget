@@ -611,3 +611,72 @@ def test_nothing_can_put_the_app_in_a_frame_and_the_connector_is_not_cached(clie
     assert "frame-ancestors 'none'" in answer.headers["content-security-policy"]
     ping = _call(client, connect(user)[0]["access_token"], "ping")
     assert ping.headers["cache-control"] == "no-store"
+
+
+# --- possible duplicates, shown before anything is added (TKT-96) ---------------------------------------------
+
+
+def test_preview_flags_a_new_row_that_looks_like_something_the_family_has(
+    client, connect, user, make_transaction, category_id, db
+):
+    make_transaction(user, category_id, label="Padaria Dona Ana", value=4500, when=datetime(2026, 3, 10, 8, 0))
+    token = connect(user)[0]["access_token"]
+
+    shown = _tool(client, token, "preview_transactions", {"rows": [_row(description="PADARIA ANA SP")]})
+
+    assert shown["ok"] is True
+    (row,) = shown["rows"]
+    assert row["status"] == "new"  # still new: it is a warning, the person decides
+    assert [s["description"] for s in row["similar_existing"]] == ["Padaria Dona Ana"]
+    assert shown["possible_duplicates"] == 1
+    assert shown["summary"] == {"new": 1, "already_exist": 0}
+    assert "similar_existing" in shown["next_step"]
+
+
+def test_preview_does_not_flag_another_day_amount_or_type(client, connect, user, make_transaction, category_id):
+    make_transaction(user, category_id, label="Padaria", value=4500, when=datetime(2026, 3, 9, 8, 0))  # another day
+    make_transaction(user, category_id, label="Padaria", value=4501, when=datetime(2026, 3, 10, 8, 0))  # another amount
+    make_transaction(user, category_id, label="Padaria", value=4500, when=datetime(2026, 3, 10, 8, 0), type="credit")
+    token = connect(user)[0]["access_token"]
+
+    shown = _tool(client, token, "preview_transactions", {"rows": [_row()]})
+
+    assert "similar_existing" not in shown["rows"][0]
+    assert shown["possible_duplicates"] == 0
+
+
+def test_preview_does_not_flag_look_alikes_of_another_family(
+    client, connect, user, other_user, make_transaction, category_id
+):
+    make_transaction(other_user, category_id, label="Almoço", value=4500, when=datetime(2026, 3, 10, 12, 0))
+    token = connect(user)[0]["access_token"]
+
+    shown = _tool(client, token, "preview_transactions", {"rows": [_row()]})
+
+    assert "similar_existing" not in shown["rows"][0]
+
+
+def test_preview_flags_rows_of_the_same_call_that_look_alike(client, connect, user):
+    token = connect(user)[0]["access_token"]
+    rows = [_row(description="Cafe"), _row(description="Café da manhã"), _row(description="Jantar", amount_cents=9000)]
+
+    shown = _tool(client, token, "preview_transactions", {"rows": rows})
+
+    first, second, third = shown["rows"]
+    assert "same_as_rows_in_this_call" not in first  # the first of them is not a duplicate of anything
+    assert second["same_as_rows_in_this_call"] == [1]
+    assert "same_as_rows_in_this_call" not in third
+    assert shown["possible_duplicates"] == 1
+
+
+def test_an_exact_match_is_already_exists_and_not_also_a_look_alike(
+    client, connect, user, make_transaction, category_id
+):
+    make_transaction(user, category_id, label="Almoço", value=4500, when=datetime(2026, 3, 10, 12, 0))
+    token = connect(user)[0]["access_token"]
+
+    shown = _tool(client, token, "preview_transactions", {"rows": [_row()]})
+
+    assert shown["rows"][0]["status"] == "already_exists"
+    assert "similar_existing" not in shown["rows"][0]
+    assert shown["possible_duplicates"] == 0
