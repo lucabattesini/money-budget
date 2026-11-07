@@ -75,6 +75,9 @@ export const useLocale = () => useSyncExternalStore(subscribe, getLocale)
 /** The language tag for Intl and toLocale...String: "pt-BR" or "en-US". */
 export const languageTag = () => BCP47[current.language]
 
+/** The symbol of the family's currency: "R$", "US$", "€"... */
+export const currencySymbol = () => CURRENCIES.find((c) => c.code === current.currency).symbol
+
 /** 1234.5 -> "R$ 1.234,50" (Portuguese) or "R$1,234.50" (English). The amount is in whole units, not cents. */
 export const formatMoney = (value, options = {}) => {
   // The symbol comes from the table above, not from Intl, so the page and the WhatsApp assistant write the same

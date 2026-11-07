@@ -30,3 +30,50 @@ export function maskAmount(text) {
   while (cents > MAX_CENTS) cents = Math.floor(cents / 10) // drop the digit that went over the limit
   return plain().format(cents / 100)
 }
+
+// --- Budget amounts: whole units first, decimals only when the person wants them ---
+
+/** 150000 -> "R$ 1.500" (whole amounts have no decimals), 150050 -> "R$ 1.500,50". */
+export function formatBudgetCents(cents) {
+  const value = (cents || 0) / 100
+  return formatMoney(value, isWhole(cents) ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {})
+}
+
+const isWhole = (cents) => (cents || 0) % 100 === 0
+
+/** The decimal separator of the family's language: "," in Portuguese, "." in English. */
+export const decimalSeparator = () => new Intl.NumberFormat(languageTag()).formatToParts(1.1).find((p) => p.type === 'decimal').value
+
+/** A saved amount in the field when it is not being edited, without the symbol (it sits beside the field): 150000 -> "1.500", 150050 -> "1.500,50". */
+export function budgetFieldText(cents) {
+  if (!cents) return ''
+  return new Intl.NumberFormat(languageTag(), isWhole(cents) ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100)
+}
+
+/** A saved amount to be edited, with no thousands separators: 150000 -> "1500", 150050 -> "1500,50". */
+export function budgetEditText(cents) {
+  if (!cents) return ''
+  const reais = Math.floor(cents / 100)
+  const rest = cents % 100
+  return rest === 0 ? String(reais) : `${reais}${decimalSeparator()}${String(rest).padStart(2, '0')}`
+}
+
+/**
+ * What the person types in a budget field: digits, and optionally a decimal separator ("," or ".", both are taken as
+ * the decimal one) with up to two digits after it. Anything else is dropped. "1500" stays "1500", "12.5" -> "12,5".
+ */
+export function sanitizeBudgetText(text) {
+  const typed = String(text ?? '').replace(/[^\d.,]/g, '')
+  const at = typed.search(/[.,]/)
+  const digits = (at === -1 ? typed : typed.slice(0, at)).replace(/^0+(?=\d)/, '').slice(0, 8) // 8 digits: 21 million fits the database
+  if (at === -1) return digits
+  const decimals = typed.slice(at + 1).replace(/\D/g, '').slice(0, 2)
+  return `${digits || '0'}${decimalSeparator()}${decimals}`
+}
+
+/** Typed budget text -> cents: "1500" -> 150000, "12,5" -> 1250, "" -> 0. Never above what the database holds. */
+export function budgetTextToCents(text) {
+  const [reais = '', decimals = ''] = sanitizeBudgetText(text).split(decimalSeparator())
+  const cents = (parseInt(reais || '0', 10) || 0) * 100 + parseInt(decimals.padEnd(2, '0') || '0', 10)
+  return Math.min(cents, MAX_CENTS)
+}

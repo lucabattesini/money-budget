@@ -15,7 +15,7 @@ from db.connection import Base
 from db.upgrade import alembic_config, detect_revision, upgrade_database
 from schemas import tables  # noqa: F401  (registers the models on Base.metadata)
 
-LATEST = "0022"
+LATEST = "0023"
 BEFORE_CONNECTOR = "0020"
 BEFORE_INDEX = "0021"
 BEFORE_UUIDS = "0018"  # the migrations of the older tests below end here: ids were still counting numbers
@@ -868,7 +868,7 @@ def _category_rows(engine):
 
 
 def test_the_monarch_groups_replace_the_old_ones_in_order(url, engine):
-    upgrade_database(url)
+    command.upgrade(alembic_config(url), "0022")  # before the groups were put in order of priority
 
     with engine.connect() as conn:
         names = conn.execute(text("SELECT name FROM category_groups ORDER BY position")).scalars().all()
@@ -1461,3 +1461,21 @@ def test_a_database_without_the_index_is_recognised_as_before_it(url, engine):
     _forget_history(engine)
 
     assert detect_revision(inspect(engine)) == BEFORE_INDEX
+
+
+# --- 0023: the groups in order of priority ---------------------------------------------------------------------------------
+
+
+def test_the_groups_are_put_in_order_of_priority_and_a_group_of_its_own_goes_last(url, engine):
+    from api.utils.budget_order import GROUP_ORDER
+
+    command.upgrade(alembic_config(url), "0022")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO category_groups (id, name, position) VALUES (gen_random_uuid(), 'Meu grupo', 99)"))
+
+    upgrade_database(url)
+
+    with engine.connect() as conn:
+        names = conn.execute(text("SELECT name FROM category_groups ORDER BY position")).scalars().all()
+    assert names == [*GROUP_ORDER, "Meu grupo"]  # the migration's own copy of the order must match the page's
+    assert names.index("Moradia") < names.index("Alimentação") < names.index("Compras")

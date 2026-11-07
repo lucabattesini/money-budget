@@ -486,8 +486,13 @@ to 2099 are offered, and the page's buttons stop there) or an amount that is neg
 `PUT` takes the same family lock as the category changes, so two requests (two members, two tabs) cannot both create
 the same row, and a category being deleted at that moment is seen as gone. The Orçamentos page (`/budgets`, in the top
 menu) shows one month with buttons to move between months, totals with a bar, every group (all start open; each can
-be closed) with its categories A-Z in Portuguese order like the Categorias page, and a field per category that saves
-when it is left or Enter is pressed; "Repetido de <month>" says where an amount comes from, and a bar turns orange
+be closed) with its categories, and a field per category (the family's currency symbol beside it) that saves
+when it is left or Enter is pressed. Amounts are meant to be round: the field takes whole units ("1500") and shows
+them without decimals ("R$ 1.500"); decimals are only there when typed, with "," or "." ("1500,5" is R$ 1.500,50), and
+an amount with cents is shown with two decimals. Groups and categories come in order of priority, from what a household
+has to pay first (housing, bills, food, transport) to what it can cut first (shopping, leisure, gifts), not A-Z: the
+groups follow their `position` (migration 0023 sets it from the list in `api/utils/budget_order.py`), and the server
+sorts the categories of a group by that list, the family's own after the default ones, A-Z; "Repetido de <month>" says where an amount comes from, and a bar turns orange
 from 80% of the plan and red when it is exceeded. Budgets follow their categories: deleting a category deletes its
 budgets, and so does moving it to an income or transfer group (nothing hidden is kept); joining another family with the
 data brings the transactions and categories but not the budgets (a plan belongs to the family that made it: the

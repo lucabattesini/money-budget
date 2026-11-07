@@ -83,6 +83,27 @@ def test_the_groups_come_in_the_order_they_are_shown_everywhere(client, db, auth
     assert shown == [name for name in order if name in shown]
 
 
+def test_groups_and_categories_come_in_order_of_priority_not_alphabetically(client, db, auth_headers, user):
+    _default_in(db, "Contas e Serviços", "Água")  # A-Z would put it before "Luz e gás"
+    _default_in(db, "Contas e Serviços", "Luz e gás")
+    _default_in(db, "Contas e Serviços", "Internet e TV")
+    mine = [
+        Categories(name="Zelador", group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id, family_id=user.family_id),
+        Categories(name="Jardim", group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id, family_id=user.family_id),
+    ]
+    db.add_all(mine)
+    db.commit()
+
+    data = _month(client, auth_headers)
+
+    groups = [g["name"] for g in data["groups"]]
+    assert groups.index("Moradia") < groups.index("Alimentação") < groups.index("Educação") < groups.index("Outros")
+    by_group = {g["name"]: [c["name"] for c in g["categories"]] for g in data["groups"]}
+    assert by_group["Contas e Serviços"] == ["Luz e gás", "Água", "Internet e TV"]
+    # The family's own categories come after the default ones, A-Z
+    assert by_group["Moradia"] == ["Aluguel", "Jardim", "Zelador"]
+
+
 def test_a_family_sees_its_own_categories_and_never_anothers(client, db, auth_headers, user, other_user, headers_for):
     group = db.query(CategoryGroups).filter_by(name="Outros").one()
     mine = Categories(name="Plantas", group_id=group.id, family_id=user.family_id)
