@@ -75,7 +75,9 @@ def database():
     connection.Base.metadata.drop_all(engine)
     connection.Base.metadata.create_all(engine)
     with connection.LocalSession() as db:
-        groups = {name: CategoryGroups(name=name, position=i) for i, name in enumerate(GROUP_ORDER, start=1)}  # as migration 0023 leaves them
+        groups = {
+            name: CategoryGroups(name=name, position=i) for i, name in enumerate(GROUP_ORDER, start=1)
+        }  # as migration 0023 leaves them
         db.add_all(groups.values())
         db.flush()
         group_of = {category: group for group, names in DEFAULT_GROUPS.items() for category in names}

@@ -88,8 +88,16 @@ def test_groups_and_categories_come_in_order_of_priority_not_alphabetically(clie
     _default_in(db, "Contas e Serviços", "Luz e gás")
     _default_in(db, "Contas e Serviços", "Internet e TV")
     mine = [
-        Categories(name="Zelador", group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id, family_id=user.family_id),
-        Categories(name="Jardim", group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id, family_id=user.family_id),
+        Categories(
+            name="Zelador",
+            group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id,
+            family_id=user.family_id,
+        ),
+        Categories(
+            name="Jardim",
+            group_id=db.query(CategoryGroups).filter_by(name="Moradia").one().id,
+            family_id=user.family_id,
+        ),
     ]
     db.add_all(mine)
     db.commit()
@@ -160,7 +168,12 @@ def test_zero_is_a_plan_to_spend_nothing(client, db, auth_headers, food, user, m
     make_transaction(user, food, value=1500, when=datetime(2026, 11, 5, 12, 0, 0))
     data = _month(client, auth_headers)
     assert _row(data, food)["spent"] == 1500
-    assert data["totals"] == {"budgeted": 0, "spent": 1500, "unbudgeted_spent": 0, "remaining": -1500}  # counted against the plan
+    assert data["totals"] == {
+        "budgeted": 0,
+        "spent": 1500,
+        "unbudgeted_spent": 0,
+        "remaining": -1500,
+    }  # counted against the plan
 
 
 def test_a_zero_plan_is_repeated_in_later_months_until_changed(client, auth_headers, food):
@@ -565,7 +578,10 @@ def test_clearing_a_month_stops_the_plan_from_then_on_and_keeps_the_earlier_mont
         None,
         None,
     ]
-    assert sorted((b.amount is None, b.amount) for b in db.query(Budgets)) == [(False, 50000), (True, None)]  # the empty row is what remembers "stopped here"
+    assert sorted((b.amount is None, b.amount) for b in db.query(Budgets)) == [
+        (False, 50000),
+        (True, None),
+    ]  # the empty row is what remembers "stopped here"
 
 
 def test_a_new_plan_after_a_stop_starts_again_from_that_month(client, auth_headers, food):

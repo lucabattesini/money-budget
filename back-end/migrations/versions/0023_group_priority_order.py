@@ -36,7 +36,11 @@ NEW_ORDER = [
 def upgrade() -> None:
     conn = op.get_bind()
     # Groups that are not in the list go after it, in the order they had
-    others = [r.name for r in conn.execute(sa.text("SELECT name FROM category_groups ORDER BY position, id")) if r.name not in NEW_ORDER]
+    others = [
+        r.name
+        for r in conn.execute(sa.text("SELECT name FROM category_groups ORDER BY position, id"))
+        if r.name not in NEW_ORDER
+    ]
     for position, name in enumerate(NEW_ORDER + others, start=1):
         conn.execute(sa.text("UPDATE category_groups SET position = :p WHERE name = :n"), {"p": position, "n": name})
 

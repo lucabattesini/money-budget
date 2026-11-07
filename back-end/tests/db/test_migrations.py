@@ -1471,7 +1471,9 @@ def test_the_groups_are_put_in_order_of_priority_and_a_group_of_its_own_goes_las
 
     command.upgrade(alembic_config(url), "0022")
     with engine.begin() as conn:
-        conn.execute(text("INSERT INTO category_groups (id, name, position) VALUES (gen_random_uuid(), 'Meu grupo', 99)"))
+        conn.execute(
+            text("INSERT INTO category_groups (id, name, position) VALUES (gen_random_uuid(), 'Meu grupo', 99)")
+        )
 
     upgrade_database(url)
 
@@ -1490,11 +1492,14 @@ def test_old_zero_budgets_become_empty_rows_so_they_keep_meaning_stop(url, engin
         family = conn.execute(text("INSERT INTO families (id) VALUES (gen_random_uuid()) RETURNING id")).scalar()
         group = conn.execute(text("SELECT id FROM category_groups LIMIT 1")).scalar()
         category = conn.execute(
-            text("INSERT INTO categories (id, name, group_id) VALUES (gen_random_uuid(), 'X', :g) RETURNING id"), {"g": group}
+            text("INSERT INTO categories (id, name, group_id) VALUES (gen_random_uuid(), 'X', :g) RETURNING id"),
+            {"g": group},
         ).scalar()
         for month, amount in (("2026-10-01", 500), ("2026-11-01", 0)):
             conn.execute(
-                text("INSERT INTO budgets (id, family_id, category_id, month, amount) VALUES (gen_random_uuid(), :f, :c, :m, :a)"),
+                text(
+                    "INSERT INTO budgets (id, family_id, category_id, month, amount) VALUES (gen_random_uuid(), :f, :c, :m, :a)"
+                ),
                 {"f": family, "c": category, "m": month, "a": amount},
             )
 
