@@ -34,6 +34,7 @@ export default function TransactionsDisplay() {
     // Opens with the filters the link asks for (the dashboard sends the month it shows)
     const [filters, setFilters] = useState(() => filtersFromLink(search));
     const [page, setPage] = useState(1);
+    const [selecting, setSelecting] = useState(false); // the tick boxes only show in selection mode
     const [selected, setSelected] = useState(() => new Set()); // ids of the rows ticked
     const [bulkEditing, setBulkEditing] = useState(false);
     const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -84,6 +85,7 @@ export default function TransactionsDisplay() {
         setBulkEditing(false);
         setBulkDeleting(false);
         setSelected(new Set());
+        setSelecting(false);
         reload();
     };
 
@@ -156,23 +158,27 @@ export default function TransactionsDisplay() {
             onClick={() => setEditing(transaction)}
             // On a phone each row is a small card: the category icon on the left, description above "category · first name", amount on the right
             display={{ base: "grid", md: "table-row" }}
-            gridTemplateColumns="32px 36px auto auto minmax(0, 1fr) auto 44px"
-            gridTemplateAreas={'"check icon label label label amount menu" "check icon category person . amount menu"'}
+            gridTemplateColumns={selecting ? "32px 36px auto auto minmax(0, 1fr) auto 44px" : "36px auto auto minmax(0, 1fr) auto 44px"}
+            gridTemplateAreas={selecting
+                ? '"check icon label label label amount menu" "check icon category person . amount menu"'
+                : '"icon label label label amount menu" "icon category person . amount menu"'}
             alignItems="center"
             columnGap={2}
             py={{ base: 1, md: 0 }}
             borderBottomWidth={{ base: "1px", md: 0 }}
         >
             {/* Ticking a row must not open the editor */}
-            <Table.Cell gridArea="check" width="1%" pr={0} borderBottomWidth={{ base: 0, md: "1px" }} onClick={(event) => event.stopPropagation()}>
-                <Checkbox.Root
-                    checked={selected.has(transaction.id)}
-                    onCheckedChange={(e) => toggle(transaction.id, Boolean(e.checked))}
-                >
-                    <Checkbox.HiddenInput aria-label={`Selecionar ${transaction.label}`} />
-                    <Checkbox.Control />
-                </Checkbox.Root>
-            </Table.Cell>
+            {selecting && (
+                <Table.Cell gridArea="check" width="1%" pr={0} borderBottomWidth={{ base: 0, md: "1px" }} onClick={(event) => event.stopPropagation()}>
+                    <Checkbox.Root
+                        checked={selected.has(transaction.id)}
+                        onCheckedChange={(e) => toggle(transaction.id, Boolean(e.checked))}
+                    >
+                        <Checkbox.HiddenInput aria-label={`Selecionar ${transaction.label}`} />
+                        <Checkbox.Control />
+                    </Checkbox.Root>
+                </Table.Cell>
+            )}
             <Table.Cell hideBelow="md" whiteSpace="nowrap" gridArea="date" fontSize={{ base: "xs", md: "sm" }} color={{ base: "fg.muted", md: "fg" }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>{formatDate(transaction.transactioned_at)}</Table.Cell>
             <Table.Cell wordBreak="break-word" minW={0} gridArea="label" pr={{ base: 3, md: 2 }} borderBottomWidth={{ base: 0, md: "1px" }} pb={{ base: 0, md: 2 }}>
                 {transaction.label}
@@ -270,13 +276,16 @@ export default function TransactionsDisplay() {
                                 </Popover.Positioner>
                             </Portal>
                         </Popover.Root>
+                        <Button size="sm" variant={selecting ? "solid" : "outline"} minH={{ base: "44px", md: "auto" }} onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
+                            {selecting ? "Cancelar seleção" : "Selecionar"}
+                        </Button>
                         <Button size="sm" minH={{ base: "44px", md: "auto" }} onClick={() => setAdding(true)}>
                             <LuPlus /> Adicionar
                         </Button>
                     </Flex>
                 </Flex>
 
-                {selectedIds.length > 0 && (
+                {selecting && selectedIds.length > 0 && (
                     <Flex w="full" align="center" justify="space-between" wrap="wrap" gap={2} p={3} borderWidth="1px" borderRadius="md" bg="bg.muted" role="region" aria-label="Ações para as selecionadas">
                         <Text fontSize="sm" fontWeight="semibold" role="status">
                             {selectedIds.length === 1 ? "1 selecionada" : `${selectedIds.length} selecionadas`}
@@ -289,7 +298,7 @@ export default function TransactionsDisplay() {
                     </Flex>
                 )}
 
-                {!loading && shownIds.length > 0 && (
+                {selecting && !loading && shownIds.length > 0 && (
                     <Flex w="full">
                         <Checkbox.Root
                             checked={allShownTicked}

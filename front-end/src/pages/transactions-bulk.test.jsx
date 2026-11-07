@@ -15,7 +15,11 @@ const TRANSACTIONS = { data: [t(1, 'Almoço', 2500), t(2, 'Mercado', 12000), t(3
 const bodies = (mock, request) =>
   mock.mock.calls.filter(([url, o = {}]) => `${(o.method || 'GET').toUpperCase()} ${String(url).replace('http://api.test', '')}` === request)
     .map(([, o]) => JSON.parse(o.body))
-const tick = (label) => userEvent.click(screen.getByRole('checkbox', { name: `Selecionar ${label}` }))
+const startSelecting = () => userEvent.click(screen.getByRole('button', { name: 'Selecionar' }))
+const tick = async (label) => {
+  if (!screen.queryByRole('checkbox', { name: `Selecionar ${label}` })) await startSelecting()
+  await userEvent.click(screen.getByRole('checkbox', { name: `Selecionar ${label}` }))
+}
 const dialog = async (title) => within((await screen.findByText(title)).closest('[role="dialog"], [role="alertdialog"]'))
 
 const api = (extra = {}) =>
@@ -23,6 +27,21 @@ const api = (extra = {}) =>
 
 describe('transactions page: many at once', () => {
   beforeEach(() => saveToken('tok'))
+
+  it('shows no tick boxes until selection mode is on, and hides them again when it is left', async () => {
+    api()
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('Almoço')
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+    await startSelecting()
+    expect(screen.getByRole('checkbox', { name: 'Selecionar Almoço' })).toBeInTheDocument()
+    await tick('Almoço')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar seleção' }))
+
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByText('1 selecionada')).not.toBeInTheDocument()
+  })
 
   it('shows how many are selected, and nothing to act on while none is', async () => {
     api()
@@ -98,6 +117,7 @@ describe('transactions page: many at once', () => {
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Almoço')
 
+    await startSelecting()
     await userEvent.click(screen.getByRole('checkbox', { name: /selecionar todas as exibidas/i }))
     expect(screen.getByText('3 selecionadas')).toBeInTheDocument()
 
