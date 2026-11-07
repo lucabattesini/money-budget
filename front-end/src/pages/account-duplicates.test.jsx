@@ -129,7 +129,7 @@ describe('duplicates page', () => {
     await screen.findByText('2 grupos encontrados')
 
     const cinema = screen.getAllByRole('radiogroup')[1]
-    await userEvent.click(within(cinema).getByRole('radio', { name: 'Manter Cinema 3' }))
+    await userEvent.click(within(cinema).getAllByRole('radio')[2])
     await userEvent.click(screen.getByRole('button', { name: 'Aplicar escolha do grupo 2' }))
     const confirm = within((await screen.findByText('Excluir 2 transações?')).closest('[role="alertdialog"]'))
     await userEvent.click(confirm.getByRole('button', { name: 'Excluir' }))
