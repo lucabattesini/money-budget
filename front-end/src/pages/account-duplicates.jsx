@@ -138,7 +138,7 @@ export default function AccountDuplicates() {
                                         })}
                                     </Table.Body>
                                 </Table.Root>
-                                <Flex gap={6} wrap="wrap" mt={2}>
+                                <Flex gap={6} wrap="wrap" mt={2} align="center">
                                 <RadioGroup.Item value={DELETE_ALL}>
                                     <RadioGroup.ItemHiddenInput />
                                     <RadioGroup.ItemIndicator />
@@ -149,13 +149,13 @@ export default function AccountDuplicates() {
                                     <RadioGroup.ItemIndicator />
                                     <RadioGroup.ItemText color="fg.muted">Manter todas (não são duplicatas)</RadioGroup.ItemText>
                                 </RadioGroup.Item>
-                                </Flex>
-                            </RadioGroup.Root>
                             {/* Does what was chosen for this group only */}
-                            <Button mt={3} size="sm" variant="outline" colorPalette="red" disabled={idsToDelete(group, index).length === 0}
+                            <Button ml="auto" size="sm" variant="outline" colorPalette="red" disabled={idsToDelete(group, index).length === 0}
                                 aria-label={`Aplicar escolha do grupo ${index + 1}`} onClick={() => setPending(idsToDelete(group, index))}>
                                 Aplicar neste grupo
                             </Button>
+                                </Flex>
+                            </RadioGroup.Root>
                         </Box>
                     ))}
 
