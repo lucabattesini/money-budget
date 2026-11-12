@@ -1,10 +1,11 @@
 import { Flex, Box } from "@chakra-ui/react";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { getFamily } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { setLocale } from "../lib/locale";
 import Header from "./Header";
+import { SpinnerLoading } from "./spinnerLoading";
 import { Toaster } from "./ui/toaster";
 
 export default function Layout() {
@@ -21,7 +22,9 @@ export default function Layout() {
             <Toaster />
             {/* On a phone the menu is a bar at the bottom of the screen, so the page leaves room for it */}
             <Box flex="1" overflowY={{ base: "visible", md: "auto" }} pb={{ base: "calc(60px + env(safe-area-inset-bottom))", md: 0 }}>
-                <Outlet />
+                <Suspense fallback={<SpinnerLoading />}>
+                    <Outlet />
+                </Suspense>
             </Box>
         </Flex>
     );

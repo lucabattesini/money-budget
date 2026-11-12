@@ -933,6 +933,10 @@ sequenceDiagram
   `workflow_call`), then build and push the image to Artifact Registry, run the migration job and deploy the service.
   GitHub proves who it is to Google with Workload Identity Federation (restricted to this repository and the `main`
   branch), so there is no key file anywhere. Cloud Run keeps old revisions, which is how a release is rolled back.
+- **First load.** The API compresses its answers (`GZipMiddleware`; Cloud Run does not), and the built files under
+  `/assets/` (named after their content) are sent with a one-year `immutable` cache header, so a second visit
+  downloads nothing. The web app splits by page (`React.lazy` in `App.jsx`, a `Suspense` spinner in `Layout`), so
+  the first visit loads the shell and the page it opens, not every page.
 - DB: PostgreSQL everywhere (local dev, tests, production). `DB_URL` is required; there
   is no SQLite fallback.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
