@@ -211,9 +211,9 @@ describe('budgets page: what it shows', () => {
     renderApp(<Budgets />)
 
     const food = within((await screen.findByLabelText('Orçamento de Restaurantes e Bares')).closest('li'))
-    expect(food.getByText(/Repetido de /)).toBeInTheDocument()
+    expect(food.getByRole('img', { name: /Repetido de / })).toBeInTheDocument()
     const rent = within(screen.getByLabelText('Orçamento de Aluguel').closest('li')) // set in this very month
-    expect(rent.queryByText(/Repetido de /)).not.toBeInTheDocument()
+    expect(rent.queryByRole('img', { name: /Repetido de / })).not.toBeInTheDocument()
   })
 
   it('writes amounts in the currency and language of the family', async () => {

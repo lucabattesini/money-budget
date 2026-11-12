@@ -2,13 +2,14 @@ import PageHeading from "../components/PageHeading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Box, Heading, HStack, IconButton, Input, InputGroup, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
-import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp } from "react-icons/lu";
+import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp, LuRepeat } from "react-icons/lu";
 import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { budgetStatus, FIRST_MONTH, hasPlan, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { plainName } from "../lib/categoryName";
 import { currencySymbol, familyNow, useLocale } from "../lib/locale";
 import { budgetEditText, budgetFieldText, budgetTextToCents, formatBudgetCents, sanitizeBudgetText } from "../lib/money";
+import { Tooltip } from "../components/ui/tooltip";
 import customToaster from "../utils/customToaster";
 
 const BAR_COLORS = { ok: "green", warn: "orange", limit: "blue", over: "red", none: "gray" };
@@ -197,7 +198,16 @@ export default function Budgets() {
                                             <Stack as="li" key={category.id} gap={2} px={{ base: 4, md: 5 }} py={3} borderTopWidth="1px">
                                                 <HStack justify="space-between" gap={3}>
                                                     <Stack flex="1" minW={0} gap={1}>
-                                                        <Text>{category.name}</Text>
+                                                        <HStack gap={1.5}>
+                                                            <Text>{category.name}</Text>
+                                                            {category.budgeted != null && category.since && category.since !== month && (
+                                                                <Tooltip content={`Repetido de ${monthLabel(category.since)}`} positioning={{ placement: "top" }}>
+                                                                    <Box as="span" role="img" tabIndex={0} aria-label={`Repetido de ${monthLabel(category.since)}`} color="fg.muted" display="inline-flex">
+                                                                        <LuRepeat size={14} />
+                                                                    </Box>
+                                                                </Tooltip>
+                                                            )}
+                                                        </HStack>
                                                         {state === "over" && <Badge alignSelf="start" colorPalette="red">Acima do orçamento</Badge>}
                                                         {state === "warn" && <Badge alignSelf="start" colorPalette="orange">Perto do limite</Badge>}
                                                         {state === "limit" && <Badge alignSelf="start" colorPalette="blue">No limite</Badge>}
@@ -226,7 +236,6 @@ export default function Budgets() {
                                                     {category.budgeted != null && (
                                                         <Text fontSize="xs" textAlign="right" color={state === "over" ? "fg.error" : "fg.muted"}>
                                                             {leftText(category.spent, category.budgeted)}
-                                                            {category.since && category.since !== month && ` · Repetido de ${monthLabel(category.since)}`}
                                                         </Text>
                                                     )}
                                                 </HStack>
