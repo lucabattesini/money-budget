@@ -6,6 +6,7 @@ import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { followImport, queueImport } from "../lib/importJobs";
 import { formatMoney, useLocale } from "../lib/locale";
+import useBackClosesOverlay from "../lib/useBackClosesOverlay";
 
 const STEPS = [
     { id: "file", label: "Arquivo" },
@@ -781,6 +782,8 @@ export default function ImportDialog({ open, onClose }) {
         onClose();
         followImport(queued); // not awaited: the result is announced even if the user goes elsewhere
     };
+
+    useBackClosesOverlay(open, () => (busy || checking ? false : close()));
 
     const columnsReady = job && FIELDS.filter((f) => f.required).every((f) => choice[f.name] !== "" && choice[f.name] !== undefined);
     // The people step only exists when the file has a Pessoa column with names in it

@@ -6,6 +6,7 @@ import { formatCents } from "../lib/money";
 import { familyNow, formatDate } from "../lib/locale";
 import customToaster from "../utils/customToaster";
 import PageHeading from "../components/PageHeading";
+import useBackClosesOverlay from "../lib/useBackClosesOverlay";
 
 const MAX_DELETE_AT_ONCE = 500; // what the server accepts in one request
 const DELETE_ALL = "none"; // the person wants none of the group kept
@@ -69,6 +70,8 @@ export default function AccountDuplicates() {
         customToaster("Excluído", "success", `${count(result.data.deleted, "transação excluída", "transações excluídas")}.`);
         search();
     };
+
+    useBackClosesOverlay(pending !== null, () => setPending(null));
 
     return (
         <Stack gap={6} maxW="3xl">
