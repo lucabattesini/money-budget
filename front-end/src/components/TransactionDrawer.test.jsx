@@ -54,6 +54,18 @@ describe('transaction sidebar', () => {
     expect(screen.queryByText('campo obrigatório')).not.toBeInTheDocument()
   })
 
+  it('closes only the category list on Escape, not the whole panel', async () => {
+    const { onClose } = renderDrawer()
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Categoria' }))
+    await screen.findByRole('option', { name: 'Alimentação' })
+
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Alimentação' })).not.toBeInTheDocument())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Descrição')).toBeInTheDocument() // the panel is still there
+  })
+
   it('offers the categories to choose from', async () => {
     renderDrawer()
 

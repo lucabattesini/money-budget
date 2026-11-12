@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { Combobox, Portal, createListCollection } from "@chakra-ui/react";
 import { groupCategories, matchesSearch } from "../lib/categoryName";
 
+const NO_EXTRA = []; // a fixed empty list: a new [] on every render would redo the grouping of every picker every time
 const NONE = "__none__"; // the value of the "no category chosen" choice (an empty value cannot be selected)
 
 /**
@@ -15,7 +16,7 @@ const NONE = "__none__"; // the value of the "no category chosen" choice (an emp
  * (the import's "Criar uma categoria nova"). variant "inline" looks like the text of a row: for changing in place.
  */
 export default function CategoryPicker({
-    categories, value, onChange, emptyLabel, extra = [], placeholder = "Escolha uma categoria", label, id,
+    categories, value, onChange, emptyLabel, extra = NO_EXTRA, placeholder = "Escolha uma categoria", label, id,
     invalid = false, disabled = false, variant = "field", size = "md", ...inputProps
 }) {
     const [typed, setTyped] = useState("");

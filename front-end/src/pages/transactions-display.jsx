@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import useBackClosesOverlay from "../lib/useBackClosesOverlay";
@@ -76,7 +76,7 @@ export default function TransactionsDisplay() {
     }, [trigger]);
 
     // Alphabetical, so categories are easy to find in every list
-    const sortedCategories = [...categories].sort(compareCategories);
+    const sortedCategories = useMemo(() => [...categories].sort(compareCategories), [categories]);
 
     const changeFilters = (next) => {
         setFilters(next);
