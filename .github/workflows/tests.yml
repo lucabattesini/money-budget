@@ -86,3 +86,57 @@ jobs:
       # Catches build-time problems (missing imports, bad chunks) that tests do not reach
       - name: Build
         run: npm run build
+
+  production-image:
+    # This job name is what a branch rule must require to block merges (TKT-83)
+    name: Production image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Only so the migrations and the start-up have a database to talk to; nothing is pushed anywhere and no Google
+    # credentials are used (the sign-in id is a dummy: it is only baked into the web files)
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: money
+          POSTGRES_PASSWORD: money
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U money"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      IMAGE: money-budget-check
+      DB_URL: postgresql+psycopg2://money:money@localhost:5432/money
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # The same Dockerfile the deploy builds: a missing file, a broken front-end build or a bad install fails here
+      - name: Build the image
+        run: docker build --build-arg VITE_GOOGLE_CLIENT_ID=ci-check-not-a-real-id -t "$IMAGE" .
+
+      - name: Apply the migrations inside the image
+        run: docker run --rm --network host -e DB_URL="$DB_URL" "$IMAGE" python -m db.upgrade
+
+      - name: Start the image and ask it two things
+        run: |
+          docker run -d --name app --network host \
+            -e DB_URL="$DB_URL" -e JWT_SECRET=ci-check-secret -e FRONT_URL=http://localhost:8080 -e PORT=8080 \
+            "$IMAGE"
+          for i in $(seq 1 30); do
+            curl -fsS -o /dev/null http://localhost:8080/ && break
+            sleep 2
+          done
+          # The web app page is served ...
+          curl -fsS http://localhost:8080/ | grep -q 'id="root"'
+          # ... and an API address answers, asking for a login
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/categories/)" = "401"
+
+      - name: Show the app's log when something failed
+        if: failure()
+        run: docker logs app || true

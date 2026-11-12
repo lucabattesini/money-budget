@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, Input, Portal, Combobox } from "@chakra-ui/react";
+import { flushSync } from "react-dom";
+import { Button, Input, Portal, Combobox, useFilter, useListCollection } from "@chakra-ui/react";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
 import { compareCategories } from "../lib/categoryName";
 import { getToken } from "../lib/auth";
@@ -11,10 +12,15 @@ export default function ExpenseForm() {
     const [loading, setLoading] = useState(true)
     const [value, setvalue] = useState("");
     const [description, setDescription] = useState("");
-    const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState("");
-    const [filteredCategories, setFilteredCategories] = useState([]);
-    const [searchQuery, setSearchQuery] = useState("")
+    // The list the box shows, and the narrowing of it by what is typed (ignoring capitals and accents)
+    const { contains } = useFilter({ sensitivity: "base" });
+    const { collection, filter, set: setItems } = useListCollection({
+        initialItems: [],
+        itemToString: (category) => category.name,
+        itemToValue: (category) => category.value,
+        filter: contains,
+    });
 
     const fetchcategories = async () => {
         try {
@@ -31,8 +37,7 @@ export default function ExpenseForm() {
                     }))
                     .sort(compareCategories);
 
-                setCategories(organizedCategories);
-                setFilteredCategories(organizedCategories)
+                setItems(organizedCategories)
             }
         } catch (error) {
             console.error("Error fetching categories", error)
@@ -45,15 +50,6 @@ export default function ExpenseForm() {
     useEffect(() => {
         fetchcategories();
     }, []);
-
-    useEffect(() => {
-        if (searchQuery.trim() === "") {
-            setFilteredCategories(categories)
-        } else {
-            const filtered = categories.filter(category => category.name.toLowerCase().includes(searchQuery.toLowerCase()));
-            setFilteredCategories(filtered);
-        }
-    }, [searchQuery, categories]);
 
     const handleSubmit = () => {
         // Round, don't truncate: 19.99 * 100 is 1998.9999999999998
@@ -93,7 +89,7 @@ export default function ExpenseForm() {
                     setvalue("");
                     setDescription("");
                     setSelectedCategory("");
-                    setSearchQuery("");
+                    filter("");
                 } else {
                     customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
                 }
@@ -102,28 +98,18 @@ export default function ExpenseForm() {
 
     const handleCategorySelect = (categoryId) => {
         setSelectedCategory(categoryId);
-        const selected = categories.find(category => category.value === categoryId);
-        if (selected) {
-            setSearchQuery(selected.name);
-        }
     };
-
-    const getDisplayValue = () => {
-        if (selectedCategory) {
-            const selected = categories.find(category => category.value === selectedCategory);
-            return selected ? selected.name : "";
-        }
-        return searchQuery;
-    }
 
     const resetSearchQueryAndcategory = () => {
         setSelectedCategory("");
-        setSearchQuery("");
+        filter("");
     }
 
-    const setValueOnSearchQuery = (e) => {
-        setSearchQuery(e.target.value);
-        if (!e.target.value) {
+    // The text in the box belongs to the combobox alone: handing it back from our own state wrote an older text over a
+    // newer one when keys came in faster than a render. We only listen to it, to narrow the list.
+    const changeSearchText = (text) => {
+        filter(text.trim());
+        if (!text) {
             setSelectedCategory("");
         }
     }
@@ -145,6 +131,7 @@ export default function ExpenseForm() {
             />
         
             <Combobox.Root
+            collection={collection}
             onValueChange={({value}) => {
                 if (value.length > 0) {
                     handleCategorySelect(value[0]);
@@ -153,15 +140,13 @@ export default function ExpenseForm() {
                 }
             }}
             value={selectedCategory ? [selectedCategory] : []}
+            onInputValueChange={({ inputValue }) => flushSync(() => changeSearchText(inputValue))}
             >
                 <Combobox.Label> Select Category </Combobox.Label>
                 <Combobox.Control>
                     <Combobox.Input 
                     placeholder="Select category"
-                    defaultValue={getDisplayValue()}
-                    onChange={(e) => {
-                        setValueOnSearchQuery(e)
-                    }}/>
+                    />
                     <Combobox.IndicatorGroup>
                         <Combobox.ClearTrigger
                         onClick={() => {
@@ -174,7 +159,7 @@ export default function ExpenseForm() {
                     <Combobox.Positioner>
                         <Combobox.Content>
                             <Combobox.Empty>No items found</Combobox.Empty>
-                            {filteredCategories.map((category) => (
+                            {collection.items.map((category) => (
                                 <Combobox.Item 
                                 item={category} 
                                 key={category.id}

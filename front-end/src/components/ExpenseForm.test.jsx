@@ -83,11 +83,9 @@ describe('expense form', () => {
     await renderForm()
 
     await openCategories()
-    // Typed at human speed: the category box re-renders on every key and loses
-    // characters when they arrive with no delay at all (see the front-end bugs ticket).
-    const typist = userEvent.setup({ delay: 20 })
-    await typist.type(screen.getByPlaceholderText('Select category'), 'trans')
+    await userEvent.type(screen.getByPlaceholderText('Select category'), 'trans') // no delay between keys: none may be lost
 
+    expect(screen.getByPlaceholderText('Select category')).toHaveValue('trans')
     expect(await screen.findByRole('option', { name: 'Transporte' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Alimentação' })).not.toBeInTheDocument()
   })

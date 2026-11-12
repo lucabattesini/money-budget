@@ -41,9 +41,6 @@ Vitest + jsdom, React Testing Library, `@testing-library/user-event` and
   provider and a router, and adds a `data-testid="location"` element with the
   current route.
 - **Google sign-in** is replaced by a stub button (`vi.mock('@react-oauth/google')`).
-- Typing into the category box of the expense form needs a small delay between
-  keys (`userEvent.setup({ delay: 20 })`): that input is not controlled, so keys that
-  arrive with no delay at all can be lost.
 - Local storage is cleared before each test.
 - **Testing a failure that changes nothing** (for example "must not say Salvo!"):
   the check must not run before the app has handled the response. Wait for a
