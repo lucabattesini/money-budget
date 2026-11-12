@@ -2,7 +2,7 @@ import PageHeading from "../components/PageHeading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Box, Heading, HStack, IconButton, Input, InputGroup, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
-import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp, LuHistory } from "react-icons/lu";
+import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp, LuHistory, LuSearch } from "react-icons/lu";
 import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { budgetStatus, FIRST_MONTH, hasPlan, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
@@ -112,7 +112,12 @@ export default function Budgets() {
         setData(result.data);
     };
 
-    const isOpen = (group) => opened[group.id] ?? true; // every group starts open
+    const [search, setSearch] = useState("");
+    const searching = search.trim() !== "";
+    const isOpen = (group) => searching || (opened[group.id] ?? true); // every group starts open; a search opens them all
+    const fold = (text) => plainName(text).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(); // "Água" is found by "agua"
+    const matches = (category) => fold(category.name).includes(fold(search));
+    const groups = data ? (searching ? data.groups.map((g) => ({ ...g, categories: g.categories.filter(matches) })).filter((g) => g.categories.length > 0) : data.groups) : [];
 
     return (
         <Stack gap={6} maxW="5xl" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 6, md: 10 }} pb={12}>
@@ -163,7 +168,19 @@ export default function Budgets() {
                         </Stack>
                     </Box>
 
-                    {data.groups.map((group) => (
+                    <InputGroup startElement={<LuSearch />}>
+                        <Input
+                            type="search"
+                            aria-label="Buscar categoria"
+                            placeholder="Buscar categoria"
+                            minH="44px"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </InputGroup>
+                    {searching && groups.length === 0 && <Text color="fg.muted">Nenhuma categoria encontrada.</Text>}
+
+                    {groups.map((group) => (
                         <Box key={group.id} borderWidth="1px" borderRadius="lg" overflow="hidden">
                             <HStack
                                 as="button"

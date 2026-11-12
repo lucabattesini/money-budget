@@ -216,6 +216,24 @@ describe('budgets page: what it shows', () => {
     expect(rent.queryByRole('img', { name: /Repetido de / })).not.toBeInTheDocument()
   })
 
+  it('searches categories by name, ignoring accents and case, and says when nothing matches', async () => {
+    const data = month(NOW)
+    data.groups[0].categories[0] = category(10, '🍽️ Restaurantes e Bares', 50000, 20000)
+    mockApi({ [`GET /budgets?month=${NOW}`]: { data } })
+
+    renderApp(<Budgets />)
+    await screen.findByLabelText('Orçamento de Restaurantes e Bares')
+    expect(screen.getByLabelText('Orçamento de Aluguel')).toBeInTheDocument()
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar categoria' }), 'RESTAURANTES')
+    expect(screen.getByLabelText('Orçamento de Restaurantes e Bares')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Orçamento de Aluguel')).not.toBeInTheDocument()
+
+    await userEvent.clear(screen.getByRole('searchbox', { name: 'Buscar categoria' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar categoria' }), 'zzz')
+    expect(screen.getByText('Nenhuma categoria encontrada.')).toBeInTheDocument()
+  })
+
   it('writes amounts in the currency and language of the family', async () => {
     setLocale({ currency: 'USD', language: 'en' })
     mockApi({ [`GET /budgets?month=${NOW}`]: { data: month(NOW) } })
