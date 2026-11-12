@@ -1,7 +1,9 @@
 import { Box, Button, Flex, Heading, Link, Menu, Portal, Stack, Text } from "@chakra-ui/react";
+import { Suspense } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LuArrowDownUp, LuBot, LuChevronDown, LuCopyCheck, LuSettings, LuStore, LuTags, LuUser, LuUsers } from "react-icons/lu";
 import { useLocale } from "../lib/locale";
+import { SpinnerLoading } from "../components/spinnerLoading";
 
 // One entry per section of the account area. Add a line here (and a route in App.jsx) for a new section.
 const ACCOUNT_SECTIONS = [
@@ -74,7 +76,9 @@ export default function AccountLayout() {
             </Stack>
 
             <Box flex="1" minW={0}>
-                <Outlet />
+                <Suspense fallback={<SpinnerLoading />}>
+                    <Outlet />
+                </Suspense>
             </Box>
         </Flex>
     );

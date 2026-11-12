@@ -34,44 +34,44 @@ describe('routing', () => {
 
   it.each(['#/', '#/transactions', '#/budgets', '#/report-expense', '#/investments', '#/account'])(
     'sends a logged-out visitor from %s to the login page',
-    (hash) => {
+    async (hash) => {
       renderAt(hash)
 
       // the Google login page, not the legacy /login page that has the same heading
-      expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument() // pages are loaded when first opened
       expect(window.location.hash).toBe('#/login-google')
     },
   )
 
   it.each([
-    ['#/login', () => screen.getByPlaceholderText(/e-?mail/i)],
-    ['#/login-google', () => screen.getByRole('button', { name: 'Sign in with Google' })],
-    ['#/create-account', () => screen.getByText('Criar conta')],
-  ])('keeps %s public and shows its own page', (hash, pageMarker) => {
+    ['#/login', () => screen.findByPlaceholderText(/e-?mail/i)],
+    ['#/login-google', () => screen.findByRole('button', { name: 'Sign in with Google' })],
+    ['#/create-account', () => screen.findByText('Criar conta')],
+  ])('keeps %s public and shows its own page', async (hash, pageMarker) => {
     renderAt(hash)
 
+    expect(await pageMarker()).toBeInTheDocument()
     expect(window.location.hash).toBe(hash)
-    expect(pageMarker()).toBeInTheDocument()
   })
 
   it.each([
     ['#/account', 'Minha Conta'],
     ['#/account/data', 'Importar e exportar'],
-  ])('shows %s inside the app layout and the account menu', (hash, marker) => {
+  ])('shows %s inside the app layout and the account menu', async (hash, marker) => {
     saveToken('tok')
     renderAt(hash)
 
-    expect(screen.getAllByText(marker).length).toBeGreaterThan(0) // the page title (the menu entry has the same name)
+    expect((await screen.findAllByText(marker)).length).toBeGreaterThan(0) // the page title (the menu entry has the same name)
     expect(screen.getByRole('navigation', { name: 'Menu da conta' })).toBeInTheDocument()
     expect(screen.getByText('Money Budget')).toBeInTheDocument() // header
   })
 
-  it('shows a logged-in user the page they asked for, inside the layout', () => {
+  it('shows a logged-in user the page they asked for, inside the layout', async () => {
     saveToken('tok')
 
     renderAt('#/investments')
 
-    expect(screen.getByText('Painel de Investimentos')).toBeInTheDocument()
+    expect(await screen.findByText('Painel de Investimentos')).toBeInTheDocument()
     expect(screen.getByText('Money Budget')).toBeInTheDocument() // header
     expect(window.location.hash).toBe('#/investments')
   })

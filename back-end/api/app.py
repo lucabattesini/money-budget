@@ -7,6 +7,7 @@ load_dotenv(dotenv_path)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -38,6 +39,14 @@ app = FastAPI(
 
 UPLOAD_OVERHEAD = 1024 * 1024  # the rest of the form around the file
 
+# The built web app names its files after their content (assets/index-B5oJ62Zb.js): a name never has two versions, so a
+# browser may keep them for a year and the second visit downloads nothing
+LONG_CACHE = "public, max-age=31536000, immutable"
+
+
+def cache_control_for(path: str) -> str | None:
+    return LONG_CACHE if path.startswith("/assets/") else None
+
 
 # The body of an upload is read before the login is checked, so a huge one is refused by its declared size first.
 # (Added before CORS, so CORS wraps it and the browser can read the answer. An upload sent in chunks, with no declared
@@ -61,9 +70,15 @@ async def refuse_huge_uploads(request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     if request.url.path.rstrip("/") == "/mcp":
         response.headers.setdefault("Cache-Control", "no-store")
+    cache = cache_control_for(request.url.path)
+    if cache and response.status_code == 200:
+        response.headers.setdefault("Cache-Control", cache)
     return response
 
 
+# The scripts of the web app are over a megabyte of text: compressed, a first visit downloads about a quarter of that
+# (Cloud Run does not compress by itself). Added first, so it wraps the rest and compresses what they answer.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONT_URL],
