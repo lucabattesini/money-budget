@@ -3,6 +3,7 @@ import { Button, Code, Heading, List, RadioGroup, Separator, Stack, Table, Text 
 import { LuDownload, LuUpload } from "react-icons/lu";
 import ImportDialog from "../components/ImportDialog";
 import { enqueueExport, followExport } from "../lib/exportJobs";
+import PageHeading from "../components/PageHeading";
 
 // The columns a spreadsheet must have to be imported. The first row holds these exact names.
 const COLUMNS = [
@@ -37,10 +38,9 @@ export default function AccountData() {
 
     return (
         <Stack gap={6} maxW="3xl">
-            <Stack gap={1}>
-                <Heading size="xl">Importar e exportar</Heading>
-                <Text color="fg.muted">Leve suas transações para outro lugar, ou traga-as de uma planilha.</Text>
-            </Stack>
+            <PageHeading title="Importar e exportar">
+                Leve suas transações para outro lugar, ou traga-as de uma planilha.
+            </PageHeading>
 
             <Stack gap={4}>
                 <Heading size="md">Importar</Heading>

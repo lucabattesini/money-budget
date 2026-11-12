@@ -3,6 +3,7 @@ import { Button, Checkbox, CloseButton, Dialog, Field, Input, NativeSelect, Port
 import { bulkDeleteTransactions, bulkUpdateTransactions } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import customToaster from "../utils/customToaster";
+import useBackClosesOverlay from "../lib/useBackClosesOverlay";
 
 const MAX_MERCHANT = 100; // the size of the database column
 const KEEP = ""; // every choice starts on "Não alterar"
@@ -33,6 +34,7 @@ export function BulkEditDialog({ ids, open, onClose, categories, members, mercha
     const [merchant, setMerchant] = useState("");
     const [removeMerchant, setRemoveMerchant] = useState(false);
     const [saving, setSaving] = useState(false);
+    useBackClosesOverlay(open, onClose);
 
     const changes = {
         ...(categoryId ? { category_id: categoryId } : {}),
@@ -115,6 +117,7 @@ export function BulkEditDialog({ ids, open, onClose, categories, members, mercha
 // Ask before deleting many transactions for good. Calls onDone() after they were deleted.
 export function BulkDeleteDialog({ ids, open, onClose, onDone }) {
     const [deleting, setDeleting] = useState(false);
+    useBackClosesOverlay(open, onClose);
 
     const remove = async () => {
         setDeleting(true);

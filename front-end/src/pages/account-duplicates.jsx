@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { Box, Button, Checkbox, Dialog, Field, Flex, Heading, Input, Portal, RadioGroup, Stack, Table, Text } from "@chakra-ui/react";
 import { bulkDeleteTransactions, getDuplicateTransactions } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { formatCents } from "../lib/money";
 import { familyNow, formatDate } from "../lib/locale";
 import customToaster from "../utils/customToaster";
+import PageHeading from "../components/PageHeading";
+import useBackClosesOverlay from "../lib/useBackClosesOverlay";
 
 const MAX_DELETE_AT_ONCE = 500; // what the server accepts in one request
 const DELETE_ALL = "none"; // the person wants none of the group kept
@@ -19,9 +22,21 @@ const groupKey = (group) => group.map((transaction) => transaction.id).join();
 // Find transactions that look entered twice in a period, choose which one to keep in each group, and delete the others.
 export default function AccountDuplicates() {
     const today = familyNow();
-    const [start, setStart] = useState(iso(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()))) // three months back;
-    const [end, setEnd] = useState(iso(today));
+    // The period lives in the address (?from=&to=): reload keeps them, and not one entry per keystroke
+    const { state: routeState } = useLocation();
+    const [params, setParams] = useSearchParams();
+    const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") && iso(new Date(`${value}T00:00:00`)) === value; // a real calendar day
+    const day = (name, fallback) => (isDay(params.get(name)) ? params.get(name) : fallback);
+    const start = params.get("from") === "" ? "" : day("from", iso(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()))); // three months back
+    const end = params.get("to") === "" ? "" : day("to", iso(today));
     const [ignoreExcluded, setIgnoreExcluded] = useState(false); // leave out what does not count in the totals
+    const change = (name, value) => setParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set(name, value);
+        return next;
+    }, { replace: true, state: routeState });
+    const setStart = (value) => change("from", value);
+    const setEnd = (value) => change("to", value);
     const [searching, setSearching] = useState(false);
     const [groups, setGroups] = useState(null); // null: not searched yet
     const [keep, setKeep] = useState({}); // group key -> id of the one kept, or KEEP_ALL, or DELETE_ALL
@@ -69,14 +84,13 @@ export default function AccountDuplicates() {
         search();
     };
 
+    useBackClosesOverlay(pending !== null, () => setPending(null));
+
     return (
         <Stack gap={6} maxW="3xl">
-            <Stack gap={1}>
-                <Heading size="xl">Duplicatas</Heading>
-                <Text color="fg.muted">
-                    Transações do mesmo dia, com o mesmo valor e o mesmo tipo aparecem juntas. Em cada grupo, escolha qual manter; as outras são excluídas.
-                </Text>
-            </Stack>
+            <PageHeading title="Duplicatas">
+                Transações do mesmo dia, com o mesmo valor e o mesmo tipo aparecem juntas. Em cada grupo, escolha qual manter; as outras são excluídas.
+            </PageHeading>
 
             <Flex gap={4} wrap="wrap" align="end">
                 <Field.Root w="auto" invalid={Boolean(rangeError)}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_FILTERS, applyFilters, filtersFromLink, hasActiveFilters } from './transactionFilters'
+import { EMPTY_FILTERS, applyFilters, filtersFromLink, hasActiveFilters, writeFilters } from './transactionFilters'
 import { transactionsLink } from './budget'
 
 const t = (id, label, value, date, category_id = 1) => ({ id, label, value, transactioned_at: date, category_id })
@@ -71,8 +71,18 @@ describe('filtersFromLink', () => {
   })
 
   it('ignores what is not a day or a type, and anything else in the link', () => {
-    expect(filtersFromLink('?from=ontem&to=2026-13-45&type=pix&search=x&category=3')).toEqual(EMPTY_FILTERS)
+    expect(filtersFromLink('?from=ontem&to=2026-13-45&type=pix&counting=maybe&category=abc&min=<b>&other=1')).toEqual(EMPTY_FILTERS)
     expect(filtersFromLink('?from=2026-3-1&to=2026-03-31')).toEqual({ ...EMPTY_FILTERS, to: '2026-03-31' })
+  })
+
+  it('reads and writes every filter, so the page can be reloaded or shared with its filters', () => {
+    const filters = { search: 'pão', category: '3', type: 'debit', person: '2', merchant: '7', counting: 'left_out', from: '2026-03-01', to: '2026-03-31', min: '12,50', max: '1.000,00' }
+
+    const params = writeFilters(new URLSearchParams('page=2'), filters)
+
+    expect(filtersFromLink(params.toString())).toEqual(filters)
+    expect(params.get('page')).toBe('2') // what is not a filter is kept
+    expect(writeFilters(params, EMPTY_FILTERS).toString()).toBe('page=2') // empty filters leave no trace
   })
 
   it('reads back what the dashboard link asks for', () => {

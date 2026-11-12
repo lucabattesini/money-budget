@@ -138,6 +138,8 @@ flowchart TB
 
 ### 3.1 Front-end (`front-end/`)
 - React (Vite) SPA, `HashRouter`-based, Chakra UI for components/theming.
+- Drawers and dialogs are not routes, but an open one takes its own history entry (`lib/useBackClosesOverlay`): the back gesture closes it and stays on the page, and closing it by hand drops the entry.
+- State the person navigates through lives in the address, so back and forward step through it: the month on the dashboard and budgets (`?month=`), the page of the transactions list (`?page=`). The transactions filters and the duplicates period are in the address too, but replace the entry instead of adding one per keystroke. The filter panel takes a history entry like the drawers do; the filters in the address are rewritten from the page's state after it closes.
 - Installable as a PWA: `public/manifest.json` (name, icons, standalone display) and `public/sw.js`, a small service worker registered
   from `lib/pwa.js` in the built app only. It keeps the app's own files (network first for the page, cache first for `/assets/*`) and never
   touches the API or non-GET requests, so data is always live; there is no offline data.

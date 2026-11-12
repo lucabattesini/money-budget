@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getToken, saveToken } from '../lib/auth'
 import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
@@ -54,6 +55,11 @@ const routes = (transactions = TRANSACTIONS) => ({
   'POST /transactions': transactions,
 })
 
+
+const BackButton = () => {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate(-1)}>voltar</button>
+}
 
 describe('transactions page', () => {
   beforeEach(() => {
@@ -600,6 +606,51 @@ describe('transactions page', () => {
       expect(screen.getByRole('button', { name: 'Filtros (2)' })).toBeInTheDocument()
     })
 
+    it('writes the filters into the address, replacing the entry (not one step back per change)', async () => {
+      mockApi(routes(FILTERED))
+      renderApp(<><TransactionsDisplay /><BackButton /></>, { route: '/transactions?from=2026-03-01' })
+      await screen.findByText('Almoço')
+      await openFilters()
+
+      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
+      await userEvent.type(screen.getByLabelText('Buscar'), 'ub')
+
+      const shown = screen.getByTestId('location').textContent
+      expect(shown).toContain('search=ub')
+      expect(shown).toContain('from=2026-03-01')
+    })
+
+    it('closes the filter panel when the person goes back, and stays on the page', async () => {
+      mockApi(routes(FILTERED))
+      renderApp(<><TransactionsDisplay /><BackButton /></>, { route: '/transactions' })
+      await screen.findByText('Almoço')
+      await openFilters()
+      expect(screen.getByLabelText('Buscar')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByText('voltar'))
+
+      await waitFor(() => expect(screen.queryByLabelText('Buscar')).not.toBeInTheDocument())
+      expect(screen.getByTestId('location')).toHaveTextContent('/transactions')
+    })
+
+    it('keeps a filter changed while the panel is open in the address after the panel is closed, on the first page', async () => {
+      mockApi(routes(FILTERED))
+      renderApp(<><TransactionsDisplay /><BackButton /></>, { route: '/transactions?from=2026-03-01&page=2' })
+      await screen.findByText('Almoço')
+      await openFilters()
+
+      await userEvent.type(screen.getByLabelText('Buscar'), 'ub')
+      await userEvent.click(screen.getByText('voltar')) // closes the panel: one step back
+
+      await waitFor(() => expect(screen.queryByLabelText('Buscar')).not.toBeInTheDocument())
+      await waitFor(() => {
+        const address = screen.getByTestId('location').textContent // the step back and the rewrite settle together
+        expect(address).toContain('search=ub')
+        expect(address).toContain('from=2026-03-01')
+        expect(address).not.toContain('page=')
+      })
+    })
+
     it('combines filters', async () => {
       await setup()
 
@@ -648,6 +699,19 @@ describe('transactions page', () => {
       expect(oldRows()).toHaveLength(30)
       expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
       expect(screen.getByText('hoje')).toBeInTheDocument()
+    })
+
+    it('goes back to the page before when the person goes back', async () => {
+      mockApi(routes(DATA))
+      renderApp(<><TransactionsDisplay /><BackButton /></>)
+      await screen.findByText('hoje')
+      await userEvent.click(screen.getByRole('button', { name: 'Próxima' }))
+      expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
+      expect(screen.getByTestId('location')).toHaveTextContent('page=2')
+
+      await userEvent.click(screen.getByText('voltar'))
+
+      expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
     })
 
     it('moves between pages and stops at the ends', async () => {

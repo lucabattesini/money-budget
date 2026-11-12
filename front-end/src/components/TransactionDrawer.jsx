@@ -7,6 +7,7 @@ import AmountInput from "./AmountInput";
 import { CURRENCIES, familyNow, useLocale } from "../lib/locale";
 import { leftOutByDefault } from "../lib/totals";
 import customToaster from "../utils/customToaster";
+import useBackClosesOverlay from "../lib/useBackClosesOverlay";
 
 const MAX_LABEL = 25;
 const MAX_MERCHANT = 100; // the size of the database column
@@ -65,6 +66,8 @@ export default function TransactionDrawer({ open, onClose, categories, members =
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, transaction]);
+
+    useBackClosesOverlay(open, onClose);
 
     // Choosing a category sets the checkbox (a transfer or a card payment starts out left out) until the person decides
     const chooseCategory = (id) => {

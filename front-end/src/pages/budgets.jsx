@@ -1,13 +1,15 @@
+import PageHeading from "../components/PageHeading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Box, Heading, HStack, IconButton, Input, InputGroup, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
-import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp } from "react-icons/lu";
+import { LuChevronDown, LuChevronLeft, LuChevronRight, LuChevronUp, LuHistory, LuSearch } from "react-icons/lu";
 import { getBudgets, setBudget } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { budgetStatus, FIRST_MONTH, hasPlan, LAST_MONTH, monthFromLink, monthKey, monthLabel, shiftMonth } from "../lib/budget";
 import { plainName } from "../lib/categoryName";
 import { currencySymbol, familyNow, useLocale } from "../lib/locale";
 import { budgetEditText, budgetFieldText, budgetTextToCents, formatBudgetCents, sanitizeBudgetText } from "../lib/money";
+import { Tooltip } from "../components/ui/tooltip";
 import customToaster from "../utils/customToaster";
 
 const BAR_COLORS = { ok: "green", warn: "orange", limit: "blue", over: "red", none: "gray" };
@@ -28,8 +30,8 @@ function SpentBar({ spent, budgeted, label }) {
 function Stat({ label, value, color }) {
     return (
         <Stack gap={0}>
-            <Text fontSize="sm" color="fg.muted">{label}</Text>
-            <Text fontSize="2xl" fontWeight="bold" color={color}>{value}</Text>
+            <Text fontSize="xs" color="fg.muted">{label}</Text>
+            <Text fontSize={{ base: "md", md: "2xl" }} fontWeight="bold" color={color}>{value}</Text>
         </Stack>
     );
 }
@@ -46,13 +48,14 @@ function leftText(spent, budgeted) {
 export default function Budgets() {
     const { timezone } = useLocale();
     const symbol = currencySymbol(); // amounts and the month name follow the family's currency and language
-    const [params] = useSearchParams();
+    const [params, setParams] = useSearchParams();
     // Opens on the month the link asks for (the dashboard sends the month it shows), this month otherwise
     // "This month" is read on the family's clock, again when its timezone arrives (the settings load after the first paint)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- depends on the timezone only
     const thisMonth = useMemo(() => monthKey(familyNow()), [timezone]);
-    const [chosen, setMonth] = useState(() => monthFromLink(params.get("month"), null));
-    const month = chosen ?? thisMonth;
+    // The month lives in the address (?month=2026-03), one history entry per month, so the back gesture goes to the month before
+    const month = monthFromLink(params.get("month"), thisMonth);
+    const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key });
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
     const [drafts, setDrafts] = useState({}); // what is being typed, by category id, until it is saved
@@ -110,23 +113,25 @@ export default function Budgets() {
         setData(result.data);
     };
 
-    const isOpen = (group) => opened[group.id] ?? true; // every group starts open
+    const [search, setSearch] = useState("");
+    const searching = search.trim() !== "";
+    const isOpen = (group) => searching || (opened[group.id] ?? true); // every group starts open; a search opens them all
+    const fold = (text) => plainName(text).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(); // "Água" is found by "agua"
+    const matches = (category) => fold(category.name).includes(fold(search));
+    const groups = data ? (searching ? data.groups.map((g) => ({ ...g, categories: g.categories.filter(matches) })).filter((g) => g.categories.length > 0) : data.groups) : [];
 
     return (
         <Stack gap={6} maxW="5xl" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 6, md: 10 }} pb={12}>
-            <Stack gap={1}>
-                <Heading size="2xl">Orçamentos</Heading>
-                <Text color="fg.muted">
-                    Planeje quanto gastar em cada categoria e acompanhe o que já foi gasto. O valor de um mês vale para os
-                    meses seguintes até você mudar. Só entram as saídas de dinheiro.
-                </Text>
-            </Stack>
+            <PageHeading title="Orçamentos" size="2xl">
+                Planeje quanto gastar em cada categoria e acompanhe o que já foi gasto. O valor de um mês vale para os
+                meses seguintes até você mudar. Só entram as saídas de dinheiro.
+            </PageHeading>
 
-            <HStack gap={2}>
+            <HStack gap={2} w="full">
                 <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
                     <LuChevronLeft />
                 </IconButton>
-                <Heading size="lg" minW={{ base: "8rem", md: "11rem" }} textAlign="center" textTransform="capitalize" aria-live="polite">
+                <Heading size="lg" flex="1" textAlign="center" textTransform="capitalize" aria-live="polite">
                     {monthLabel(month)}
                 </Heading>
                 <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
@@ -139,9 +144,9 @@ export default function Budgets() {
 
             {data && (
                 <>
-                    <Box borderWidth="1px" borderRadius="lg" p={{ base: 4, md: 5 }}>
-                        <Stack gap={4}>
-                            <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
+                    <Box borderWidth="1px" borderRadius="lg" p={{ base: 3, md: 5 }}>
+                        <Stack gap={{ base: 2, md: 4 }}>
+                            <SimpleGrid columns={3} gap={{ base: 2, md: 4 }}>
                                 <Stat label="Orçado" value={formatBudgetCents(data.totals.budgeted)} />
                                 <Stat label="Gasto" value={formatBudgetCents(data.totals.spent)} />
                                 <Stat
@@ -164,7 +169,19 @@ export default function Budgets() {
                         </Stack>
                     </Box>
 
-                    {data.groups.map((group) => (
+                    <InputGroup startElement={<LuSearch />}>
+                        <Input
+                            type="search"
+                            aria-label="Buscar categoria"
+                            placeholder="Buscar categoria"
+                            minH="44px"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </InputGroup>
+                    {searching && groups.length === 0 && <Text color="fg.muted">Nenhuma categoria encontrada.</Text>}
+
+                    {groups.map((group) => (
                         <Box key={group.id} borderWidth="1px" borderRadius="lg" overflow="hidden">
                             <HStack
                                 as="button"
@@ -197,12 +214,23 @@ export default function Budgets() {
                                         const { state } = budgetStatus(category.spent, category.budgeted);
                                         return (
                                             <Stack as="li" key={category.id} gap={2} px={{ base: 4, md: 5 }} py={3} borderTopWidth="1px">
-                                                <HStack justify="space-between" gap={4} wrap="wrap">
-                                                    <Text flex="1" minW={{ base: "full", sm: "10rem" }}>{category.name}</Text>
-                                                    <Text fontSize="sm" color="fg.muted" aria-label={`Gasto em ${name}`}>
-                                                        {formatBudgetCents(category.spent)} gastos
-                                                    </Text>
-                                                    <InputGroup w={{ base: "full", sm: "10rem" }} startElement={<Text fontSize="sm" color="fg.muted">{symbol}</Text>}>
+                                                <HStack justify="space-between" gap={3}>
+                                                    <Stack flex="1" minW={0} gap={1}>
+                                                        <HStack gap={1.5}>
+                                                            <Text>{category.name}</Text>
+                                                            {category.budgeted != null && category.since && category.since !== month && (
+                                                                <Tooltip content={`Repetido de ${monthLabel(category.since)}`} positioning={{ placement: "top" }}>
+                                                                    <Box as="span" role="img" tabIndex={0} aria-label={`Repetido de ${monthLabel(category.since)}`} color="fg.muted" display="inline-flex">
+                                                                        <LuHistory size={14} />
+                                                                    </Box>
+                                                                </Tooltip>
+                                                            )}
+                                                        </HStack>
+                                                        {state === "over" && <Badge alignSelf="start" colorPalette="red">Acima do orçamento</Badge>}
+                                                        {state === "warn" && <Badge alignSelf="start" colorPalette="orange">Perto do limite</Badge>}
+                                                        {state === "limit" && <Badge alignSelf="start" colorPalette="blue">No limite</Badge>}
+                                                    </Stack>
+                                                    <InputGroup w={{ base: "8rem", sm: "10rem" }} startElement={<Text fontSize="sm" color="fg.muted">{symbol}</Text>}>
                                                         <Input
                                                             size="sm"
                                                             minH={{ base: "44px", md: "auto" }}
@@ -218,20 +246,17 @@ export default function Budgets() {
                                                         />
                                                     </InputGroup>
                                                 </HStack>
-                                                {category.budgeted != null && (
-                                                    <>
-                                                        <SpentBar spent={category.spent} budgeted={category.budgeted} label={`Gasto de ${name} no orçamento`} />
-                                                        <HStack justify="space-between">
-                                                            <Text fontSize="xs" color={state === "over" ? "fg.error" : "fg.muted"}>
-                                                                {leftText(category.spent, category.budgeted)}
-                                                                {category.since && category.since !== month && ` · Repetido de ${monthLabel(category.since)}`}
-                                                            </Text>
-                                                            {state === "over" && <Badge colorPalette="red">Acima do orçamento</Badge>}
-                                                            {state === "warn" && <Badge colorPalette="orange">Perto do limite</Badge>}
-                                                            {state === "limit" && <Badge colorPalette="blue">No limite</Badge>}
-                                                        </HStack>
-                                                    </>
-                                                )}
+                                                {category.budgeted != null && <SpentBar spent={category.spent} budgeted={category.budgeted} label={`Gasto de ${name} no orçamento`} />}
+                                                <HStack justify="space-between" align="start" gap={3}>
+                                                    <Text fontSize="xs" color="fg.muted" aria-label={`Gasto em ${name}`}>
+                                                        {formatBudgetCents(category.spent)} gastos
+                                                    </Text>
+                                                    {category.budgeted != null && (
+                                                        <Text fontSize="xs" textAlign="right" color={state === "over" ? "fg.error" : "fg.muted"}>
+                                                            {leftText(category.spent, category.budgeted)}
+                                                        </Text>
+                                                    )}
+                                                </HStack>
                                             </Stack>
                                         );
                                     })}

@@ -93,9 +93,9 @@ describe('duplicates page', () => {
     const keepAll = (box) => within(box).getByRole('radio', { name: /Manter todas/ })
     await userEvent.click(keepAll(groupBoxes[1]))
 
-    expect(screen.getByRole('button', { name: 'Excluir 1 duplicada' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'Excluir 1 duplicada' })).toBeEnabled()
     await userEvent.click(keepAll(groupBoxes[0]))
-    expect(screen.getByRole('button', { name: 'Excluir 0 duplicadas' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Excluir 0 duplicadas' })).toBeDisabled()
   })
 
   it('tells the user when the search fails', async () => {

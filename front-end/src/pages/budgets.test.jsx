@@ -5,7 +5,13 @@ import { toaster } from '../components/ui/toaster'
 import { saveToken } from '../lib/auth'
 import { monthKey, shiftMonth } from '../lib/budget'
 import { setLocale } from '../lib/locale'
+import { useNavigate } from 'react-router-dom'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
+
+const GoBack = () => {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate(-1)}>voltar</button>
+}
 import Budgets from './budgets'
 
 const NOW = monthKey(new Date())
@@ -75,6 +81,23 @@ describe('budgets page: the month in the link', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
 
     await waitFor(() => expect(requestsMade(api)).toContain('GET /budgets?month=2026-04'))
+  })
+
+  it('goes back to the month before when the person goes back, one step per month', async () => {
+    mockApi({
+      [`GET /budgets?month=${OTHER}`]: { data: month(OTHER) },
+      'GET /budgets?month=2026-04': { data: month('2026-04') },
+    })
+    renderApp(<><Budgets /><GoBack /></>, { route: `/budgets?month=${OTHER}` })
+    await screen.findByText('março de 2026')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    expect(await screen.findByText('abril de 2026')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/budgets?month=2026-04')
+
+    await userEvent.click(screen.getByText('voltar'))
+
+    expect(await screen.findByText('março de 2026')).toBeInTheDocument()
   })
 
   it.each(['?month=banana', '?month=2026-13', '?month=1999-01', ''])('opens on this month for the link %j', async (search) => {
@@ -211,9 +234,27 @@ describe('budgets page: what it shows', () => {
     renderApp(<Budgets />)
 
     const food = within((await screen.findByLabelText('Orçamento de Restaurantes e Bares')).closest('li'))
-    expect(food.getByText(/Repetido de /)).toBeInTheDocument()
+    expect(food.getByRole('img', { name: /Repetido de / })).toBeInTheDocument()
     const rent = within(screen.getByLabelText('Orçamento de Aluguel').closest('li')) // set in this very month
-    expect(rent.queryByText(/Repetido de /)).not.toBeInTheDocument()
+    expect(rent.queryByRole('img', { name: /Repetido de / })).not.toBeInTheDocument()
+  })
+
+  it('searches categories by name, ignoring accents and case, and says when nothing matches', async () => {
+    const data = month(NOW)
+    data.groups[0].categories[0] = category(10, '🍽️ Restaurantes e Bares', 50000, 20000)
+    mockApi({ [`GET /budgets?month=${NOW}`]: { data } })
+
+    renderApp(<Budgets />)
+    await screen.findByLabelText('Orçamento de Restaurantes e Bares')
+    expect(screen.getByLabelText('Orçamento de Aluguel')).toBeInTheDocument()
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar categoria' }), 'RESTAURANTES')
+    expect(screen.getByLabelText('Orçamento de Restaurantes e Bares')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Orçamento de Aluguel')).not.toBeInTheDocument()
+
+    await userEvent.clear(screen.getByRole('searchbox', { name: 'Buscar categoria' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar categoria' }), 'zzz')
+    expect(screen.getByText('Nenhuma categoria encontrada.')).toBeInTheDocument()
   })
 
   it('writes amounts in the currency and language of the family', async () => {
