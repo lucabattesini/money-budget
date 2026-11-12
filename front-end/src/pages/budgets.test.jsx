@@ -5,7 +5,13 @@ import { toaster } from '../components/ui/toaster'
 import { saveToken } from '../lib/auth'
 import { monthKey, shiftMonth } from '../lib/budget'
 import { setLocale } from '../lib/locale'
+import { useNavigate } from 'react-router-dom'
 import { mockApi, renderApp, requestsMade } from '../test/helpers'
+
+const GoBack = () => {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate(-1)}>voltar</button>
+}
 import Budgets from './budgets'
 
 const NOW = monthKey(new Date())
@@ -75,6 +81,23 @@ describe('budgets page: the month in the link', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
 
     await waitFor(() => expect(requestsMade(api)).toContain('GET /budgets?month=2026-04'))
+  })
+
+  it('goes back to the month before when the person goes back, one step per month', async () => {
+    mockApi({
+      [`GET /budgets?month=${OTHER}`]: { data: month(OTHER) },
+      'GET /budgets?month=2026-04': { data: month('2026-04') },
+    })
+    renderApp(<><Budgets /><GoBack /></>, { route: `/budgets?month=${OTHER}` })
+    await screen.findByText('março de 2026')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    expect(await screen.findByText('abril de 2026')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/budgets?month=2026-04')
+
+    await userEvent.click(screen.getByText('voltar'))
+
+    expect(await screen.findByText('março de 2026')).toBeInTheDocument()
   })
 
   it.each(['?month=banana', '?month=2026-13', '?month=1999-01', ''])('opens on this month for the link %j', async (search) => {

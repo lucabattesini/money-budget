@@ -35,7 +35,7 @@ export default function Dashboard() {
     const [params, setParams] = useSearchParams();
     const requested = monthFromLink(params.get("month"), thisMonth);
     const month = requested > thisMonth ? thisMonth : requested;
-    const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key }, { replace: true });
+    const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key });
     const shownMonth = loaded?.month ?? month;
     const refreshing = !loading && loaded.month !== month;
     // After an expired login the token is gone and the user is on the login page: no message there

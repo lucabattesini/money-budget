@@ -6,6 +6,7 @@ import { getToken } from "../lib/auth";
 import { EMOJI_CHOICES, compareCategories, joinName, splitName } from "../lib/categoryName";
 import customToaster from "../utils/customToaster";
 import PageHeading from "../components/PageHeading";
+import useBackClosesOverlay from "../lib/useBackClosesOverlay";
 
 const MAX_NAME = 100; // characters of the whole name, emoji included: the size of the database column
 const length = (text) => Array.from(text).length; // by characters, like the server (an emoji can be two UTF-16 units)
@@ -65,6 +66,7 @@ function EmojiGrid({ value, onChange }) {
 
 // Side panel to add a category, or to edit `category` (its name and group).
 function CategoryDrawer({ open, onClose, groups, category, defaultGroupId, onSaved }) {
+    useBackClosesOverlay(open, onClose);
     const editing = category !== null;
     const [emoji, setEmoji] = useState("");
     const [name, setName] = useState("");

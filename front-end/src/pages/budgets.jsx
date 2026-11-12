@@ -48,13 +48,14 @@ function leftText(spent, budgeted) {
 export default function Budgets() {
     const { timezone } = useLocale();
     const symbol = currencySymbol(); // amounts and the month name follow the family's currency and language
-    const [params] = useSearchParams();
+    const [params, setParams] = useSearchParams();
     // Opens on the month the link asks for (the dashboard sends the month it shows), this month otherwise
     // "This month" is read on the family's clock, again when its timezone arrives (the settings load after the first paint)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- depends on the timezone only
     const thisMonth = useMemo(() => monthKey(familyNow()), [timezone]);
-    const [chosen, setMonth] = useState(() => monthFromLink(params.get("month"), null));
-    const month = chosen ?? thisMonth;
+    // The month lives in the address (?month=2026-03), one history entry per month, so the back gesture goes to the month before
+    const month = monthFromLink(params.get("month"), thisMonth);
+    const setMonth = (key) => setParams(key === thisMonth ? {} : { month: key });
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
     const [drafts, setDrafts] = useState({}); // what is being typed, by category id, until it is saved

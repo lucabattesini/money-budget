@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
@@ -32,7 +32,14 @@ export default function TransactionsDisplay() {
     const { search } = useLocation();
     // Opens with the filters the link asks for (the dashboard sends the month it shows)
     const [filters, setFilters] = useState(() => filtersFromLink(search));
-    const [page, setPage] = useState(1);
+    // The page of the list lives in the address (?page=2), so the back gesture goes to the page before
+    const [params, setParams] = useSearchParams();
+    const page = Math.max(1, parseInt(params.get("page"), 10) || 1);
+    const setPage = (number) => setParams((current) => {
+        const next = new URLSearchParams(current);
+        if (number > 1) next.set("page", String(number)); else next.delete("page");
+        return next;
+    });
     const [selecting, setSelecting] = useState(false); // the tick boxes only show in selection mode
     const [selected, setSelected] = useState(() => new Set()); // ids of the rows ticked
     const [bulkEditing, setBulkEditing] = useState(false);
@@ -69,7 +76,7 @@ export default function TransactionsDisplay() {
 
     const changeFilters = (next) => {
         setFilters(next);
-        setPage(1);
+        setParams((current) => { const kept = new URLSearchParams(current); kept.delete("page"); return kept; }, { replace: true });
     };
 
     const reload = () => setTrigger((current) => current + 1);

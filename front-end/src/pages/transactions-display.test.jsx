@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getToken, saveToken } from '../lib/auth'
 import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
@@ -54,6 +55,11 @@ const routes = (transactions = TRANSACTIONS) => ({
   'POST /transactions': transactions,
 })
 
+
+const BackButton = () => {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate(-1)}>voltar</button>
+}
 
 describe('transactions page', () => {
   beforeEach(() => {
@@ -648,6 +654,19 @@ describe('transactions page', () => {
       expect(oldRows()).toHaveLength(30)
       expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
       expect(screen.getByText('hoje')).toBeInTheDocument()
+    })
+
+    it('goes back to the page before when the person goes back', async () => {
+      mockApi(routes(DATA))
+      renderApp(<><TransactionsDisplay /><BackButton /></>)
+      await screen.findByText('hoje')
+      await userEvent.click(screen.getByRole('button', { name: 'Próxima' }))
+      expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
+      expect(screen.getByTestId('location')).toHaveTextContent('page=2')
+
+      await userEvent.click(screen.getByText('voltar'))
+
+      expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
     })
 
     it('moves between pages and stops at the ends', async () => {
