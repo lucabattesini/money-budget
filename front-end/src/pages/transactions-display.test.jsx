@@ -643,9 +643,12 @@ describe('transactions page', () => {
       await userEvent.click(screen.getByText('voltar')) // closes the panel: one step back
 
       await waitFor(() => expect(screen.queryByLabelText('Buscar')).not.toBeInTheDocument())
-      await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('search=ub'))
-      expect(screen.getByTestId('location').textContent).toContain('from=2026-03-01')
-      expect(screen.getByTestId('location').textContent).not.toContain('page=')
+      await waitFor(() => {
+        const address = screen.getByTestId('location').textContent // the step back and the rewrite settle together
+        expect(address).toContain('search=ub')
+        expect(address).toContain('from=2026-03-01')
+        expect(address).not.toContain('page=')
+      })
     })
 
     it('combines filters', async () => {
