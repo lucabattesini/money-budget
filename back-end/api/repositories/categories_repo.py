@@ -14,9 +14,9 @@ def _visible(family_id: UUID):
 
 
 def get_all_categories(db: Session, family_id: UUID):
-    """The categories the family can use, each with the name of its group."""
+    """The categories the family can use, each with the name and the place (position) of its group."""
     return (
-        db.query(Categories, CategoryGroups.name)
+        db.query(Categories, CategoryGroups.name, CategoryGroups.position)
         .join(CategoryGroups, Categories.group_id == CategoryGroups.id)
         .filter(_visible(family_id))
         .order_by(Categories.name, Categories.id)
@@ -106,3 +106,7 @@ def delete_category(db: Session, category: Categories) -> None:
 
 def group_name_of(db: Session, category: Categories) -> str:
     return db.query(CategoryGroups.name).filter(CategoryGroups.id == category.group_id).scalar()
+
+
+def group_position_of(db: Session, category: Categories) -> int:
+    return db.query(CategoryGroups.position).filter(CategoryGroups.id == category.group_id).scalar()

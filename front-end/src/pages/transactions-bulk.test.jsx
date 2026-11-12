@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { saveToken } from '../lib/auth'
-import { mockApi, renderApp, requestsMade } from '../test/helpers'
+import { mockApi, renderApp, requestsMade, chooseCategory } from '../test/helpers'
 import TransactionsDisplay from './transactions-display'
 
 const FAMILY = {
@@ -80,7 +80,7 @@ describe('transactions page: many at once', () => {
     await userEvent.click(screen.getByRole('button', { name: /editar selecionadas/i }))
     const form = await dialog('Editar 2 transações')
     expect(form.getByRole('button', { name: 'Salvar' })).toBeDisabled() // nothing chosen yet
-    await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+    await chooseCategory(form.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
     await userEvent.selectOptions(form.getByLabelText('Totais'), 'Não contar nos totais')
     await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
@@ -157,13 +157,13 @@ describe('transactions page: many at once', () => {
     await tick('Almoço')
     await userEvent.click(screen.getByRole('button', { name: /editar selecionadas/i }))
     const first = await dialog('Editar 1 transação')
-    await userEvent.selectOptions(first.getByLabelText('Categoria'), 'Transporte')
+    await chooseCategory(first.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
     await userEvent.click(first.getByRole('button', { name: 'Cancelar' }))
     await waitFor(() => expect(screen.queryByText('Editar 1 transação')).not.toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: /editar selecionadas/i }))
     const second = await dialog('Editar 1 transação')
-    expect(second.getByLabelText('Categoria')).toHaveValue('')
+    expect(second.getByRole('combobox', { name: 'Categoria' })).toHaveValue('Não alterar')
     expect(second.getByRole('button', { name: 'Salvar' })).toBeDisabled()
   })
 

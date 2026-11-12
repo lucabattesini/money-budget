@@ -4,6 +4,7 @@ import { bulkDeleteTransactions, bulkUpdateTransactions } from "../api/endpoints
 import { getToken } from "../lib/auth";
 import customToaster from "../utils/customToaster";
 import useBackClosesOverlay from "../lib/useBackClosesOverlay";
+import CategoryPicker from "./CategoryPicker";
 
 const MAX_MERCHANT = 100; // the size of the database column
 const KEEP = ""; // every choice starts on "Não alterar"
@@ -67,9 +68,10 @@ export function BulkEditDialog({ ids, open, onClose, categories, members, mercha
                         <Dialog.Body>
                             <Stack gap={4}>
                                 <Text fontSize="sm" color="fg.muted">O que você escolher vale para todas as selecionadas. O que ficar em "Não alterar" continua como está.</Text>
-                                <Select label="Categoria" value={categoryId} onChange={setCategoryId}>
-                                    {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                                </Select>
+                                <Field.Root>
+                                    <Field.Label>Categoria</Field.Label>
+                                    <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} emptyLabel="Não alterar" aria-label="Categoria" />
+                                </Field.Root>
                                 <Select label="Quem" value={personId} onChange={setPersonId}>
                                     {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
                                 </Select>

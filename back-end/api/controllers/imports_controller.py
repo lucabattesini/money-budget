@@ -129,7 +129,9 @@ def _category_lookup(db: Session, family_id: UUID) -> tuple[dict[str, str], set[
     """(words of the name -> category id, every id the family may use, the names that found their category only through
     an alias). The family's own category wins over a default one with the same name. Ids are text here because they
     are kept in the job's JSON columns next to the rows."""
-    categories = [category for category, _group in get_all_categories_repo(db, family_id)]
+    categories = [
+        row[0] for row in get_all_categories_repo(db, family_id)
+    ]  # each row: the category, its group name, its group position
     lookup: dict[str, str] = {}
     for category in sorted(categories, key=lambda c: c.family_id is not None):  # defaults first, then overwritten
         lookup[name_key(category.name)] = str(category.id)

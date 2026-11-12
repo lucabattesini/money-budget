@@ -3,10 +3,10 @@ import { Alert, Badge, Box, Button, CloseButton, Dialog, Field, HStack, Heading,
 import { LuChevronDown, LuChevronUp, LuUpload } from "react-icons/lu";
 import { cancelImport, chooseImportCategories, chooseImportPeople, createCategory, getAllCategories, getCategoryGroups, matchImportColumns, uploadImport } from "../api/endpoints";
 import { getToken } from "../lib/auth";
-import { compareCategories } from "../lib/categoryName";
 import { followImport, queueImport } from "../lib/importJobs";
 import { formatMoney, useLocale } from "../lib/locale";
 import useBackClosesOverlay from "../lib/useBackClosesOverlay";
+import CategoryPicker from "./CategoryPicker";
 
 const STEPS = [
     { id: "file", label: "Arquivo" },
@@ -19,6 +19,7 @@ const STEPS = [
 ];
 const FALLBACK_GROUP = "Outros";
 const NEW_CATEGORY = "new"; // the value of the "create it" choice in a category's list
+const NEW_CHOICES = [{ value: NEW_CATEGORY, label: "Criar uma categoria nova" }];
 
 // A choice in a list of categories or people counts once an item is picked (ids are UUIDs, not numbers): "Escolha..."
 // and "create a new one, not created yet" do not
@@ -376,10 +377,6 @@ function MatchBadge({ item, value }) {
 function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState("");
-    const byGroup = groups.map((group) => ({
-        group,
-        items: categories.filter((category) => category.group_id === group.id).sort(compareCategories),
-    }));
 
     const create = async () => {
         const name = row.newName.trim();
@@ -411,22 +408,14 @@ function CategoryRow({ item, row, onChange, categories, groups, onCreate }) {
             </HStack>
             <Field.Root>
                 <Field.Label>{`Categoria para "${item.name}"`}</Field.Label>
-                <NativeSelect.Root>
-                    <NativeSelect.Field value={row.value} onChange={(e) => onChange({ value: e.target.value })}>
-                        <option value="">Escolha...</option>
-                        <option value={NEW_CATEGORY}>Criar uma categoria nova</option>
-                        {byGroup.map(({ group, items }) =>
-                            items.length > 0 ? (
-                                <optgroup key={group.id} label={group.name}>
-                                    {items.map((category) => (
-                                        <option key={category.id} value={String(category.id)}>{category.name}</option>
-                                    ))}
-                                </optgroup>
-                            ) : null,
-                        )}
-                    </NativeSelect.Field>
-                    <NativeSelect.Indicator />
-                </NativeSelect.Root>
+                <CategoryPicker
+                    categories={categories}
+                    value={row.value}
+                    onChange={(value) => onChange({ value })}
+                    placeholder="Escolha..."
+                    extra={NEW_CHOICES}
+                    aria-label={`Categoria para "${item.name}"`}
+                />
             </Field.Root>
 
             {row.value === NEW_CATEGORY && (

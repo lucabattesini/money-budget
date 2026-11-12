@@ -3,7 +3,8 @@ import { vi } from 'vitest'
 // Requests the test did not declare. setup.js fails the test in afterEach if any were made,
 // because the app swallows network errors and would otherwise carry on as if the server were down.
 export const strayRequests = []
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Provider } from '../components/ui/provider'
 import { Toaster } from '../components/ui/toaster'
@@ -68,4 +69,13 @@ export function requestsMade(mock) {
   return mock.mock.calls.map(([url, options = {}]) =>
     `${(options.method || 'GET').toUpperCase()} ${String(url).replace('http://api.test', '')}`,
   )
+}
+
+/**
+ * Choose a category in the shared category picker: open it from its box (by its label, "Categoria" for example) and click
+ * the option. The list is only in the page while it is open.
+ */
+export async function chooseCategory(label, optionName) {
+  await userEvent.click(typeof label === 'string' ? screen.getByRole('combobox', { name: label }) : label)
+  await userEvent.click(await screen.findByRole('option', { name: optionName }))
 }

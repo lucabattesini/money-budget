@@ -74,6 +74,18 @@ def test_each_category_comes_with_its_group(client, auth_headers):
     assert all(c["group_id"] == group_ids[c["group_name"]] for c in categories.values())
 
 
+def test_each_category_says_where_its_group_comes_in_the_lists(client, auth_headers):
+    categories = client.get("/categories/", headers=auth_headers).json()["data"]
+    order = [g["name"] for g in _groups(client, auth_headers)]  # the groups in the order they are shown
+
+    by_position = {c["group_position"]: c["group_name"] for c in categories}
+
+    assert [by_position[position] for position in sorted(by_position)] == [
+        name for name in order if name in by_position.values()
+    ]
+    assert len(by_position) == len({c["group_name"] for c in categories})  # one position per group
+
+
 def test_the_groups_are_the_same_fixed_set_for_every_family_in_a_stable_order(
     client, auth_headers, other_user, headers_for
 ):

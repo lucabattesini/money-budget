@@ -40,7 +40,7 @@ function EmojiGrid({ value, onChange }) {
     };
 
     return (
-        <Wrap role="radiogroup" aria-label="Emoji" gap={1}>
+        <Wrap role="radiogroup" aria-label="Emoji" gap={1} maxH="14rem" overflowY="auto">
             {options.map((emoji, index) => (
                 <Button
                     key={emoji || "none"}

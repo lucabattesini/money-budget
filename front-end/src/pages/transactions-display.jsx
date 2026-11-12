@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import useBackClosesOverlay from "../lib/useBackClosesOverlay";
-import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTransaction } from "../api/endpoints";
+import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTransaction, updateTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
@@ -12,6 +12,7 @@ import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
 import TransactionDrawer from "../components/TransactionDrawer";
+import CategoryPicker from "../components/CategoryPicker";
 import TransactionFilters from "../components/TransactionFilters";
 import { BulkDeleteDialog, BulkEditDialog } from "../components/BulkActions";
 import PersonAvatar from "../components/PersonAvatar";
@@ -95,6 +96,24 @@ export default function TransactionsDisplay() {
     }, [filters, search]);
 
     const reload = () => setTrigger((current) => current + 1);
+
+    // Fix a wrong category right from the list. The server takes the whole transaction, so what it already has is sent back
+    // as it is (no date, type, person, merchant or excluded: those stay as they are); the list is loaded again after.
+    const [changingCategory, setChangingCategory] = useState(null); // the id of the transaction being saved
+    const [pickerResets, setPickerResets] = useState({}); // a picker is made anew when its change failed, so it shows the saved category again
+    const changeCategory = async (transaction, categoryId) => {
+        if (!categoryId || categoryId === String(transaction.category_id)) return;
+        setChangingCategory(transaction.id);
+        const result = await updateTransaction(transaction.id, { label: transaction.label, value: transaction.value, category_id: categoryId }, getToken());
+        setChangingCategory(null);
+        if (result && (result.status === 200 || result.status === 201)) {
+            customToaster("Salvo", "success", "A categoria foi atualizada!");
+            reload();
+        } else {
+            customToaster("Erro", "error", "Não foi possível trocar a categoria. Tente novamente.");
+            setPickerResets((current) => ({ ...current, [transaction.id]: (current[transaction.id] ?? 0) + 1 }));
+        }
+    };
 
     const toggle = (id, on) => setSelected((current) => {
         const next = new Set(current);
@@ -209,7 +228,25 @@ export default function TransactionsDisplay() {
                 )}
             </Table.Cell>
             <Table.Cell color="fg.muted" gridArea="category" fontSize={{ base: "xs", md: "sm" }} minW={0} pr={{ base: 0, md: 3 }} borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>
-                {categoryParts(categoryName(transaction)).icon && <Text as="span" hideBelow="md">{categoryParts(categoryName(transaction)).icon} </Text>}{categoryParts(categoryName(transaction)).name}
+                {selecting ? (
+                    <>
+                        {categoryParts(categoryName(transaction)).icon && <Text as="span" hideBelow="md">{categoryParts(categoryName(transaction)).icon} </Text>}{categoryParts(categoryName(transaction)).name}
+                    </>
+                ) : (
+                    // Clicking the category opens the list right here; it must not open the editor of the row
+                    <Box minW={{ base: "9rem", md: "12rem" }} onClick={(event) => event.stopPropagation()}>
+                        <CategoryPicker
+                            key={`${transaction.id}:${pickerResets[transaction.id] ?? 0}`}
+                            variant="inline"
+                            categories={sortedCategories}
+                            value={String(transaction.category_id ?? "")}
+                            onChange={(id) => changeCategory(transaction, id)}
+                            disabled={changingCategory === transaction.id}
+                            placeholder={categories.some((category) => category.id === transaction.category_id) ? "Sem categoria" : "Categoria não encontrada"}
+                            aria-label={`Categoria de ${transaction.label}`}
+                        />
+                    </Box>
+                )}
             </Table.Cell>
             {/* Phone: the first name after the category; larger screens: the picture */}
             <Table.Cell width="1%" gridArea="person" justifySelf="start" whiteSpace="nowrap" px={{ base: 0, md: 3 }} fontSize="xs" color="fg.muted" borderBottomWidth={{ base: 0, md: "1px" }} py={{ base: 1, md: 2 }}>

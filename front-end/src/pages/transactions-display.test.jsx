@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getToken, saveToken } from '../lib/auth'
-import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
+import { jsonResponse, mockApi, renderApp, requestsMade, chooseCategory } from '../test/helpers'
 import TransactionsDisplay from './transactions-display'
 
 // The family the pages ask for, to show whose each transaction is
@@ -135,7 +135,8 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0) // no header row, just the transactions
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
-    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
+    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', '', '', '- R$ 25,50']) // the category is a box, not text
+    expect(within(rowOf('Almoço')).getByRole('combobox', { name: 'Categoria de Almoço' })).toHaveValue('Alimentação')
   })
 
   it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
@@ -189,8 +190,8 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
 
     await screen.findByText('Presente')
-    expect(within(rowOf('Presente')).getByText('Categoria não encontrada')).toBeInTheDocument()
-    expect(within(rowOf('Uber')).getByText('Transporte')).toBeInTheDocument()
+    expect(within(rowOf('Presente')).getByPlaceholderText('Categoria não encontrada')).toBeInTheDocument()
+    expect(within(rowOf('Uber')).getByRole('combobox')).toHaveValue('Transporte')
   })
 
   it('only shows the groups that have transactions', async () => {
@@ -308,6 +309,81 @@ describe('transactions page', () => {
     expect(screen.queryByText(/Não foi possível carregar/)).not.toBeInTheDocument()
   })
 
+  describe('changing the category from the list', () => {
+    const quickRoutes = (put) => {
+      let rows = TRANSACTIONS.data
+      return mockApi({
+        'GET /families/me': FAMILY, 'GET /categories': CATEGORIES,
+        'POST /transactions': () => jsonResponse({ data: rows }),
+        'PUT /transactions/1': (_url, options) => {
+          const response = put(options)
+          if (response.status < 400) rows = rows.map((row) => (row.id === '1' ? { ...row, category_id: JSON.parse(options.body).category_id } : row))
+          return Promise.resolve(response)
+        },
+      })
+    }
+    const ok = () => new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    const refused = () => new Response(JSON.stringify({ detail: 'no' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+    const boxOf = (label) => within(rowOf(label)).getByRole('combobox', { name: `Categoria de ${label}` })
+
+    it('saves the new category right away, sending the transaction as it is, and shows it in the row', async () => {
+      const api = quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await chooseCategory(boxOf('Almoço'), 'Transporte')
+
+      await waitFor(() => expect(boxOf('Almoço')).toHaveValue('Transporte'))
+      const put = api.mock.calls.find(([url, options]) => String(options?.method).toUpperCase() === 'PUT' && url.endsWith('/transactions/1'))
+      expect(JSON.parse(put[1].body)).toEqual({ label: 'Almoço', value: 2550, category_id: '2' }) // nothing else is touched
+      expect(await screen.findByText('A categoria foi atualizada!')).toBeInTheDocument()
+      expect(screen.queryByText('Editar transação')).not.toBeInTheDocument() // the row's editor did not open
+    })
+
+    it('tells the person when it could not be saved, and the row keeps its category', async () => {
+      quickRoutes(refused)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await chooseCategory(boxOf('Almoço'), 'Transporte')
+
+      expect(await screen.findByText('Não foi possível trocar a categoria. Tente novamente.')).toBeInTheDocument()
+      await waitFor(() => expect(boxOf('Almoço')).toHaveValue('Alimentação'))
+    })
+
+    it('does not save when the same category is chosen again', async () => {
+      const api = quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await chooseCategory(boxOf('Almoço'), 'Alimentação')
+
+      expect(requestsMade(api).filter((request) => request.startsWith('PUT'))).toEqual([])
+    })
+
+    it('narrows the list by what is typed in the row', async () => {
+      quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await userEvent.clear(boxOf('Almoço'))
+      await userEvent.type(boxOf('Almoço'), 'trans')
+
+      await waitFor(() => expect(screen.queryAllByRole('option').map((option) => option.textContent)).toEqual(['Transporte']))
+    })
+
+    it('is plain text in selection mode, where a click ticks the row', async () => {
+      quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+
+      await userEvent.click(screen.getByRole('button', { name: /Selecionar/ }))
+
+      expect(screen.queryByRole('combobox', { name: 'Categoria de Almoço' })).not.toBeInTheDocument()
+      expect(within(rowOf('Almoço')).getByText('Alimentação')).toBeInTheDocument()
+    })
+  })
+
   describe('adding a transaction', () => {
     it('has an add button that opens the sidebar with the form', async () => {
       mockApi(routes())
@@ -339,12 +415,12 @@ describe('transactions page', () => {
       const form = await drawer()
       await userEvent.type(form.getByLabelText('Valor'), '1234567')
       await userEvent.type(form.getByLabelText('Descrição'), 'Cinema')
-      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await chooseCategory(form.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
       expect(await screen.findByText('Cinema')).toBeInTheDocument()
       expect(rowOf('Cinema').children[4].textContent).toBe('- R$ 12.345,67')
-      expect(within(rowOf('Cinema')).getByText('Transporte')).toBeInTheDocument()
+      expect(within(rowOf('Cinema')).getByRole('combobox')).toHaveValue('Transporte')
       expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/create'))[1].body).value).toBe(1234567)
       await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
     })
@@ -379,7 +455,7 @@ describe('transactions page', () => {
       expect(form.getByText('Editar transação')).toBeInTheDocument()
       expect(form.getByLabelText('Valor')).toHaveValue('25,50')
       expect(form.getByLabelText('Descrição')).toHaveValue('Almoço')
-      expect(form.getByLabelText('Categoria')).toHaveValue('1')
+      expect(form.getByRole('combobox', { name: 'Categoria' })).toHaveValue('Alimentação')
     })
 
     it('shows the date and the type of the transaction in the edit form', async () => {
@@ -432,7 +508,7 @@ describe('transactions page', () => {
       const form = await dialog()
       expect(form.getByLabelText('Descrição')).toHaveValue('Uber')
       expect(form.getByLabelText('Valor')).toHaveValue('18,00')
-      expect(form.getByLabelText('Categoria')).toHaveValue('2')
+      expect(form.getByRole('combobox', { name: 'Categoria' })).toHaveValue('Transporte')
     })
 
     it('saves the changes with PUT and shows the updated row', async () => {
@@ -446,7 +522,7 @@ describe('transactions page', () => {
       await userEvent.type(form.getByLabelText('Valor'), '3099')
       await userEvent.clear(form.getByLabelText('Descrição'))
       await userEvent.type(form.getByLabelText('Descrição'), 'Jantar')
-      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await chooseCategory(form.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
       expect(await screen.findByText('Jantar')).toBeInTheDocument()
@@ -508,14 +584,17 @@ describe('transactions page', () => {
       })
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
-      const names = (select) => within(select).getAllByRole('option').map((o) => o.textContent)
+      const names = async (box) => {
+        await userEvent.click(box)
+        return within(await screen.findByRole('listbox')).getAllByRole('option').map((o) => o.textContent)
+      }
 
       await openFilters()
-      expect(names(screen.getByLabelText('Categoria'))).toEqual(['Todas', 'Água', 'Alimentação', 'Transporte', 'zebra'])
-      await userEvent.keyboard('{Escape}')
+      expect(await names(screen.getByRole('combobox', { name: 'Categoria' }))).toEqual(['Todas', 'Água', 'Alimentação', 'Transporte', 'zebra'])
+      await userEvent.keyboard('{Escape}{Escape}')
       await userEvent.click(screen.getByRole('button', { name: /adicionar/i }))
       const form = await drawer()
-      expect(names(form.getByLabelText('Categoria'))).toEqual(['Selecione', 'Água', 'Alimentação', 'Transporte', 'zebra'])
+      expect(await names(form.getByRole('combobox', { name: 'Categoria' }))).toEqual(['Água', 'Alimentação', 'Transporte', 'zebra'])
     })
   })
 
@@ -557,7 +636,7 @@ describe('transactions page', () => {
     it('narrows by category', async () => {
       await setup()
 
-      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
+      await chooseCategory(screen.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
 
       expect(labelsShown()).toEqual(['Uber', 'Presente'])
     })
@@ -601,7 +680,7 @@ describe('transactions page', () => {
       expect(screen.getByRole('button', { name: 'Filtros' })).toBeInTheDocument()
 
       await userEvent.type(screen.getByLabelText('Buscar'), 'a')
-      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
+      await chooseCategory(screen.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
 
       expect(screen.getByRole('button', { name: 'Filtros (2)' })).toBeInTheDocument()
     })
@@ -612,7 +691,7 @@ describe('transactions page', () => {
       await screen.findByText('Almoço')
       await openFilters()
 
-      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Transporte')
+      await chooseCategory(screen.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
       await userEvent.type(screen.getByLabelText('Buscar'), 'ub')
 
       const shown = screen.getByTestId('location').textContent
@@ -654,7 +733,7 @@ describe('transactions page', () => {
     it('combines filters', async () => {
       await setup()
 
-      await userEvent.selectOptions(screen.getByLabelText('Categoria'), 'Alimentação')
+      await chooseCategory(screen.getByRole('combobox', { name: 'Categoria' }), 'Alimentação')
       await userEvent.type(screen.getByLabelText('Valor mínimo'), '5000')
 
       expect(labelsShown()).toEqual(['Mercado'])
@@ -816,7 +895,7 @@ describe('transactions page', () => {
 
       // the last cell of a row is the phone-only icon; the category cell keeps the name (the emoji is only for wider screens)
       expect(['A', 'B', 'C'].map((l) => rowOf(l).lastElementChild.textContent)).toEqual(['🎁', '🇨🇦', '👨‍👩‍👧'])
-      expect(['A', 'B', 'C'].map((l) => rowOf(l).children[2].textContent)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
+      expect(['A', 'B', 'C'].map((l) => within(rowOf(l)).getByRole('combobox').value)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
     })
 
     it('has the logged-in person chosen in a new transaction, and sends it', async () => {
@@ -831,7 +910,7 @@ describe('transactions page', () => {
       ])
       await userEvent.type(form.getByLabelText('Valor'), '500')
       await userEvent.type(form.getByLabelText('Descrição'), 'Pão')
-      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await chooseCategory(form.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
       await userEvent.selectOptions(form.getByLabelText('Quem'), 'Bia Souza')
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
@@ -949,7 +1028,7 @@ describe('transactions page', () => {
       expect([...document.querySelectorAll('#merchant-options option')].map((o) => o.value)).toEqual(['Uber', 'iFood'])
       await userEvent.type(form.getByLabelText('Valor'), '500')
       await userEvent.type(form.getByLabelText('Descrição'), 'Série')
-      await userEvent.selectOptions(form.getByLabelText('Categoria'), 'Transporte')
+      await chooseCategory(form.getByRole('combobox', { name: 'Categoria' }), 'Transporte')
       await userEvent.type(field, '  Netflix ')
       await userEvent.click(form.getByRole('button', { name: 'Salvar' }))
 
