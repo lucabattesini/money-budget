@@ -14,6 +14,9 @@ Merge a pull request into `main`. That is all. The **Deploy** workflow then:
    database is as it was (each run is one transaction);
 4. deploys the new version of the `money-budget` service.
 
+The image is also built and started (without pushing it) on every pull request, by the "Production image" check, so a
+mistake in how it is built is found before the merge and not by a failed deploy.
+
 The address of the app is in the summary of the workflow run (`https://money-budget-<project number>.us-central1.run.app`).
 Watch a deploy under the **Actions** tab, or: `gh run watch`.
 

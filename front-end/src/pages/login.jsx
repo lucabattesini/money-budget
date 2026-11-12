@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Heading, Input, Center, Stack, Button, Text, Link } from "@chakra-ui/react";
+import { Link as RouterLink } from "react-router-dom";
 import { loginUser } from "../api/endpoints";
 
 export default function Login() {
@@ -47,8 +48,9 @@ export default function Login() {
                     Entrar
                 </Button>
 
-                <Link variant="underline" href="/create-account">
-                    Ainda não tem uma conta? Crie uma agora!
+                {/* The app's addresses start with "#": a plain href="/create-account" opens a page that does not exist */}
+                <Link variant="underline" asChild>
+                    <RouterLink to="/create-account">Ainda não tem uma conta? Crie uma agora!</RouterLink>
                 </Link>
             </Stack>
         </Center>

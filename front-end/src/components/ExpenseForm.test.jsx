@@ -13,6 +13,7 @@ const CATEGORIES = { data: [{ id: 1, name: 'Alimentação' }, { id: 2, name: 'Tr
 const amount = () => screen.getByPlaceholderText('Amount')
 const description = () => screen.getByPlaceholderText('Description')
 const submit = () => screen.getByRole('button', { name: 'Submit' })
+const categoryBox = () => screen.getByPlaceholderText('Select category')
 
 async function renderForm(routes = {}) {
   saveToken('tok')
@@ -83,13 +84,38 @@ describe('expense form', () => {
     await renderForm()
 
     await openCategories()
-    // Typed at human speed: the category box re-renders on every key and loses
-    // characters when they arrive with no delay at all (see the front-end bugs ticket).
-    const typist = userEvent.setup({ delay: 20 })
-    await typist.type(screen.getByPlaceholderText('Select category'), 'trans')
+    await userEvent.type(screen.getByPlaceholderText('Select category'), 'trans') // no delay between keys: none may be lost
 
+    expect(screen.getByPlaceholderText('Select category')).toHaveValue('trans')
     expect(await screen.findByRole('option', { name: 'Transporte' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Alimentação' })).not.toBeInTheDocument()
+  })
+
+  it('shows the name of the chosen category in the box, and empties it when the category is cleared', async () => {
+    const warn = vi.spyOn(console, 'error')
+    await renderForm()
+
+    await pickCategory('Alimentação')
+    expect(categoryBox()).toHaveValue('Alimentação')
+
+    await userEvent.clear(categoryBox())
+    expect(categoryBox()).toHaveValue('')
+    await openCategories()
+    expect(await screen.findAllByRole('option')).toHaveLength(2) // the list is whole again
+    expect(warn.mock.calls.flat().join(' ')).not.toMatch(/flushSync/) // React does not complain about the synchronous update
+    warn.mockRestore()
+  })
+
+  it('empties the category box after saving', async () => {
+    await renderForm({ 'POST /transactions/create': [{ data: {} }, 201] })
+    await userEvent.type(amount(), '25')
+    await userEvent.type(description(), 'Almoço')
+    await pickCategory('Alimentação')
+
+    await userEvent.click(submit())
+
+    await waitFor(() => expect(amount()).toHaveValue(null))
+    expect(categoryBox()).toHaveValue('')
   })
 
   it('saves a transaction in cents and confirms', async () => {

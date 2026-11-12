@@ -967,6 +967,8 @@ sequenceDiagram
 - **CI:** `.github/workflows/tests.yml` runs both suites on every pull request
   and, through `deploy.yml`, on every push to `main` (the back-end against a Postgres service container;
   the front-end job also runs the linter and a production build).
-  The checks are named "Back-end tests" and "Front-end tests"; a branch rule
-  requiring them blocks merges when they fail.
+  A third job, "Production image", builds the root `Dockerfile` (the image that is deployed) with a dummy sign-in id,
+  applies the migrations inside it, starts it against a Postgres service container and checks that the web app page
+  loads and `/categories/` asks for a login; nothing is pushed and no credentials are used. The checks are named
+  "Back-end tests", "Front-end tests" and "Production image"; a branch rule requiring them blocks merges when they fail.
 - Run commands and conventions: `back-end/tests/README.md`.
