@@ -38,13 +38,11 @@ export default function TransactionsDisplay() {
     const page = Math.max(1, parseInt(params.get("page"), 10) || 1);
     const [selecting, setSelecting] = useState(false); // the tick boxes only show in selection mode
     const [selected, setSelected] = useState(() => new Set()); // ids of the rows ticked
-    // In selection mode a page change replaces the entry, so leaving the mode (one entry) is still one step back
     const setPage = (number) => setParams((current) => {
         const next = new URLSearchParams(current);
         if (number > 1) next.set("page", String(number)); else next.delete("page");
         return next;
-    }, { state: routeState, replace: selecting });
-    useBackClosesOverlay(selecting, () => { setSelecting(false); setSelected(new Set()); }); // back leaves selection mode
+    }, { state: routeState });
     const [filtersOpen, setFiltersOpen] = useState(false);
     useBackClosesOverlay(filtersOpen, () => setFiltersOpen(false)); // and closes the filter panel
     const [bulkEditing, setBulkEditing] = useState(false);
@@ -81,9 +79,20 @@ export default function TransactionsDisplay() {
 
     const changeFilters = (next) => {
         setFilters(next);
-        // The filters are in the address too (reload or share the page and they stay); not one entry per keystroke
-        setParams((current) => { const kept = writeFilters(current, next); kept.delete("page"); return kept; }, { replace: true, state: routeState });
+        setPage(1);
     };
+
+    // The filters are in the address too (reload or share the page and they stay), written over the entry, not one entry per
+    // keystroke. The page's own state is the truth: when the address differs (closing the filter panel steps back to the
+    // entry from before it opened), it is written again, and the list goes back to its first page.
+    useEffect(() => {
+        const written = writeFilters(params, filters);
+        const same = (a, b) => [...a].sort().join("&") === [...b].sort().join("&");
+        if (same(written.entries(), params.entries())) return;
+        written.delete("page");
+        setParams(written, { replace: true, state: routeState });
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- when the filters or the address change
+    }, [filters, search]);
 
     const reload = () => setTrigger((current) => current + 1);
 

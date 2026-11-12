@@ -633,16 +633,19 @@ describe('transactions page', () => {
       expect(screen.getByTestId('location')).toHaveTextContent('/transactions')
     })
 
-    it('leaves selection mode when the person goes back', async () => {
+    it('keeps a filter changed while the panel is open in the address after the panel is closed, on the first page', async () => {
       mockApi(routes(FILTERED))
-      renderApp(<><TransactionsDisplay /><BackButton /></>, { route: '/transactions' })
+      renderApp(<><TransactionsDisplay /><BackButton /></>, { route: '/transactions?from=2026-03-01&page=2' })
       await screen.findByText('Almoço')
-      await userEvent.click(screen.getByRole('button', { name: /Selecionar/ }))
-      expect(screen.getByRole('button', { name: /Cancelar/ })).toBeInTheDocument()
+      await openFilters()
 
-      await userEvent.click(screen.getByText('voltar'))
+      await userEvent.type(screen.getByLabelText('Buscar'), 'ub')
+      await userEvent.click(screen.getByText('voltar')) // closes the panel: one step back
 
-      expect(await screen.findByRole('button', { name: /Selecionar/ })).toBeInTheDocument()
+      await waitFor(() => expect(screen.queryByLabelText('Buscar')).not.toBeInTheDocument())
+      await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('search=ub'))
+      expect(screen.getByTestId('location').textContent).toContain('from=2026-03-01')
+      expect(screen.getByTestId('location').textContent).not.toContain('page=')
     })
 
     it('combines filters', async () => {

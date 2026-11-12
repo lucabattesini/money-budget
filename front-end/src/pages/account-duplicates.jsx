@@ -25,7 +25,8 @@ export default function AccountDuplicates() {
     // The period lives in the address (?from=&to=): reload keeps them, and not one entry per keystroke
     const { state: routeState } = useLocation();
     const [params, setParams] = useSearchParams();
-    const day = (name, fallback) => (/^\d{4}-\d{2}-\d{2}$/.test(params.get(name) ?? "") ? params.get(name) : fallback);
+    const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") && iso(new Date(`${value}T00:00:00`)) === value; // a real calendar day
+    const day = (name, fallback) => (isDay(params.get(name)) ? params.get(name) : fallback);
     const start = params.get("from") === "" ? "" : day("from", iso(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()))); // three months back
     const end = params.get("to") === "" ? "" : day("to", iso(today));
     const [ignoreExcluded, setIgnoreExcluded] = useState(false); // leave out what does not count in the totals
