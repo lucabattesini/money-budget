@@ -5,6 +5,7 @@ import { getToken } from "../lib/auth";
 import { formatCents } from "../lib/money";
 import { familyNow, formatDate } from "../lib/locale";
 import customToaster from "../utils/customToaster";
+import PageHeading from "../components/PageHeading";
 
 const MAX_DELETE_AT_ONCE = 500; // what the server accepts in one request
 const DELETE_ALL = "none"; // the person wants none of the group kept
@@ -71,12 +72,9 @@ export default function AccountDuplicates() {
 
     return (
         <Stack gap={6} maxW="3xl">
-            <Stack gap={1}>
-                <Heading size="xl">Duplicatas</Heading>
-                <Text color="fg.muted">
-                    Transações do mesmo dia, com o mesmo valor e o mesmo tipo aparecem juntas. Em cada grupo, escolha qual manter; as outras são excluídas.
-                </Text>
-            </Stack>
+            <PageHeading title="Duplicatas">
+                Transações do mesmo dia, com o mesmo valor e o mesmo tipo aparecem juntas. Em cada grupo, escolha qual manter; as outras são excluídas.
+            </PageHeading>
 
             <Flex gap={4} wrap="wrap" align="end">
                 <Field.Root w="auto" invalid={Boolean(rangeError)}>

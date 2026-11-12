@@ -5,6 +5,7 @@ import { API_URL } from "../api/config";
 import { disconnectApp, getConnections } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import customToaster from "../utils/customToaster";
+import PageHeading from "../components/PageHeading";
 
 const dateOf = (iso) => (iso ? new Date(iso + "Z").toLocaleDateString("pt-BR") : "—");
 
@@ -35,12 +36,9 @@ export default function AccountAssistants() {
 
     return (
         <Stack gap={6} maxW="3xl">
-            <Stack gap={1}>
-                <Heading size="xl">Assistentes de IA</Heading>
-                <Text color="fg.muted">
-                    Mande uma foto de um recibo ou um extrato para o Claude e ele cadastra as transações aqui, depois que você confirmar.
-                </Text>
-            </Stack>
+            <PageHeading title="Assistentes de IA">
+                Mande uma foto de um recibo ou um extrato para o Claude e ele cadastra as transações aqui, depois que você confirmar.
+            </PageHeading>
 
             <Stack gap={3}>
                 <Heading size="md">Como conectar</Heading>

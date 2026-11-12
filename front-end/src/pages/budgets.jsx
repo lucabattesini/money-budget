@@ -1,3 +1,4 @@
+import PageHeading from "../components/PageHeading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Box, Heading, HStack, IconButton, Input, InputGroup, Progress, SimpleGrid, Spinner, Stack, Text } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
@@ -114,13 +115,10 @@ export default function Budgets() {
 
     return (
         <Stack gap={6} maxW="5xl" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 6, md: 10 }} pb={12}>
-            <Stack gap={1}>
-                <Heading size="2xl">Orçamentos</Heading>
-                <Text color="fg.muted">
-                    Planeje quanto gastar em cada categoria e acompanhe o que já foi gasto. O valor de um mês vale para os
-                    meses seguintes até você mudar. Só entram as saídas de dinheiro.
-                </Text>
-            </Stack>
+            <PageHeading title="Orçamentos" size="2xl">
+                Planeje quanto gastar em cada categoria e acompanhe o que já foi gasto. O valor de um mês vale para os
+                meses seguintes até você mudar. Só entram as saídas de dinheiro.
+            </PageHeading>
 
             <HStack gap={2}>
                 <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
@@ -197,12 +195,14 @@ export default function Budgets() {
                                         const { state } = budgetStatus(category.spent, category.budgeted);
                                         return (
                                             <Stack as="li" key={category.id} gap={2} px={{ base: 4, md: 5 }} py={3} borderTopWidth="1px">
-                                                <HStack justify="space-between" gap={4} wrap="wrap">
-                                                    <Text flex="1" minW={{ base: "full", sm: "10rem" }}>{category.name}</Text>
-                                                    <Text fontSize="sm" color="fg.muted" aria-label={`Gasto em ${name}`}>
-                                                        {formatBudgetCents(category.spent)} gastos
-                                                    </Text>
-                                                    <InputGroup w={{ base: "full", sm: "10rem" }} startElement={<Text fontSize="sm" color="fg.muted">{symbol}</Text>}>
+                                                <HStack justify="space-between" gap={3}>
+                                                    <Stack flex="1" minW={0} gap={1}>
+                                                        <Text>{category.name}</Text>
+                                                        {state === "over" && <Badge alignSelf="start" colorPalette="red">Acima do orçamento</Badge>}
+                                                        {state === "warn" && <Badge alignSelf="start" colorPalette="orange">Perto do limite</Badge>}
+                                                        {state === "limit" && <Badge alignSelf="start" colorPalette="blue">No limite</Badge>}
+                                                    </Stack>
+                                                    <InputGroup w={{ base: "8rem", sm: "10rem" }} startElement={<Text fontSize="sm" color="fg.muted">{symbol}</Text>}>
                                                         <Input
                                                             size="sm"
                                                             minH={{ base: "44px", md: "auto" }}
@@ -218,20 +218,18 @@ export default function Budgets() {
                                                         />
                                                     </InputGroup>
                                                 </HStack>
-                                                {category.budgeted != null && (
-                                                    <>
-                                                        <SpentBar spent={category.spent} budgeted={category.budgeted} label={`Gasto de ${name} no orçamento`} />
-                                                        <HStack justify="space-between">
-                                                            <Text fontSize="xs" color={state === "over" ? "fg.error" : "fg.muted"}>
-                                                                {leftText(category.spent, category.budgeted)}
-                                                                {category.since && category.since !== month && ` · Repetido de ${monthLabel(category.since)}`}
-                                                            </Text>
-                                                            {state === "over" && <Badge colorPalette="red">Acima do orçamento</Badge>}
-                                                            {state === "warn" && <Badge colorPalette="orange">Perto do limite</Badge>}
-                                                            {state === "limit" && <Badge colorPalette="blue">No limite</Badge>}
-                                                        </HStack>
-                                                    </>
-                                                )}
+                                                {category.budgeted != null && <SpentBar spent={category.spent} budgeted={category.budgeted} label={`Gasto de ${name} no orçamento`} />}
+                                                <HStack justify="space-between" align="start" gap={3}>
+                                                    <Text fontSize="xs" color="fg.muted" aria-label={`Gasto em ${name}`}>
+                                                        {formatBudgetCents(category.spent)} gastos
+                                                    </Text>
+                                                    {category.budgeted != null && (
+                                                        <Text fontSize="xs" textAlign="right" color={state === "over" ? "fg.error" : "fg.muted"}>
+                                                            {leftText(category.spent, category.budgeted)}
+                                                            {category.since && category.since !== month && ` · Repetido de ${monthLabel(category.since)}`}
+                                                        </Text>
+                                                    )}
+                                                </HStack>
                                             </Stack>
                                         );
                                     })}

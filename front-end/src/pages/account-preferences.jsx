@@ -4,6 +4,7 @@ import { getFamily, updateFamilySettings } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { CURRENCIES, LANGUAGES, TIMEZONES, setLocale, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
+import PageHeading from "../components/PageHeading";
 
 // The currency, the language and the timezone of the family. They apply to everyone in it, and any member can change them.
 export default function AccountPreferences() {
@@ -46,13 +47,10 @@ export default function AccountPreferences() {
 
     return (
         <Stack gap={8} maxW="3xl">
-            <Stack gap={1}>
-                <Heading size="xl">Preferências</Heading>
-                <Text color="fg.muted">
-                    Valem para toda a família: todos veem os valores e as datas no mesmo formato, e o assistente do
-                    WhatsApp responde no idioma escolhido.
-                </Text>
-            </Stack>
+            <PageHeading title="Preferências">
+                Valem para toda a família: todos veem os valores e as datas no mesmo formato, e o assistente do
+                WhatsApp responde no idioma escolhido.
+            </PageHeading>
 
             <Field.Root maxW="sm" disabled={saving}>
                 <Field.Label>Moeda</Field.Label>

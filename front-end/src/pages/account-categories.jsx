@@ -5,6 +5,7 @@ import { createCategory, deleteCategory, getAllCategories, getCategoryGroups, up
 import { getToken } from "../lib/auth";
 import { EMOJI_CHOICES, compareCategories, joinName, splitName } from "../lib/categoryName";
 import customToaster from "../utils/customToaster";
+import PageHeading from "../components/PageHeading";
 
 const MAX_NAME = 100; // characters of the whole name, emoji included: the size of the database column
 const length = (text) => Array.from(text).length; // by characters, like the server (an emoji can be two UTF-16 units)
@@ -244,13 +245,10 @@ export default function AccountCategories() {
 
     return (
         <Stack gap={8} maxW="3xl">
-            <Stack gap={1}>
-                <Heading size="xl">Categorias</Heading>
-                <Text color="fg.muted">
-                    As categorias padrão servem para todos e não podem ser mudadas. As suas você pode criar em
-                    qualquer grupo, renomear, mudar de grupo e apagar (se nenhuma transação usar).
-                </Text>
-            </Stack>
+            <PageHeading title="Categorias">
+                As categorias padrão servem para todos e não podem ser mudadas. As suas você pode criar em
+                qualquer grupo, renomear, mudar de grupo e apagar (se nenhuma transação usar).
+            </PageHeading>
 
             {groups.map((group) => {
                 const inGroup = categories.filter((category) => category.group_id === group.id).sort(compareCategories);

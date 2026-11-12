@@ -5,6 +5,7 @@ import { cancelInvite, createInvite, getFamily, getInvites, joinFamily, returnTo
 import { getToken } from "../lib/auth";
 import { formatDate, setLocale, useLocale } from "../lib/locale";
 import customToaster from "../utils/customToaster";
+import PageHeading from "../components/PageHeading";
 
 const ROLE_NAMES = { owner: "Dono", member: "Membro" };
 
@@ -123,10 +124,7 @@ export default function AccountFamily() {
 
     return (
         <Stack gap={8} maxW="3xl">
-            <Stack gap={1}>
-                <Heading size="xl">Família</Heading>
-                <Text color="fg.muted">As pessoas da família veem e editam as mesmas transações e categorias.</Text>
-            </Stack>
+            <PageHeading title="Família">As pessoas da família veem e editam as mesmas transações e categorias.</PageHeading>
 
             <Stack gap={3}>
                 <Heading size="md">Pessoas</Heading>
