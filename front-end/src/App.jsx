@@ -3,6 +3,7 @@ import {HashRouter, Routes, Route, Navigate} from "react-router-dom";
 import { Box, Spinner, Center } from '@chakra-ui/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import Layout from './components/Layout';
+import PageErrorBoundary from './components/PageErrorBoundary';
 import { isAuthenticated } from './lib/auth';
 
 const Login = lazy(() => import('./pages/login'));
@@ -38,6 +39,7 @@ function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <HashRouter>
         {/* Each page is its own file, downloaded when it is first opened: the first visit loads only what it shows */}
+        <PageErrorBoundary>
         <Suspense fallback={<Center minH="60dvh"><Spinner size="xl" /></Center>}>
         <Routes>
           {/* Public Routes */}
@@ -66,6 +68,7 @@ function App() {
           </Route>
         </Routes>
         </Suspense>
+        </PageErrorBoundary>
       </HashRouter>
     </GoogleOAuthProvider>
   );

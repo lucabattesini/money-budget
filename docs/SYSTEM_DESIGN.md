@@ -936,7 +936,8 @@ sequenceDiagram
 - **First load.** The API compresses its answers (`GZipMiddleware`; Cloud Run does not), and the built files under
   `/assets/` (named after their content) are sent with a one-year `immutable` cache header, so a second visit
   downloads nothing. The web app splits by page (`React.lazy` in `App.jsx`, a `Suspense` spinner in `Layout`), so
-  the first visit loads the shell and the page it opens, not every page.
+  the first visit loads the shell and the page it opens, not every page. A page file that cannot be downloaded (a new
+  version was deployed under an open tab) makes `PageErrorBoundary` reload once, then show a "Recarregar" button.
 - DB: PostgreSQL everywhere (local dev, tests, production). `DB_URL` is required; there
   is no SQLite fallback.
 - External dependencies: Google OAuth2 (login), Google Gemini (agent LLM
