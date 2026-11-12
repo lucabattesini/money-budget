@@ -29,8 +29,8 @@ function SpentBar({ spent, budgeted, label }) {
 function Stat({ label, value, color }) {
     return (
         <Stack gap={0}>
-            <Text fontSize="sm" color="fg.muted">{label}</Text>
-            <Text fontSize="2xl" fontWeight="bold" color={color}>{value}</Text>
+            <Text fontSize="xs" color="fg.muted">{label}</Text>
+            <Text fontSize={{ base: "md", md: "2xl" }} fontWeight="bold" color={color}>{value}</Text>
         </Stack>
     );
 }
@@ -120,11 +120,11 @@ export default function Budgets() {
                 meses seguintes até você mudar. Só entram as saídas de dinheiro.
             </PageHeading>
 
-            <HStack gap={2}>
+            <HStack gap={2} w="full">
                 <IconButton aria-label="Mês anterior" variant="outline" size="sm" disabled={month <= FIRST_MONTH} onClick={() => setMonth(shiftMonth(month, -1))}>
                     <LuChevronLeft />
                 </IconButton>
-                <Heading size="lg" minW={{ base: "8rem", md: "11rem" }} textAlign="center" textTransform="capitalize" aria-live="polite">
+                <Heading size="lg" flex="1" textAlign="center" textTransform="capitalize" aria-live="polite">
                     {monthLabel(month)}
                 </Heading>
                 <IconButton aria-label="Próximo mês" variant="outline" size="sm" disabled={month >= LAST_MONTH} onClick={() => setMonth(shiftMonth(month, 1))}>
@@ -137,9 +137,9 @@ export default function Budgets() {
 
             {data && (
                 <>
-                    <Box borderWidth="1px" borderRadius="lg" p={{ base: 4, md: 5 }}>
-                        <Stack gap={4}>
-                            <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
+                    <Box borderWidth="1px" borderRadius="lg" p={{ base: 3, md: 5 }}>
+                        <Stack gap={{ base: 2, md: 4 }}>
+                            <SimpleGrid columns={3} gap={{ base: 2, md: 4 }}>
                                 <Stat label="Orçado" value={formatBudgetCents(data.totals.budgeted)} />
                                 <Stat label="Gasto" value={formatBudgetCents(data.totals.spent)} />
                                 <Stat
