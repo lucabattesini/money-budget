@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { Box, Button, Checkbox, Dialog, Field, Flex, Heading, Input, Portal, RadioGroup, Stack, Table, Text } from "@chakra-ui/react";
 import { bulkDeleteTransactions, getDuplicateTransactions } from "../api/endpoints";
 import { getToken } from "../lib/auth";
@@ -21,9 +22,20 @@ const groupKey = (group) => group.map((transaction) => transaction.id).join();
 // Find transactions that look entered twice in a period, choose which one to keep in each group, and delete the others.
 export default function AccountDuplicates() {
     const today = familyNow();
-    const [start, setStart] = useState(iso(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()))) // three months back;
-    const [end, setEnd] = useState(iso(today));
+    // The period lives in the address (?from=&to=): reload keeps them, and not one entry per keystroke
+    const { state: routeState } = useLocation();
+    const [params, setParams] = useSearchParams();
+    const day = (name, fallback) => (/^\d{4}-\d{2}-\d{2}$/.test(params.get(name) ?? "") ? params.get(name) : fallback);
+    const start = params.get("from") === "" ? "" : day("from", iso(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()))); // three months back
+    const end = params.get("to") === "" ? "" : day("to", iso(today));
     const [ignoreExcluded, setIgnoreExcluded] = useState(false); // leave out what does not count in the totals
+    const change = (name, value) => setParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set(name, value);
+        return next;
+    }, { replace: true, state: routeState });
+    const setStart = (value) => change("from", value);
+    const setEnd = (value) => change("to", value);
     const [searching, setSearching] = useState(false);
     const [groups, setGroups] = useState(null); // null: not searched yet
     const [keep, setKeep] = useState({}); // group key -> id of the one kept, or KEEP_ALL, or DELETE_ALL

@@ -1,12 +1,13 @@
 import { Fragment, useState, useEffect } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
 import { useLocation, useSearchParams } from "react-router-dom";
+import useBackClosesOverlay from "../lib/useBackClosesOverlay";
 import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTransaction } from "../api/endpoints";
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
 import { familyNow, formatDate, setLocale, useLocale } from "../lib/locale";
-import { applyFilters, countActiveFilters, filtersFromLink, hasActiveFilters } from "../lib/transactionFilters";
+import { applyFilters, countActiveFilters, filtersFromLink, hasActiveFilters, writeFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
 import TransactionSummary from "../components/TransactionSummary";
@@ -29,19 +30,23 @@ export default function TransactionsDisplay() {
     const [trigger, setTrigger] = useState(0);
     const [adding, setAdding] = useState(false);
     const [editing, setEditing] = useState(null); // the transaction being edited
-    const { search } = useLocation();
+    const { search, state: routeState } = useLocation(); // routeState carries the open panels (see useBackClosesOverlay): every change of the address keeps it
     // Opens with the filters the link asks for (the dashboard sends the month it shows)
     const [filters, setFilters] = useState(() => filtersFromLink(search));
     // The page of the list lives in the address (?page=2), so the back gesture goes to the page before
     const [params, setParams] = useSearchParams();
     const page = Math.max(1, parseInt(params.get("page"), 10) || 1);
+    const [selecting, setSelecting] = useState(false); // the tick boxes only show in selection mode
+    const [selected, setSelected] = useState(() => new Set()); // ids of the rows ticked
+    // In selection mode a page change replaces the entry, so leaving the mode (one entry) is still one step back
     const setPage = (number) => setParams((current) => {
         const next = new URLSearchParams(current);
         if (number > 1) next.set("page", String(number)); else next.delete("page");
         return next;
-    });
-    const [selecting, setSelecting] = useState(false); // the tick boxes only show in selection mode
-    const [selected, setSelected] = useState(() => new Set()); // ids of the rows ticked
+    }, { state: routeState, replace: selecting });
+    useBackClosesOverlay(selecting, () => { setSelecting(false); setSelected(new Set()); }); // back leaves selection mode
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    useBackClosesOverlay(filtersOpen, () => setFiltersOpen(false)); // and closes the filter panel
     const [bulkEditing, setBulkEditing] = useState(false);
     const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -76,7 +81,8 @@ export default function TransactionsDisplay() {
 
     const changeFilters = (next) => {
         setFilters(next);
-        setParams((current) => { const kept = new URLSearchParams(current); kept.delete("page"); return kept; }, { replace: true });
+        // The filters are in the address too (reload or share the page and they stay); not one entry per keystroke
+        setParams((current) => { const kept = writeFilters(current, next); kept.delete("page"); return kept; }, { replace: true, state: routeState });
     };
 
     const reload = () => setTrigger((current) => current + 1);
@@ -256,7 +262,7 @@ export default function TransactionsDisplay() {
                 <Flex w="full" justify="space-between" align="center" wrap="wrap" gap={2}>
                     <Text fontSize="lg" fontWeight="bold">Transações</Text>
                     <Flex gap={2}>
-                        <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }}>
+                        <Popover.Root lazyMount unmountOnExit positioning={{ placement: "bottom-end" }} open={filtersOpen} onOpenChange={(e) => setFiltersOpen(e.open)}>
                             <Popover.Trigger asChild>
                                 <Button size="sm" variant="outline" h={{ base: "44px", md: "9" }}>
                                     <LuListFilter /> Filtros{activeFilters > 0 ? ` (${activeFilters})` : ""}
