@@ -4,7 +4,15 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from api.repositories.budgets_repo import budgetable_categories, effective_budgets, month_bounds, set_budget
+from api.repositories.budgets_repo import (
+    budgetable_categories,
+    category_spending,
+    effective_budgets,
+    month_bounds,
+    planned_by_month,
+    set_budget,
+    spent_by_month,
+)
 from api.repositories.categories_repo import lock_family
 from api.repositories.transactions_repo import get_transactions_summed_by_category
 from api.utils.budget_order import category_sort_key
@@ -72,3 +80,63 @@ def set_category_budget(db: Session, family_id: UUID, category_id: UUID, month_t
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria não encontrada.")
     set_budget(db, family_id, category_id, parse_month(month_text), amount)
     return get_month_budget(db, family_id, month_text)
+
+
+def _months_back(last: date, count: int) -> list[date]:
+    """The `count` months ending at `last` (included), oldest first. Never before the year 2000."""
+    months = []
+    year, month = last.year, last.month
+    for _ in range(count):
+        if year < 2000:
+            break
+        months.append(date(year, month, 1))
+        month -= 1
+        if month == 0:
+            year, month = year - 1, 12
+    return list(reversed(months))
+
+
+def get_category_history(
+    db: Session, family_id: UUID, category_id: UUID, month_text: str, months: int, show_text: str | None = None
+) -> dict:
+    """One category over time: for each of the last `months` months (ending at `month_text`) what was planned and what
+    was spent, and the spending of one month (`show_text`, `month_text` unless told otherwise), transaction by
+    transaction. Amounts are in cents.
+
+    `history[].spent` counts like the budget page (debits not left out of the totals), so it matches what the page
+    shows for that month; `transactions` also lists the ones left out, marked `excluded`.
+    """
+    found = next(
+        ((category, group) for category, group in budgetable_categories(db, family_id) if category.id == category_id),
+        None,
+    )
+    if found is None:
+        # Another family's category, an income or transfer one and an id that does not exist answer the same
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria não encontrada.")
+    category, group = found
+
+    month = parse_month(month_text)
+    span = _months_back(month, months)
+    spent = spent_by_month(db, family_id, category_id, month_bounds(span[0])[0], month_bounds(month)[1])
+    planned = planned_by_month(db, family_id, category_id, span)
+
+    shown = parse_month(show_text or month_text)
+    start, end = month_bounds(shown)
+    transactions = [
+        {
+            "id": transaction.id,
+            "label": transaction.label,
+            "value": transaction.value,
+            "transactioned_at": transaction.transactioned_at,
+            "excluded": transaction.excluded,
+            "user_name": user_name,
+        }
+        for transaction, user_name in category_spending(db, family_id, category_id, start, end)
+    ]
+    return {
+        "category": {"id": category.id, "name": category.name, "group_name": group.name},
+        "month": month_text,
+        "transactions_month": month_key(shown),
+        "history": [{"month": month_key(day), "budgeted": planned[day], "spent": spent.get(day, 0)} for day in span],
+        "transactions": transactions,
+    }

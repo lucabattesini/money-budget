@@ -287,6 +287,8 @@ export const disconnectApp = (id, token) => jsonCall(endpoints.connections + `/$
 // ─── Budgets ──────────────────────────────────────────────────────────────────
 
 export const getBudgets = (month, token) => jsonCall(endpoints.budgets + `?month=${encodeURIComponent(month)}`, "get", token);
+export const getCategoryHistory = (categoryId, month, months, show, token) =>
+    jsonCall(endpoints.budgets + `/categories/${encodeURIComponent(categoryId)}?month=${encodeURIComponent(month)}&months=${months}&show=${encodeURIComponent(show)}`, "get", token);
 export const setBudget = (categoryId, month, amount, token) =>
     jsonCall(endpoints.budgets, "put", token, { category_id: categoryId, month, amount });
 export const getFamily = (token) => familyCall("/me", "get", token);

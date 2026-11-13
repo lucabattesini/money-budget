@@ -1,10 +1,10 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from schemas.tables import Budgets, Categories, CategoryGroups
+from schemas.tables import Budgets, Categories, CategoryGroups, TransactionDB, Users
 
 # Money coming in and money moving between accounts are not spending: there is nothing to budget there
 UNBUDGETED_GROUPS = ("Receitas", "Transferências")
@@ -84,3 +84,61 @@ def set_budget(db: Session, family_id: UUID, category_id: UUID, month: date, amo
 def delete_budgets_of_category(db: Session, category_id: UUID) -> None:
     """A category that goes takes its budgets with it (the caller commits)."""
     db.query(Budgets).filter(Budgets.category_id == category_id).delete(synchronize_session=False)
+
+
+def planned_by_month(db: Session, family_id: UUID, category_id: UUID, months: list[date]) -> dict[date, int | None]:
+    """What was planned for one category in each of the months (cents; None: no plan), by the same rule as
+    `effective_budgets`: a plan stays in force until a later month changes it, and a row with no amount ends it."""
+    rows = (
+        db.query(Budgets.month, Budgets.amount)
+        .filter(Budgets.family_id == family_id, Budgets.category_id == category_id, Budgets.month <= max(months))
+        .order_by(Budgets.month)
+        .all()
+    )
+    result: dict[date, int | None] = {}
+    current: int | None = None
+    position = 0
+    for month in sorted(months):
+        while position < len(rows) and rows[position].month <= month:
+            current = rows[position].amount
+            position += 1
+        result[month] = current
+    return result
+
+
+def spent_by_month(db: Session, family_id: UUID, category_id: UUID, start: datetime, end: datetime) -> dict[date, int]:
+    """What was spent in one category, month by month (the first day of the month -> cents): spending only, and not
+    what the person left out of the totals, like every sum. `end` is not included."""
+    month = func.date_trunc("month", TransactionDB.transactioned_at)
+    rows = (
+        db.query(month.label("month"), func.sum(TransactionDB.value))
+        .filter(
+            TransactionDB.family_id == family_id,
+            TransactionDB.category_id == category_id,
+            TransactionDB.type == "debit",
+            TransactionDB.excluded.is_(False),
+            TransactionDB.transactioned_at >= start,
+            TransactionDB.transactioned_at < end,
+        )
+        .group_by(month)
+        .all()
+    )
+    return {row[0].date(): int(row[1]) for row in rows}
+
+
+def category_spending(db: Session, family_id: UUID, category_id: UUID, start: datetime, end: datetime):
+    """The spending (debits) of one category in a period, newest first, each with the name of the person it belongs
+    to. The ones left out of the totals are listed too (they carry `excluded`). `end` is not included."""
+    return (
+        db.query(TransactionDB, Users.name)
+        .join(Users, TransactionDB.user_id == Users.id)
+        .filter(
+            TransactionDB.family_id == family_id,
+            TransactionDB.category_id == category_id,
+            TransactionDB.type == "debit",
+            TransactionDB.transactioned_at >= start,
+            TransactionDB.transactioned_at < end,
+        )
+        .order_by(TransactionDB.transactioned_at.desc(), TransactionDB.id)
+        .all()
+    )

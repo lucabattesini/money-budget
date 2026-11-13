@@ -16,9 +16,9 @@ export function filtersFromLink(search) {
     return {
         ...EMPTY_FILTERS,
         search: text("search"),
-        category: /^\d{1,10}$/.test(params.get("category") ?? "") ? params.get("category") : "",
-        person: /^\d{1,10}$/.test(params.get("person") ?? "") ? params.get("person") : "",
-        merchant: /^\d{1,10}$/.test(params.get("merchant") ?? "") ? params.get("merchant") : "",
+        category: /^[\w-]{1,64}$/.test(params.get("category") ?? "") ? params.get("category") : "",
+        person: /^[\w-]{1,64}$/.test(params.get("person") ?? "") ? params.get("person") : "",
+        merchant: /^[\w-]{1,64}$/.test(params.get("merchant") ?? "") ? params.get("merchant") : "",
         counting: counting === "counted" || counting === "left_out" ? counting : "",
         from: day("from"),
         to: day("to"),
