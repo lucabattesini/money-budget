@@ -801,6 +801,26 @@ describe('transactions page', () => {
       expect(labels().at(-1)).toBe('compra 100')
     })
 
+    it('keeps watching for the end of the list when the page finishes loading after the rows arrived (merchants on)', async () => {
+      // The rows are there first, and the page waits for the merchants before it shows the list
+      let release
+      const merchantsAnswer = new Promise((resolve) => { release = resolve })
+      mockApi({
+        'GET /families/me': { data: { ...FAMILY.data, merchants_enabled: true } },
+        'GET /categories': CATEGORIES,
+        'POST /transactions': MANY,
+        'GET /merchants': () => merchantsAnswer.then(() => jsonResponse({ data: [] })),
+      })
+      renderApp(<TransactionsDisplay />)
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+
+      await act(async () => { release() })
+      await screen.findByText('compra 001')
+      await scrollToTheEnd()
+
+      expect(await screen.findByText('compra 041')).toBeInTheDocument()
+    })
+
     it('does not leave the page, and has no page buttons or numbers', async () => {
       mockApi(routes(MANY))
       renderApp(<TransactionsDisplay />)

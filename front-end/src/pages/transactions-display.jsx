@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useMemo, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import useBackClosesOverlay from "../lib/useBackClosesOverlay";
@@ -145,16 +145,16 @@ export default function TransactionsDisplay() {
     const visible = filtered.slice(0, visibleCount);
     const hasMore = visibleCount < filtered.length;
     const canObserve = typeof IntersectionObserver !== "undefined";
-    const end = useRef(null);
+    const [end, setEnd] = useState(null); // the marker at the end of the list, once it is on the page (it may come after the rows)
     useEffect(() => {
-        if (!hasMore || !canObserve || !end.current || typeof IntersectionObserver === "undefined") return undefined;
+        if (!hasMore || !canObserve || !end || typeof IntersectionObserver === "undefined") return undefined;
         // Looked at again after every batch: if the end is still in view, the next batch comes at once
         const watcher = new IntersectionObserver((entries) => {
             if (entries.some((entry) => entry.isIntersecting)) setVisibleCount((count) => count + BATCH);
         }, { rootMargin: "600px" });
-        watcher.observe(end.current);
+        watcher.observe(end);
         return () => watcher.disconnect();
-    }, [hasMore, canObserve, visibleCount]);
+    }, [hasMore, canObserve, visibleCount, end]);
 
     const categoryName = (transaction) =>
         categories?.find((category) => category.id === transaction.category_id)?.name ?? "Categoria não encontrada";
@@ -385,7 +385,7 @@ export default function TransactionsDisplay() {
 
                 {/* Scrolling to here puts the next rows on the page; without the browser support for that, a button does */}
                 {!loading && hasMore && (
-                    <Box ref={end} w="full" textAlign="center" py={4}>
+                    <Box ref={setEnd} w="full" textAlign="center" py={4}>
                         {canObserve ? <Box role="status" aria-label="Carregando mais transações"><SpinnerLoading /></Box> : (
                             <Button size="sm" variant="outline" onClick={() => setVisibleCount((count) => count + BATCH)}>
                                 Mostrar mais
