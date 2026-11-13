@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import { Center, Stack, Flex, Text, IconButton, Button, Box, Table, Menu, Popover, Portal, Checkbox } from "@chakra-ui/react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import useBackClosesOverlay from "../lib/useBackClosesOverlay";
@@ -6,7 +6,7 @@ import { getTransactions, getAllCategories, getFamily, getMerchants, deleteTrans
 import { getToken } from "../lib/auth";
 import { compareCategories } from "../lib/categoryName";
 import { formatCents } from "../lib/money";
-import { familyNow, formatDate, setLocale, useLocale } from "../lib/locale";
+import { formatDate, setLocale, useLocale } from "../lib/locale";
 import { applyFilters, countActiveFilters, filtersFromLink, hasActiveFilters, writeFilters } from "../lib/transactionFilters";
 import customToaster from "../utils/customToaster";
 import { SpinnerLoading } from "../components/spinnerLoading";
@@ -18,8 +18,8 @@ import { BulkDeleteDialog, BulkEditDialog } from "../components/BulkActions";
 import PersonAvatar from "../components/PersonAvatar";
 import { LuEllipsisVertical, LuListChecks, LuListFilter, LuPencil, LuPlus, LuTrash2 } from "react-icons/lu";
 
-// "Todo o Resto" can be long, so it is shown in pages
-const PAGE_SIZE = 30;
+// The list is one long list that fills in as it is scrolled: this many rows more each time the end comes near
+const BATCH = 40;
 
 export default function TransactionsDisplay() {
     const { merchantsEnabled } = useLocale(); // amounts and dates follow the family's currency and language
@@ -34,16 +34,10 @@ export default function TransactionsDisplay() {
     const { search, state: routeState } = useLocation(); // routeState carries the open panels (see useBackClosesOverlay): every change of the address keeps it
     // Opens with the filters the link asks for (the dashboard sends the month it shows)
     const [filters, setFilters] = useState(() => filtersFromLink(search));
-    // The page of the list lives in the address (?page=2), so the back gesture goes to the page before
     const [params, setParams] = useSearchParams();
-    const page = Math.max(1, parseInt(params.get("page"), 10) || 1);
+    const [visibleCount, setVisibleCount] = useState(BATCH); // how many rows of the list are on the page so far
     const [selecting, setSelecting] = useState(false); // the tick boxes only show in selection mode
     const [selected, setSelected] = useState(() => new Set()); // ids of the rows ticked
-    const setPage = (number) => setParams((current) => {
-        const next = new URLSearchParams(current);
-        if (number > 1) next.set("page", String(number)); else next.delete("page");
-        return next;
-    }, { state: routeState });
     const [filtersOpen, setFiltersOpen] = useState(false);
     useBackClosesOverlay(filtersOpen, () => setFiltersOpen(false)); // and closes the filter panel
     const [bulkEditing, setBulkEditing] = useState(false);
@@ -80,17 +74,16 @@ export default function TransactionsDisplay() {
 
     const changeFilters = (next) => {
         setFilters(next);
-        setPage(1);
+        setVisibleCount(BATCH); // a new search starts from the top
     };
 
     // The filters are in the address too (reload or share the page and they stay), written over the entry, not one entry per
     // keystroke. The page's own state is the truth: when the address differs (closing the filter panel steps back to the
-    // entry from before it opened), it is written again, and the list goes back to its first page.
+    // entry from before it opened), it is written again.
     useEffect(() => {
         const written = writeFilters(params, filters);
         const same = (a, b) => [...a].sort().join("&") === [...b].sort().join("&");
         if (same(written.entries(), params.entries())) return;
-        written.delete("page");
         setParams(written, { replace: true, state: routeState });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- when the filters or the address change
     }, [filters, search]);
@@ -138,47 +131,27 @@ export default function TransactionsDisplay() {
         reload();
     }
 
-    const today = [];
-    const thisWeek = [];
-    const thisMonth = [];
-    const older = [];
-
-    const now = familyNow();
-    // Start of today
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    // Start of this week (last 7 days)
-    const startOfWeek = new Date(startOfToday);
-    startOfWeek.setDate(startOfWeek.getDate() - 7);
-
-    // Start of this month
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const filtered = applyFilters(transactions, filters);
+    // One list, newest first
+    const filtered = applyFilters(transactions, filters).sort((a, b) => b.transactioned_at.localeCompare(a.transactioned_at));
     // A row that the filters now hide is not acted on, even if it was ticked before
     const MAX_BULK = 500; // what the server accepts in one request
     const selectedIds = filtered.filter((transaction) => selected.has(transaction.id)).map((transaction) => transaction.id);
     const activeFilters = countActiveFilters(filters);
 
-    filtered.forEach(transaction => {
-        const tDate = new Date(transaction.transactioned_at);
-        if (tDate >= startOfToday) {
-            today.push(transaction);
-        } else if (tDate >= startOfWeek) {
-            thisWeek.push(transaction);
-        } else if (tDate >= startOfMonth) {
-            thisMonth.push(transaction);
-        } else {
-            older.push(transaction);
-        }
-    });
-
-    const groups = [
-        { title: "Hoje", data: today },
-        { title: "Esta Semana", data: thisWeek },
-        { title: "Este Mês", data: thisMonth },
-        { title: "Todo o Resto", data: older },
-    ];
+    // The rows are all here already; only some are put on the page, and more as the end of the list comes into view
+    const visible = filtered.slice(0, visibleCount);
+    const hasMore = visibleCount < filtered.length;
+    const canObserve = typeof IntersectionObserver !== "undefined";
+    const end = useRef(null);
+    useEffect(() => {
+        if (!hasMore || !canObserve || !end.current) return undefined;
+        // Looked at again after every batch: if the end is still in view, the next batch comes at once
+        const watcher = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) setVisibleCount((count) => count + BATCH);
+        }, { rootMargin: "600px" });
+        watcher.observe(end.current);
+        return () => watcher.disconnect();
+    }, [hasMore, canObserve, visibleCount]);
 
     const categoryName = (transaction) =>
         categories?.find((category) => category.id === transaction.category_id)?.name ?? "Categoria não encontrada";
@@ -289,15 +262,7 @@ export default function TransactionsDisplay() {
     );
 
     // Only the oldest group is paginated
-    const pageCount = Math.max(1, Math.ceil(older.length / PAGE_SIZE));
-    const currentPage = Math.min(page, pageCount);
-    const visibleGroups = groups
-        .map((group) => group.data === older
-            ? { ...group, data: older.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) }
-            : group)
-        .filter((group) => group.data.length > 0);
-
-    const shownIds = visibleGroups.flatMap((group) => group.data.map((transaction) => transaction.id));
+    const shownIds = visible.map((transaction) => transaction.id);
     const allShownTicked = shownIds.length > 0 && shownIds.every((id) => selected.has(id));
 
     return(
@@ -374,32 +339,21 @@ export default function TransactionsDisplay() {
 
                 {loading && <SpinnerLoading/>}
 
-                {!loading && visibleGroups.length > 0 && (
+                {!loading && visible.length > 0 && (
                     <Table.ScrollArea w="full" overflowX="hidden" borderWidth={0}>
                         <Table.Root size="sm" w="full" display={{ base: "block", md: "table" }}>
                             <Table.Body display={{ base: "block", md: "table-row-group" }}>
-                                {visibleGroups.map((group) => (
-                                    <Fragment key={group.title}>
-                                        <Table.Row display={{ base: "block", md: "table-row" }}>
-                                            <Table.Cell colSpan={7} pt={6} display={{ base: "block", md: "table-cell" }}>
-                                                <Box color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase">
-                                                    {group.title}
-                                                </Box>
-                                            </Table.Cell>
-                                        </Table.Row>
-                                        {group.data.map((transaction, index) => (
-                                            <Fragment key={transaction.id}>
-                                                {/* Phone only: the rows are grouped under their day, so the row itself does not show the date */}
-                                                {transaction.transactioned_at.slice(0, 10) !== group.data[index - 1]?.transactioned_at.slice(0, 10) && (
-                                                    <Table.Row data-day hideFrom="md" display="block">
-                                                        <Table.Cell display="block" pt={3} pb={1} px="10px" borderBottomWidth={0} color="fg.muted" fontSize="xs" fontWeight="semibold">
-                                                            {formatDate(transaction.transactioned_at)}
-                                                        </Table.Cell>
-                                                    </Table.Row>
-                                                )}
-                                                {renderRow(transaction)}
-                                            </Fragment>
-                                        ))}
+                                {visible.map((transaction, index) => (
+                                    <Fragment key={transaction.id}>
+                                        {/* Phone only: the rows are grouped under their day, so the row itself does not show the date */}
+                                        {transaction.transactioned_at.slice(0, 10) !== visible[index - 1]?.transactioned_at.slice(0, 10) && (
+                                            <Table.Row data-day hideFrom="md" display="block">
+                                                <Table.Cell display="block" pt={index === 0 ? 0 : 4} pb={1} px="10px" borderBottomWidth={0} color="fg.muted" fontSize="xs" fontWeight="semibold">
+                                                    {formatDate(transaction.transactioned_at)}
+                                                </Table.Cell>
+                                            </Table.Row>
+                                        )}
+                                        {renderRow(transaction)}
                                     </Fragment>
                                 ))}
                             </Table.Body>
@@ -407,18 +361,15 @@ export default function TransactionsDisplay() {
                     </Table.ScrollArea>
                 )}
 
-                {!loading && pageCount > 1 && (
-                    <Flex align="center" gap={3}>
-                        <Button size={{ base: "sm", md: "xs" }} variant="outline" disabled={currentPage === 1}
-                            onClick={() => setPage(currentPage - 1)}>
-                            Anterior
-                        </Button>
-                        <Text fontSize="sm">Página {currentPage} de {pageCount}</Text>
-                        <Button size={{ base: "sm", md: "xs" }} variant="outline" disabled={currentPage === pageCount}
-                            onClick={() => setPage(currentPage + 1)}>
-                            Próxima
-                        </Button>
-                    </Flex>
+                {/* Scrolling to here puts the next rows on the page; without the browser support for that, a button does */}
+                {!loading && hasMore && (
+                    <Box ref={end} w="full" textAlign="center" py={4}>
+                        {canObserve ? <SpinnerLoading /> : (
+                            <Button size="sm" variant="outline" onClick={() => setVisibleCount((count) => count + BATCH)}>
+                                Mostrar mais
+                            </Button>
+                        )}
+                    </Box>
                 )}
 
                 {!loading && filtered.length === 0 && (

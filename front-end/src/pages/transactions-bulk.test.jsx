@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
 import { mockApi, renderApp, requestsMade, chooseCategory } from '../test/helpers'
 import TransactionsDisplay from './transactions-display'
@@ -168,10 +168,12 @@ describe('transactions page: many at once', () => {
   })
 
   it('does not offer to act on more than the server accepts at once, and says why', async () => {
-    const many = { data: Array.from({ length: 501 }, (_, n) => ({ ...t(n + 1, `Compra ${n + 1}`, 100), transactioned_at: new Date().toISOString().slice(0, 19) })) } // today: the recent groups are never paginated
+    vi.stubGlobal('IntersectionObserver', undefined) // no scrolling in a test: the "Mostrar mais" button puts the rows on the page
+    const many = { data: Array.from({ length: 501 }, (_, n) => ({ ...t(n + 1, `Compra ${n + 1}`, 100), transactioned_at: new Date(2026, 2, 15, 12, 0, 0, 0).toISOString().slice(0, 19) })) }
     api({ 'POST /transactions': many })
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Compra 1')
+    while (screen.queryByRole('button', { name: 'Mostrar mais' })) await userEvent.click(screen.getByRole('button', { name: 'Mostrar mais' }))
 
     await startSelecting()
     await userEvent.click(screen.getByRole('checkbox', { name: /selecionar todas as exibidas/i }))
@@ -179,5 +181,6 @@ describe('transactions page: many at once', () => {
     expect(screen.getByText(/mais de 500 de uma vez/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /excluir selecionadas/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /editar selecionadas/i })).toBeDisabled()
-  }, 20000)
+    vi.unstubAllGlobals()
+  }, 30000)
 })
