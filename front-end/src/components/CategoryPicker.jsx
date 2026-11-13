@@ -54,7 +54,6 @@ export default function CategoryPicker({
             openOnClick
             lazyMount
             unmountOnExit
-            selectOnBlur={false}
             invalid={invalid}
             disabled={disabled}
             size={size}
@@ -72,7 +71,7 @@ export default function CategoryPicker({
                         const input = event.currentTarget;
                         setTimeout(() => input.setSelectionRange(0, input.value.length), 0);
                     }}
-                    {...(inline ? { variant: "subtle", bg: "transparent", borderWidth: 0, px: 0, h: "auto", minH: "28px", fontSize: "sm", color: "fg.muted", textOverflow: "ellipsis" } : {})}
+                    {...(inline ? { variant: "subtle", bg: "transparent", borderWidth: 0, px: 2, h: "auto", minH: "28px", fontSize: "sm", color: "fg.muted", textOverflow: "ellipsis", cursor: "pointer", rounded: "md", _hover: { bg: "bg.muted" }, _focus: { cursor: "text" } } : {})}
                     {...inputProps}
                 />
                 {!inline && (

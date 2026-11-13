@@ -156,14 +156,6 @@ function CategoryDrawer({ open, onClose, groups, category, defaultGroupId, onSav
                                     <Field.ErrorText>{error}</Field.ErrorText>
                                 </Field.Root>
 
-                                <Field.Root>
-                                    <Field.Label>Emoji</Field.Label>
-                                    <EmojiGrid value={emoji} onChange={setEmoji} />
-                                    <Text fontSize="xs" color="fg.muted">
-                                        Aparece na frente do nome. É opcional.
-                                    </Text>
-                                </Field.Root>
-
                                 <Field.Root required>
                                     <RequiredLabel>Grupo</RequiredLabel>
                                     <NativeSelect.Root>
@@ -174,6 +166,14 @@ function CategoryDrawer({ open, onClose, groups, category, defaultGroupId, onSav
                                         </NativeSelect.Field>
                                         <NativeSelect.Indicator />
                                     </NativeSelect.Root>
+                                </Field.Root>
+
+                                <Field.Root>
+                                    <Field.Label>Emoji</Field.Label>
+                                    <EmojiGrid value={emoji} onChange={setEmoji} />
+                                    <Text fontSize="xs" color="fg.muted">
+                                        Aparece na frente do nome. É opcional.
+                                    </Text>
                                 </Field.Root>
                             </Stack>
                         </Drawer.Body>
