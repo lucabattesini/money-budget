@@ -1,7 +1,7 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useNavigate } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getToken, saveToken } from '../lib/auth'
 import { jsonResponse, mockApi, renderApp, requestsMade, chooseCategory } from '../test/helpers'
 import TransactionsDisplay from './transactions-display'
@@ -28,16 +28,9 @@ const TRANSACTIONS = {
   ],
 }
 
-const GROUP_TITLES = ['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto']
 const rowOf = (label) => screen.getByText(label).closest('tr')
-// Rows with transactions have 6 cells (a tick box is added in front in selection mode); the group headings are one wide cell
+// Rows with transactions have 6 cells (a tick box is added in front in selection mode); the day headings are one wide cell
 const rowsOnPage = () => [...document.querySelectorAll('tbody tr')].filter((row) => row.children.length > 1)
-// The group of a row is the closest heading row above it
-const groupOf = (label) => {
-  const rows = [...document.querySelectorAll('tbody tr')]
-  const heading = rows.slice(0, rows.indexOf(rowOf(label))).reverse().find((row) => row.children.length === 1 && !('day' in row.dataset))
-  return GROUP_TITLES.find((title) => heading?.textContent === title)
-}
 // The filters live in a popover next to the add button
 const openFilters = async () => {
   await userEvent.click(screen.getByRole('button', { name: /filtros/i }))
@@ -135,8 +128,7 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0) // no header row, just the transactions
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
-    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', '', '', '- R$ 25,50']) // the category is a box, not text
-    expect(within(rowOf('Almoço')).getByRole('combobox', { name: 'Categoria de Almoço' })).toHaveValue('Alimentação')
+    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
   })
 
   it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
@@ -156,32 +148,34 @@ describe('transactions page', () => {
     )
   })
 
-  it('groups transactions into today, this week, this month and older, in that order', async () => {
+  it('lists every transaction in one list, newest first, whatever order the server sent them in', async () => {
     mockApi(routes())
 
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Almoço')
 
-    const labels = ['Almoço', 'Uber', 'Mercado', 'Presente']
+    const labels = ['Almoço', 'Uber', 'Mercado', 'Presente'] // 15 March, 10 March, 2 March, 20 February
     expect(rowsOnPage().map((row) => labels.find((l) => row.textContent.includes(l)))).toEqual(labels)
-    expect(labels.map(groupOf)).toEqual(['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto'])
   })
 
-  it.each([
-    // [label, date, group it must appear in]
-    ['today start', '2026-03-15T00:00:00', 'Hoje'],
-    ['just before today', '2026-03-14T23:59:00', 'Esta Semana'],
-    ['week start', '2026-03-08T00:00:00', 'Esta Semana'],
-    ['just before the week', '2026-03-07T23:59:00', 'Este Mês'],
-    ['month start', '2026-03-01T00:00:00', 'Este Mês'],
-    ['just before the month', '2026-02-28T23:59:00', 'Todo o Resto'],
-  ])('puts the "%s" transaction (%s) in "%s"', async (label, date, group) => {
-    mockApi(routes({ data: [t(1, label, 1000, date)] }))
+  it('has no headings that split the list into today, this week, this month and older', async () => {
+    mockApi(routes())
 
     renderApp(<TransactionsDisplay />)
+    await screen.findByText('Almoço')
 
-    await screen.findByText(label)
-    expect(groupOf(label)).toBe(group)
+    for (const title of ['Hoje', 'Esta Semana', 'Este Mês', 'Todo o Resto']) {
+      expect(screen.queryByText(title, { selector: 'td *, td' })).not.toBeInTheDocument()
+    }
+  })
+
+  it('puts transactions of the same minute in a steady order', async () => {
+    mockApi(routes({ data: [t(1, 'primeira', 100, '2026-03-15T09:00:00'), t(2, 'segunda', 100, '2026-03-15T09:00:00')] }))
+
+    renderApp(<TransactionsDisplay />)
+    await screen.findByText('primeira')
+
+    expect(rowsOnPage()).toHaveLength(2)
   })
 
   it('names the category, or says it was not found', async () => {
@@ -190,18 +184,8 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
 
     await screen.findByText('Presente')
-    expect(within(rowOf('Presente')).getByPlaceholderText('Categoria não encontrada')).toBeInTheDocument()
-    expect(within(rowOf('Uber')).getByRole('combobox')).toHaveValue('Transporte')
-  })
-
-  it('only shows the groups that have transactions', async () => {
-    mockApi(routes({ data: [t(1, 'Almoço', 2550, '2026-03-15T09:00:00')] }))
-
-    renderApp(<TransactionsDisplay />)
-    await screen.findByText('Almoço')
-
-    expect(screen.queryByText('Esta Semana')).not.toBeInTheDocument()
-    expect(screen.queryByText('Todo o Resto')).not.toBeInTheDocument()
+    expect(within(rowOf('Presente')).getByText('Categoria não encontrada')).toBeInTheDocument()
+    expect(within(rowOf('Uber')).getByText('Transporte')).toBeInTheDocument()
   })
 
   it('shows no rows when there are no transactions', async () => {
@@ -214,21 +198,6 @@ describe('transactions page', () => {
     expect(api).toHaveBeenCalledTimes(3) // the data really arrived: this is not just the loading state
     expect(rowsOnPage()).toHaveLength(0)
     expect(screen.getByText('Nenhuma transação ainda.')).toBeInTheDocument()
-    for (const title of ['Esta Semana', 'Todo o Resto']) expect(screen.queryByText(title)).not.toBeInTheDocument()
-  })
-
-  it('puts a transaction in the last 7 days even when that window reaches into the previous month', async () => {
-    vi.setSystemTime(new Date(2026, 2, 4, 12, 0, 0)) // Wednesday 4 March
-    mockApi(routes({ data: [
-      t(1, 'hoje', 100, '2026-03-04T09:00:00'),
-      t(2, 'na semana', 100, '2026-02-27T10:00:00'),
-      t(3, 'antes da semana', 100, '2026-02-24T23:59:00'),
-    ] }))
-
-    renderApp(<TransactionsDisplay />)
-    await screen.findByText('hoje')
-
-    expect(['hoje', 'na semana', 'antes da semana'].map(groupOf)).toEqual(['Hoje', 'Esta Semana', 'Todo o Resto'])
   })
 
   it('has no delete button visible: it lives in the three-dot menu of each row', async () => {
@@ -324,16 +293,20 @@ describe('transactions page', () => {
     }
     const ok = () => new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
     const refused = () => new Response(JSON.stringify({ detail: 'no' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
-    const boxOf = (label) => within(rowOf(label)).getByRole('combobox', { name: `Categoria de ${label}` })
+    // The category of a row is text until it is clicked: then the row gets the search box (and only that row)
+    const openBox = async (label) => {
+      await userEvent.click(within(rowOf(label)).getByRole('button', { name: new RegExp(`^Trocar a categoria de ${label} `) }))
+      return within(rowOf(label)).findByRole('combobox', { name: `Categoria de ${label}` })
+    }
 
     it('saves the new category right away, sending the transaction as it is, and shows it in the row', async () => {
       const api = quickRoutes(ok)
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await chooseCategory(boxOf('Almoço'), 'Transporte')
+      await chooseCategory(await openBox('Almoço'), 'Transporte')
 
-      await waitFor(() => expect(boxOf('Almoço')).toHaveValue('Transporte'))
+      await waitFor(() => expect(within(rowOf('Almoço')).getByText('Transporte')).toBeInTheDocument())
       const put = api.mock.calls.find(([url, options]) => String(options?.method).toUpperCase() === 'PUT' && url.endsWith('/transactions/1'))
       expect(JSON.parse(put[1].body)).toEqual({ label: 'Almoço', value: 2550, category_id: '2' }) // nothing else is touched
       expect(await screen.findByText('A categoria foi atualizada!')).toBeInTheDocument()
@@ -345,10 +318,10 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await chooseCategory(boxOf('Almoço'), 'Transporte')
+      await chooseCategory(await openBox('Almoço'), 'Transporte')
 
       expect(await screen.findByText('Não foi possível trocar a categoria. Tente novamente.')).toBeInTheDocument()
-      await waitFor(() => expect(boxOf('Almoço')).toHaveValue('Alimentação'))
+      await waitFor(() => expect(within(rowOf('Almoço')).getByText('Alimentação')).toBeInTheDocument()) // the row keeps its category
     })
 
     it('does not save when the same category is chosen again', async () => {
@@ -356,7 +329,7 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await chooseCategory(boxOf('Almoço'), 'Alimentação')
+      await chooseCategory(await openBox('Almoço'), 'Alimentação')
 
       expect(requestsMade(api).filter((request) => request.startsWith('PUT'))).toEqual([])
     })
@@ -366,10 +339,34 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await userEvent.clear(boxOf('Almoço'))
-      await userEvent.type(boxOf('Almoço'), 'trans')
+      const box = await openBox('Almoço')
+      await userEvent.clear(box)
+      await userEvent.type(box, 'trans')
 
       await waitFor(() => expect(screen.queryAllByRole('option').map((option) => option.textContent)).toEqual(['Transporte']))
+    })
+
+    it('has no search box in the rows until one is clicked, and only in that row', async () => {
+      quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      expect(screen.queryAllByRole('combobox', { name: /^Categoria de/ })).toHaveLength(0)
+
+      await openBox('Almoço')
+
+      expect(screen.getAllByRole('combobox', { name: /^Categoria de/ })).toHaveLength(1)
+    })
+
+    it('goes back to text when the list is closed without choosing', async () => {
+      quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await openBox('Almoço')
+
+      await userEvent.keyboard('{Escape}')
+
+      await waitFor(() => expect(screen.queryAllByRole('combobox', { name: /^Categoria de/ })).toHaveLength(0))
+      expect(within(rowOf('Almoço')).getByText('Alimentação')).toBeInTheDocument()
     })
 
     it('is plain text in selection mode, where a click ticks the row', async () => {
@@ -379,7 +376,7 @@ describe('transactions page', () => {
 
       await userEvent.click(screen.getByRole('button', { name: /Selecionar/ }))
 
-      expect(screen.queryByRole('combobox', { name: 'Categoria de Almoço' })).not.toBeInTheDocument()
+      expect(within(rowOf('Almoço')).queryByRole('button', { name: /Trocar a categoria/ })).not.toBeInTheDocument()
       expect(within(rowOf('Almoço')).getByText('Alimentação')).toBeInTheDocument()
     })
   })
@@ -420,7 +417,7 @@ describe('transactions page', () => {
 
       expect(await screen.findByText('Cinema')).toBeInTheDocument()
       expect(rowOf('Cinema').children[4].textContent).toBe('- R$ 12.345,67')
-      expect(within(rowOf('Cinema')).getByRole('combobox')).toHaveValue('Transporte')
+      expect(within(rowOf('Cinema')).getByText('Transporte')).toBeInTheDocument()
       expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/create'))[1].body).value).toBe(1234567)
       await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
     })
@@ -712,9 +709,9 @@ describe('transactions page', () => {
       expect(screen.getByTestId('location')).toHaveTextContent('/transactions')
     })
 
-    it('keeps a filter changed while the panel is open in the address after the panel is closed, on the first page', async () => {
+    it('keeps a filter changed while the panel is open in the address after the panel is closed', async () => {
       mockApi(routes(FILTERED))
-      renderApp(<><TransactionsDisplay /><BackButton /></>, { route: '/transactions?from=2026-03-01&page=2' })
+      renderApp(<><TransactionsDisplay /><BackButton /></>, { route: '/transactions?from=2026-03-01' })
       await screen.findByText('Almoço')
       await openFilters()
 
@@ -726,7 +723,6 @@ describe('transactions page', () => {
         const address = screen.getByTestId('location').textContent // the step back and the rewrite settle together
         expect(address).toContain('search=ub')
         expect(address).toContain('from=2026-03-01')
-        expect(address).not.toContain('page=')
       })
     })
 
@@ -763,78 +759,129 @@ describe('transactions page', () => {
     })
   })
 
-  describe('pagination of "Todo o Resto"', () => {
-    // 73 old transactions, named "antigo 01" (newest) ... "antigo 73"; plus one from today
-    const old = Array.from({ length: 73 }, (_, i) =>
-      t(100 + i, `antigo ${String(i + 1).padStart(2, '0')}`, 1000, new Date(2026, 0, 20 - i % 5, 10 - (i % 3)).toISOString().slice(0, 19), 1))
-    const DATA = { data: [t(1, 'hoje', 500, '2026-03-15T09:00:00'), ...old] }
-    const oldRows = () => rowsOnPage().map((row) => row.children[1].textContent).filter((l) => l.startsWith('antigo'))
+  describe('infinite scroll', () => {
+    // 100 transactions, "compra 001" (newest) ... "compra 100"
+    const MANY = {
+      data: Array.from({ length: 100 }, (_, i) =>
+        t(1000 + i, `compra ${String(i + 1).padStart(3, '0')}`, 1000, new Date(2026, 1, 28 - Math.floor(i / 4), 12, 59 - (i % 4)).toISOString().slice(0, 19), 1)),
+    }
+    const labels = () => rowsOnPage().map((row) => row.children[1].textContent)
 
-    it('shows 30 per page with a page indicator, and the recent groups are never paginated', async () => {
-      mockApi(routes(DATA))
+    // The browser's way of saying "the end of the list is in view" is played by the test
+    let watchers
+    beforeEach(() => {
+      watchers = []
+      vi.stubGlobal('IntersectionObserver', class {
+        constructor(callback) { this.callback = callback; this.live = true; watchers.push(this) }
+        observe() {}
+        disconnect() { this.live = false }
+      })
+    })
+    afterEach(() => vi.unstubAllGlobals())
+    const scrollToTheEnd = async () => {
+      await waitFor(() => expect(watchers.some((w) => w.live)).toBe(true)) // the page has started watching the end of the list
+      act(() => watchers.filter((w) => w.live).forEach((w) => w.callback([{ isIntersecting: true }])))
+    }
+
+    it('puts the first rows on the page and the next ones when the end of the list comes into view', async () => {
+      mockApi(routes(MANY))
       renderApp(<TransactionsDisplay />)
-      await screen.findByText('hoje')
+      await screen.findByText('compra 001')
 
-      expect(oldRows()).toHaveLength(30)
-      expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
-      expect(screen.getByText('hoje')).toBeInTheDocument()
+      expect(labels()).toHaveLength(40)
+      expect(labels()[0]).toBe('compra 001')
+      expect(screen.getByRole('status', { name: 'Carregando mais transações' })).toBeInTheDocument() // for a screen reader
+      expect(screen.queryByText('compra 041')).not.toBeInTheDocument()
+
+      await scrollToTheEnd()
+      expect(await screen.findByText('compra 041')).toBeInTheDocument()
+      expect(labels()).toHaveLength(80)
+      await scrollToTheEnd()
+      await waitFor(() => expect(labels()).toHaveLength(100))
+      expect(labels().at(-1)).toBe('compra 100')
     })
 
-    it('goes back to the page before when the person goes back', async () => {
-      mockApi(routes(DATA))
-      renderApp(<><TransactionsDisplay /><BackButton /></>)
-      await screen.findByText('hoje')
-      await userEvent.click(screen.getByRole('button', { name: 'Próxima' }))
-      expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
-      expect(screen.getByTestId('location')).toHaveTextContent('page=2')
+    it('keeps watching for the end of the list when the page finishes loading after the rows arrived (merchants on)', async () => {
+      // The rows are there first, and the page waits for the merchants before it shows the list
+      let release
+      const merchantsAnswer = new Promise((resolve) => { release = resolve })
+      mockApi({
+        'GET /families/me': { data: { ...FAMILY.data, merchants_enabled: true } },
+        'GET /categories': CATEGORIES,
+        'POST /transactions': MANY,
+        'GET /merchants': () => merchantsAnswer.then(() => jsonResponse({ data: [] })),
+      })
+      renderApp(<TransactionsDisplay />)
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
 
-      await userEvent.click(screen.getByText('voltar'))
+      await act(async () => { release() })
+      await screen.findByText('compra 001')
+      await scrollToTheEnd()
 
-      expect(screen.getByText('Página 1 de 3')).toBeInTheDocument()
+      expect(await screen.findByText('compra 041')).toBeInTheDocument()
     })
 
-    it('moves between pages and stops at the ends', async () => {
-      mockApi(routes(DATA))
+    it('does not leave the page, and has no page buttons or numbers', async () => {
+      mockApi(routes(MANY))
       renderApp(<TransactionsDisplay />)
-      await screen.findByText('hoje')
-      const previous = screen.getByRole('button', { name: 'Anterior' })
-      const next = screen.getByRole('button', { name: 'Próxima' })
-      expect(previous).toBeDisabled()
-      const firstPage = oldRows()
+      await screen.findByText('compra 001')
 
-      await userEvent.click(next)
-      expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
-      expect(oldRows()).toHaveLength(30)
-      expect(oldRows()).not.toEqual(firstPage)
-      await userEvent.click(next)
-      expect(screen.getByText('Página 3 de 3')).toBeInTheDocument()
-      expect(oldRows()).toHaveLength(13) // 73 = 30 + 30 + 13
-      expect(next).toBeDisabled()
-      await userEvent.click(previous)
-      expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
-    })
-
-    it('goes back to page 1 when a filter changes, and hides the controls when one page is enough', async () => {
-      mockApi(routes(DATA))
-      renderApp(<TransactionsDisplay />)
-      await screen.findByText('hoje')
-      await userEvent.click(screen.getByRole('button', { name: 'Próxima' }))
-
-      await openFilters()
-      await userEvent.type(screen.getByLabelText('Buscar'), 'antigo 7')
-
-      expect(oldRows()).toHaveLength(4) // antigo 70 to 73
       expect(screen.queryByText(/Página \d/)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Anterior' })).not.toBeInTheDocument()
     })
 
-    it('has no page controls with 30 or fewer old transactions', async () => {
-      mockApi(routes({ data: DATA.data.slice(0, 31) }))
+    it('watches nothing once every row is on the page', async () => {
+      mockApi(routes({ data: MANY.data.slice(0, 40) }))
       renderApp(<TransactionsDisplay />)
-      await screen.findByText('hoje')
+      await screen.findByText('compra 001')
 
-      expect(oldRows()).toHaveLength(30)
-      expect(screen.queryByRole('button', { name: 'Próxima' })).not.toBeInTheDocument()
+      expect(labels()).toHaveLength(40)
+      expect(watchers.filter((w) => w.live)).toHaveLength(0)
+    })
+
+    it('starts from the top again when a filter changes', async () => {
+      mockApi(routes(MANY))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('compra 001')
+      await scrollToTheEnd()
+      await screen.findByText('compra 041')
+
+      await openFilters()
+      await userEvent.type(screen.getByLabelText('Buscar'), 'compra 0')
+
+      expect(labels()).toHaveLength(40) // 99 match, the first batch again
+      expect(labels()[0]).toBe('compra 001')
+    })
+
+    it('shows the day above its rows on a phone, once per day', async () => {
+      mockApi(routes(MANY))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('compra 001')
+
+      const days = [...document.querySelectorAll('tbody tr[data-day]')]
+      expect(days).toHaveLength(10) // 40 rows, 4 a day
+      expect(new Set(days.map((day) => day.textContent)).size).toBe(10)
+    })
+  })
+
+  describe('infinite scroll without the browser support', () => {
+    const MANY = { data: Array.from({ length: 90 }, (_, i) => t(2000 + i, `item ${String(i + 1).padStart(2, '0')}`, 100, new Date(2026, 1, 28, 12, 59 - (i % 60), 59 - Math.floor(i / 60)).toISOString().slice(0, 19), 1)) }
+
+    it('offers a "Mostrar mais" button that adds the next rows, and removes it at the end', async () => {
+      vi.stubGlobal('IntersectionObserver', undefined)
+      mockApi(routes(MANY))
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('item 01')
+      expect(rowsOnPage()).toHaveLength(40)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mostrar mais' }))
+      expect(rowsOnPage()).toHaveLength(80)
+      await userEvent.click(screen.getByRole('button', { name: 'Mostrar mais' }))
+
+      expect(rowsOnPage()).toHaveLength(90)
+      expect(screen.queryByRole('button', { name: 'Mostrar mais' })).not.toBeInTheDocument()
+      vi.unstubAllGlobals()
     })
   })
 
@@ -895,7 +942,7 @@ describe('transactions page', () => {
 
       // the last cell of a row is the phone-only icon; the category cell keeps the name (the emoji is only for wider screens)
       expect(['A', 'B', 'C'].map((l) => rowOf(l).lastElementChild.textContent)).toEqual(['🎁', '🇨🇦', '👨‍👩‍👧'])
-      expect(['A', 'B', 'C'].map((l) => within(rowOf(l)).getByRole('combobox').value)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
+      expect(['A', 'B', 'C'].map((l) => rowOf(l).children[2].textContent)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
     })
 
     it('has the logged-in person chosen in a new transaction, and sends it', async () => {
@@ -1053,7 +1100,7 @@ describe('transactions page', () => {
 
       await userEvent.selectOptions(screen.getByLabelText('Estabelecimento'), 'Uber')
 
-      expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['CorridaUber', 'VoltaUber', 'SalárioUber'])
+      expect(rowsOnPage().map((row) => row.children[1].textContent)).toEqual(['VoltaUber', 'CorridaUber', 'SalárioUber']) // newest first: 11, 10 and 2 March
     })
 
     it('does not touch the merchant of an edited transaction when the merchants could not be loaded', async () => {

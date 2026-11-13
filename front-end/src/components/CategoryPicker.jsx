@@ -17,7 +17,7 @@ const NONE = "__none__"; // the value of the "no category chosen" choice (an emp
  */
 export default function CategoryPicker({
     categories, value, onChange, emptyLabel, extra = NO_EXTRA, placeholder = "Escolha uma categoria", label, id,
-    invalid = false, disabled = false, variant = "field", size = "md", ...inputProps
+    invalid = false, disabled = false, variant = "field", size = "md", defaultOpen = false, onClosed, ...inputProps
 }) {
     const [typed, setTyped] = useState("");
 
@@ -52,6 +52,8 @@ export default function CategoryPicker({
             // Once a choice is made, the next opening shows every category again.
             onInputValueChange={({ inputValue, reason }) => flushSync(() => setTyped(reason === "input-change" ? inputValue : ""))}
             openOnClick
+            defaultOpen={defaultOpen}
+            onOpenChange={({ open }) => { if (!open && onClosed) onClosed(); }}
             lazyMount
             unmountOnExit
             invalid={invalid}

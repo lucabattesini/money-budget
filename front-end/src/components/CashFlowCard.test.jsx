@@ -46,4 +46,53 @@ describe('CashFlowCard', () => {
 
     expect(plain('Entradas do mês')).toBe('US$1,234.56')
   })
+
+  describe('the bar', () => {
+    const bar = () => ({
+      spent: document.querySelector('[data-part="spent"]').style.width,
+      left: document.querySelector('[data-part="left"]'),
+    })
+
+    it('is red as far as what went out is of what came in, and green for the rest', () => {
+      renderApp(<CashFlowCard entered={400000} spent={100000} month="2026-03" />)
+
+      expect(bar().spent).toBe('25%')
+      expect(bar().left).not.toBeNull()
+    })
+
+    it('is all red, with nothing green, when more went out than came in', () => {
+      renderApp(<CashFlowCard entered={10000} spent={25050} month="2026-03" />)
+
+      expect(bar().spent).toBe('100%')
+      expect(bar().left).toBeNull()
+    })
+
+    it('is all red when money went out and nothing came in', () => {
+      renderApp(<CashFlowCard entered={0} spent={5000} month="2026-03" />)
+
+      expect(bar().spent).toBe('100%')
+      expect(bar().left).toBeNull()
+    })
+
+    it('is all green when money came in and nothing went out', () => {
+      renderApp(<CashFlowCard entered={5000} spent={0} month="2026-03" />)
+
+      expect(bar().spent).toBe('0%')
+      expect(bar().left).not.toBeNull()
+    })
+
+    it('has nothing in it, and no green, when the same came in and went out', () => {
+      renderApp(<CashFlowCard entered={4000} spent={4000} month="2026-03" />)
+
+      expect(bar().spent).toBe('100%')
+      expect(bar().left).toBeNull()
+    })
+
+    it('is empty when nothing came in or went out', () => {
+      renderApp(<CashFlowCard entered={0} spent={0} month="2026-03" />)
+
+      expect(bar().spent).toBe('0%')
+      expect(bar().left).toBeNull()
+    })
+  })
 })
