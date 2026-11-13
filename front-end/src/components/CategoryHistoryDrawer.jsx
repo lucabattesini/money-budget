@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Box, Button, CloseButton, Drawer, Flex, HStack, Link, Portal, SimpleGrid, Spinner, Stack, Text, Wrap } from "@chakra-ui/react";
 import { getCategoryHistory } from "../api/endpoints";
@@ -25,6 +25,8 @@ export default function CategoryHistoryDrawer({ category, month, open, onClose, 
     const [shown, setShown] = useState(month); // the month whose transactions are listed
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
+    const lastCategory = useRef(category); // the title stays while the panel slides away
+    if (category) lastCategory.current = category;
     const [using, setUsing] = useState(null); // the suggestion being saved
     const [reloaded, setReloaded] = useState(0); // asked again after a budget was set here
 
@@ -88,7 +90,7 @@ export default function CategoryHistoryDrawer({ category, month, open, onClose, 
                 <Drawer.Positioner>
                     <Drawer.Content>
                         <Drawer.Header>
-                            <Drawer.Title>{category?.name}</Drawer.Title>
+                            <Drawer.Title>{(category ?? lastCategory.current)?.name}</Drawer.Title>
                         </Drawer.Header>
                         <Drawer.Body>
                             {failed && <Text color="fg.error">Não foi possível carregar o histórico. Tente novamente mais tarde.</Text>}
@@ -98,7 +100,10 @@ export default function CategoryHistoryDrawer({ category, month, open, onClose, 
                                     <Stack gap={2}>
                                         <HStack justify="space-between">
                                             <Text fontWeight="semibold">Últimos {months} meses</Text>
-                                            <Button size="xs" variant="ghost" onClick={() => setMonths(months === 6 ? 12 : 6)}>
+                                            <Button size="xs" variant="ghost" onClick={() => {
+                                                    setMonths(months === 6 ? 12 : 6);
+                                                    setShown(month); // the tapped month may not be in the other window
+                                                }}>
                                                 {months === 6 ? "Ver 12 meses" : "Ver 6 meses"}
                                             </Button>
                                         </HStack>

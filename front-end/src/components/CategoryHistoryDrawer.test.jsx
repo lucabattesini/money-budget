@@ -96,6 +96,24 @@ describe('category history panel', () => {
     expect(await screen.findByRole('button', { name: 'Ver 6 meses' })).toBeInTheDocument()
   })
 
+  it('goes back to the month of the page when the window changes, so the figures and the list agree', async () => {
+    const api = mockApi({
+      [URL_NOV]: { data: history() },
+      [`GET /budgets/categories/${ID}?month=2026-11&months=12&show=2026-11`]: { data: history() },
+      [`GET /budgets/categories/${ID}?month=2026-11&months=12&show=2026-07`]: { data: history({ transactions_month: '2026-07' }) },
+    })
+    renderApp(<Harness />)
+    await screen.findByText('Padaria')
+    await userEvent.click(screen.getByRole('button', { name: 'Ver 12 meses' }))
+    await userEvent.click(await screen.findByRole('button', { name: /julho de 2026/ }))
+    await waitFor(() => expect(requestsMade(api)).toContain(`GET /budgets/categories/${ID}?month=2026-11&months=12&show=2026-07`))
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver 6 meses' }))
+
+    await waitFor(() => expect(requestsMade(api).filter((request) => request === URL_NOV)).toHaveLength(2))
+    expect(screen.getByRole('button', { name: /novembro de 2026/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('says so when there is no spending in the month', async () => {
     mockApi({ [URL_NOV]: { data: history({ transactions: [] }) } })
 
