@@ -94,7 +94,7 @@ export default function CategoryHistoryDrawer({ category, month, open, onClose, 
                             {failed && <Text color="fg.error">Não foi possível carregar o histórico. Tente novamente mais tarde.</Text>}
                             {!failed && !data && <Spinner size="lg" />}
                             {data && (
-                                <Stack gap={5}>
+                                <Stack gap={8}>
                                     <Stack gap={2}>
                                         <HStack justify="space-between">
                                             <Text fontWeight="semibold">Últimos {months} meses</Text>
