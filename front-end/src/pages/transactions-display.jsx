@@ -93,7 +93,7 @@ export default function TransactionsDisplay() {
     // Fix a wrong category right from the list. The server takes the whole transaction, so what it already has is sent back
     // as it is (no date, type, person, merchant or excluded: those stay as they are); the list is loaded again after.
     const [changingCategory, setChangingCategory] = useState(null); // the id of the transaction being saved
-    const [pickerResets, setPickerResets] = useState({}); // a picker is made anew when its change failed, so it shows the saved category again
+    const [pickerFor, setPickerFor] = useState(null); // the id of the row whose category is being changed
     const changeCategory = async (transaction, categoryId) => {
         if (!categoryId || categoryId === String(transaction.category_id)) return;
         setChangingCategory(transaction.id);
@@ -104,7 +104,6 @@ export default function TransactionsDisplay() {
             reload();
         } else {
             customToaster("Erro", "error", "Não foi possível trocar a categoria. Tente novamente.");
-            setPickerResets((current) => ({ ...current, [transaction.id]: (current[transaction.id] ?? 0) + 1 }));
         }
     };
 
@@ -132,7 +131,11 @@ export default function TransactionsDisplay() {
     }
 
     // One list, newest first
-    const filtered = applyFilters(transactions, filters).sort((a, b) => b.transactioned_at.localeCompare(a.transactioned_at));
+    // (dates are written year first, so comparing the text is comparing the times; equal ones keep the server's order)
+    const filtered = useMemo(
+        () => applyFilters(transactions, filters).sort((a, b) => (a.transactioned_at < b.transactioned_at ? 1 : a.transactioned_at > b.transactioned_at ? -1 : 0)),
+        [transactions, filters],
+    );
     // A row that the filters now hide is not acted on, even if it was ticked before
     const MAX_BULK = 500; // what the server accepts in one request
     const selectedIds = filtered.filter((transaction) => selected.has(transaction.id)).map((transaction) => transaction.id);
@@ -144,7 +147,7 @@ export default function TransactionsDisplay() {
     const canObserve = typeof IntersectionObserver !== "undefined";
     const end = useRef(null);
     useEffect(() => {
-        if (!hasMore || !canObserve || !end.current) return undefined;
+        if (!hasMore || !canObserve || !end.current || typeof IntersectionObserver === "undefined") return undefined;
         // Looked at again after every batch: if the end is still in view, the next batch comes at once
         const watcher = new IntersectionObserver((entries) => {
             if (entries.some((entry) => entry.isIntersecting)) setVisibleCount((count) => count + BATCH);
@@ -206,19 +209,39 @@ export default function TransactionsDisplay() {
                         {categoryParts(categoryName(transaction)).icon && <Text as="span" hideBelow="md">{categoryParts(categoryName(transaction)).icon} </Text>}{categoryParts(categoryName(transaction)).name}
                     </>
                 ) : (
-                    // Clicking the category opens the list right here; it must not open the editor of the row
-                    <Box minW={{ base: "9rem", md: "12rem" }} onClick={(event) => event.stopPropagation()}>
-                        <CategoryPicker
-                            key={`${transaction.id}:${pickerResets[transaction.id] ?? 0}`}
-                            variant="inline"
-                            categories={sortedCategories}
-                            value={String(transaction.category_id ?? "")}
-                            onChange={(id) => changeCategory(transaction, id)}
-                            disabled={changingCategory === transaction.id}
-                            placeholder={categories.some((category) => category.id === transaction.category_id) ? "Sem categoria" : "Categoria não encontrada"}
-                            aria-label={`Categoria de ${transaction.label}`}
-                        />
-                    </Box>
+                    // Clicking the category opens the list right here; it must not open the editor of the row.
+                    // Only the row being changed has the search box: one in every row made a long list slow to put on the page.
+                    pickerFor === transaction.id ? (
+                        <Box minW={{ base: "9rem", md: "12rem" }} onClick={(event) => event.stopPropagation()}>
+                            <CategoryPicker
+                                variant="inline"
+                                defaultOpen
+                                autoFocus
+                                categories={sortedCategories}
+                                value={String(transaction.category_id ?? "")}
+                                onChange={(id) => changeCategory(transaction, id)}
+                                onClosed={() => setPickerFor(null)}
+                                disabled={changingCategory === transaction.id}
+                                placeholder={categories.some((category) => category.id === transaction.category_id) ? "Sem categoria" : "Categoria não encontrada"}
+                                aria-label={`Categoria de ${transaction.label}`}
+                            />
+                        </Box>
+                    ) : (
+                        <Text
+                            as="button"
+                            type="button"
+                            textAlign="left"
+                            cursor="pointer"
+                            px={2}
+                            py={1}
+                            rounded="md"
+                            _hover={{ bg: "bg.muted" }}
+                            aria-label={`Trocar a categoria de ${transaction.label} (${categoryParts(categoryName(transaction)).name})`}
+                            onClick={(event) => { event.stopPropagation(); setPickerFor(transaction.id); }}
+                        >
+                            {categoryParts(categoryName(transaction)).icon && <Text as="span" hideBelow="md">{categoryParts(categoryName(transaction)).icon} </Text>}{categoryParts(categoryName(transaction)).name}
+                        </Text>
+                    )
                 )}
             </Table.Cell>
             {/* Phone: the first name after the category; larger screens: the picture */}
@@ -261,7 +284,6 @@ export default function TransactionsDisplay() {
         </Table.Row>
     );
 
-    // Only the oldest group is paginated
     const shownIds = visible.map((transaction) => transaction.id);
     const allShownTicked = shownIds.length > 0 && shownIds.every((id) => selected.has(id));
 
@@ -364,7 +386,7 @@ export default function TransactionsDisplay() {
                 {/* Scrolling to here puts the next rows on the page; without the browser support for that, a button does */}
                 {!loading && hasMore && (
                     <Box ref={end} w="full" textAlign="center" py={4}>
-                        {canObserve ? <SpinnerLoading /> : (
+                        {canObserve ? <Box role="status" aria-label="Carregando mais transações"><SpinnerLoading /></Box> : (
                             <Button size="sm" variant="outline" onClick={() => setVisibleCount((count) => count + BATCH)}>
                                 Mostrar mais
                             </Button>

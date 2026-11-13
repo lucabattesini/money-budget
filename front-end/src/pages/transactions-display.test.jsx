@@ -128,8 +128,7 @@ describe('transactions page', () => {
     await screen.findByText('Almoço')
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0) // no header row, just the transactions
     const cells = [...rowOf('Almoço').children].map((cell) => cell.textContent)
-    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', '', '', '- R$ 25,50']) // the category is a box, not text
-    expect(within(rowOf('Almoço')).getByRole('combobox', { name: 'Categoria de Almoço' })).toHaveValue('Alimentação')
+    expect(cells.slice(0, 5)).toEqual(['15/03/2026', 'Almoço', 'Alimentação', '', '- R$ 25,50'])
   })
 
   it('always shows the amount with two decimals, a comma and a dot between thousands', async () => {
@@ -185,8 +184,8 @@ describe('transactions page', () => {
     renderApp(<TransactionsDisplay />)
 
     await screen.findByText('Presente')
-    expect(within(rowOf('Presente')).getByPlaceholderText('Categoria não encontrada')).toBeInTheDocument()
-    expect(within(rowOf('Uber')).getByRole('combobox')).toHaveValue('Transporte')
+    expect(within(rowOf('Presente')).getByText('Categoria não encontrada')).toBeInTheDocument()
+    expect(within(rowOf('Uber')).getByText('Transporte')).toBeInTheDocument()
   })
 
   it('shows no rows when there are no transactions', async () => {
@@ -294,16 +293,20 @@ describe('transactions page', () => {
     }
     const ok = () => new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
     const refused = () => new Response(JSON.stringify({ detail: 'no' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
-    const boxOf = (label) => within(rowOf(label)).getByRole('combobox', { name: `Categoria de ${label}` })
+    // The category of a row is text until it is clicked: then the row gets the search box (and only that row)
+    const openBox = async (label) => {
+      await userEvent.click(within(rowOf(label)).getByRole('button', { name: new RegExp(`^Trocar a categoria de ${label} `) }))
+      return within(rowOf(label)).findByRole('combobox', { name: `Categoria de ${label}` })
+    }
 
     it('saves the new category right away, sending the transaction as it is, and shows it in the row', async () => {
       const api = quickRoutes(ok)
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await chooseCategory(boxOf('Almoço'), 'Transporte')
+      await chooseCategory(await openBox('Almoço'), 'Transporte')
 
-      await waitFor(() => expect(boxOf('Almoço')).toHaveValue('Transporte'))
+      await waitFor(() => expect(within(rowOf('Almoço')).getByText('Transporte')).toBeInTheDocument())
       const put = api.mock.calls.find(([url, options]) => String(options?.method).toUpperCase() === 'PUT' && url.endsWith('/transactions/1'))
       expect(JSON.parse(put[1].body)).toEqual({ label: 'Almoço', value: 2550, category_id: '2' }) // nothing else is touched
       expect(await screen.findByText('A categoria foi atualizada!')).toBeInTheDocument()
@@ -315,10 +318,10 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await chooseCategory(boxOf('Almoço'), 'Transporte')
+      await chooseCategory(await openBox('Almoço'), 'Transporte')
 
       expect(await screen.findByText('Não foi possível trocar a categoria. Tente novamente.')).toBeInTheDocument()
-      await waitFor(() => expect(boxOf('Almoço')).toHaveValue('Alimentação'))
+      await waitFor(() => expect(within(rowOf('Almoço')).getByText('Alimentação')).toBeInTheDocument()) // the row keeps its category
     })
 
     it('does not save when the same category is chosen again', async () => {
@@ -326,7 +329,7 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await chooseCategory(boxOf('Almoço'), 'Alimentação')
+      await chooseCategory(await openBox('Almoço'), 'Alimentação')
 
       expect(requestsMade(api).filter((request) => request.startsWith('PUT'))).toEqual([])
     })
@@ -336,10 +339,34 @@ describe('transactions page', () => {
       renderApp(<TransactionsDisplay />)
       await screen.findByText('Almoço')
 
-      await userEvent.clear(boxOf('Almoço'))
-      await userEvent.type(boxOf('Almoço'), 'trans')
+      const box = await openBox('Almoço')
+      await userEvent.clear(box)
+      await userEvent.type(box, 'trans')
 
       await waitFor(() => expect(screen.queryAllByRole('option').map((option) => option.textContent)).toEqual(['Transporte']))
+    })
+
+    it('has no search box in the rows until one is clicked, and only in that row', async () => {
+      quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      expect(screen.queryAllByRole('combobox', { name: /^Categoria de/ })).toHaveLength(0)
+
+      await openBox('Almoço')
+
+      expect(screen.getAllByRole('combobox', { name: /^Categoria de/ })).toHaveLength(1)
+    })
+
+    it('goes back to text when the list is closed without choosing', async () => {
+      quickRoutes(ok)
+      renderApp(<TransactionsDisplay />)
+      await screen.findByText('Almoço')
+      await openBox('Almoço')
+
+      await userEvent.keyboard('{Escape}')
+
+      await waitFor(() => expect(screen.queryAllByRole('combobox', { name: /^Categoria de/ })).toHaveLength(0))
+      expect(within(rowOf('Almoço')).getByText('Alimentação')).toBeInTheDocument()
     })
 
     it('is plain text in selection mode, where a click ticks the row', async () => {
@@ -349,7 +376,7 @@ describe('transactions page', () => {
 
       await userEvent.click(screen.getByRole('button', { name: /Selecionar/ }))
 
-      expect(screen.queryByRole('combobox', { name: 'Categoria de Almoço' })).not.toBeInTheDocument()
+      expect(within(rowOf('Almoço')).queryByRole('button', { name: /Trocar a categoria/ })).not.toBeInTheDocument()
       expect(within(rowOf('Almoço')).getByText('Alimentação')).toBeInTheDocument()
     })
   })
@@ -390,7 +417,7 @@ describe('transactions page', () => {
 
       expect(await screen.findByText('Cinema')).toBeInTheDocument()
       expect(rowOf('Cinema').children[4].textContent).toBe('- R$ 12.345,67')
-      expect(within(rowOf('Cinema')).getByRole('combobox')).toHaveValue('Transporte')
+      expect(within(rowOf('Cinema')).getByText('Transporte')).toBeInTheDocument()
       expect(JSON.parse(api.mock.calls.find(([url]) => url.endsWith('/create'))[1].body).value).toBe(1234567)
       await waitFor(() => expect(screen.queryByLabelText('Valor')).not.toBeInTheDocument()) // sidebar closed
     })
@@ -763,6 +790,7 @@ describe('transactions page', () => {
 
       expect(labels()).toHaveLength(40)
       expect(labels()[0]).toBe('compra 001')
+      expect(screen.getByRole('status', { name: 'Carregando mais transações' })).toBeInTheDocument() // for a screen reader
       expect(screen.queryByText('compra 041')).not.toBeInTheDocument()
 
       await scrollToTheEnd()
@@ -894,7 +922,7 @@ describe('transactions page', () => {
 
       // the last cell of a row is the phone-only icon; the category cell keeps the name (the emoji is only for wider screens)
       expect(['A', 'B', 'C'].map((l) => rowOf(l).lastElementChild.textContent)).toEqual(['🎁', '🇨🇦', '👨‍👩‍👧'])
-      expect(['A', 'B', 'C'].map((l) => within(rowOf(l)).getByRole('combobox').value)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
+      expect(['A', 'B', 'C'].map((l) => rowOf(l).children[2].textContent)).toEqual(['🎁 Presentes', '🇨🇦 Canadá', '👨‍👩‍👧 Família'])
     })
 
     it('has the logged-in person chosen in a new transaction, and sends it', async () => {

@@ -42,8 +42,8 @@ export default function CashFlowCard({ entered, spent, month }) {
                 </Flex>
 
                 <Flex h="2.5" borderRadius="full" bg="bg.muted" overflow="hidden" aria-hidden="true">
-                    <Box h="full" bg="red.500" w={`${spentShare}%`} />
-                    {!nothing && balance > 0 && <Box h="full" bg="green.500" flex="1" />}
+                    <Box h="full" bg="red.500" data-part="spent" style={{ width: `${spentShare}%` }} />
+                    {!nothing && balance > 0 && <Box h="full" bg="green.500" flex="1" data-part="left" />}
                 </Flex>
 
                 <SimpleGrid columns={2} gap={3}>
