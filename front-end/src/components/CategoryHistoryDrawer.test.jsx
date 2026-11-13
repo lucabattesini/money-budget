@@ -122,6 +122,21 @@ describe('category history panel', () => {
     expect(await screen.findByText('Nenhum gasto nesta categoria neste mês.')).toBeInTheDocument()
   })
 
+  it('shows only the error, not the figures of the last answer, when asking again fails', async () => {
+    mockApi({
+      [URL_NOV]: { data: history() },
+      [`GET /budgets/categories/${ID}?month=2026-11&months=6&show=2026-09`]: () => jsonResponse({ detail: 'boom' }, 500),
+    })
+    renderApp(<Harness />)
+    await screen.findByText('Padaria')
+
+    await userEvent.click(screen.getByRole('button', { name: /setembro de 2026/ }))
+
+    expect(await screen.findByText(/Não foi possível carregar o histórico/)).toBeInTheDocument()
+    expect(screen.queryByText('Padaria')).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /por mês/ })).not.toBeInTheDocument()
+  })
+
   it('says so when the history cannot be loaded', async () => {
     mockApi({ [URL_NOV]: () => jsonResponse({ detail: 'boom' }, 500) })
 
@@ -183,6 +198,26 @@ describe('category history panel', () => {
       expect(onUseBudget).toHaveBeenCalledWith(20000)
       await waitFor(() => expect(suggestion('Mínimo')).toBeEnabled())
       expect(requestsMade(api).filter((request) => request === URL_NOV)).toHaveLength(1)
+    })
+
+    it('does not offer a chip of R$ 0, which would plan "spend nothing"', async () => {
+      mockApi({
+        [URL_NOV]: {
+          data: history({
+            history: [
+              { month: '2026-09', budgeted: null, spent: 4000 },
+              { month: '2026-10', budgeted: null, spent: 0 },
+              { month: '2026-11', budgeted: null, spent: 100 },
+            ],
+          }),
+        },
+      })
+
+      renderApp(<Harness onUseBudget={vi.fn()} />)
+
+      await screen.findByText('Padaria')
+      expect(screen.getByRole('button', { name: /^Máximo:/ })).toBeInTheDocument() // R$ 40
+      expect(screen.queryByRole('button', { name: /^Mínimo:/ })).not.toBeInTheDocument() // October had nothing: R$ 0
     })
 
     it('offers nothing while there is no month that is over with any spending', async () => {

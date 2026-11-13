@@ -41,7 +41,7 @@ export default function CategoryHistoryDrawer({ category, month, open, onClose, 
             const result = await getCategoryHistory(category.id, month, months, shown, getToken());
             if (!current) return;
             setFailed(!result.ok);
-            if (result.ok) setData(result.data);
+            setData(result.ok ? result.data : null); // an error is not shown next to the figures of the last answer
         })();
         return () => {
             current = false;
@@ -72,7 +72,7 @@ export default function CategoryHistoryDrawer({ category, month, open, onClose, 
               { id: "max", label: "Máximo", cents: whole(Math.max(...spentBefore)) },
               { id: "min", label: "Mínimo", cents: whole(Math.min(...spentBefore)) },
               { id: "last", label: "Mês passado", cents: whole(past[past.length - 1].spent) },
-          ]
+          ].filter((suggestion) => suggestion.cents > 0) // a chip of R$ 0 would plan "spend nothing": not a suggestion
         : [];
     const applySuggestion = async (suggestion) => {
         setUsing(suggestion.id);
@@ -99,7 +99,7 @@ export default function CategoryHistoryDrawer({ category, month, open, onClose, 
                                 <Stack gap={8}>
                                     <Stack gap={2}>
                                         <HStack justify="space-between">
-                                            <Text fontWeight="semibold">Últimos {months} meses</Text>
+                                            <Text fontWeight="semibold">Últimos {history.length} meses</Text>
                                             <Button size="xs" variant="ghost" onClick={() => {
                                                     setMonths(months === 6 ? 12 : 6);
                                                     setShown(month); // the tapped month may not be in the other window
