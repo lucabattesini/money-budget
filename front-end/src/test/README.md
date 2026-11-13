@@ -40,6 +40,7 @@ Vitest + jsdom, React Testing Library, `@testing-library/user-event` and
 - **Rendering.** `renderApp(ui, { route })` wraps a component in the Chakra
   provider and a router, and adds a `data-testid="location"` element with the
   current route.
+- **Choosing a category.** Every category box is the shared category picker (a combobox): `chooseCategory(label, optionName)` from `helpers.jsx` opens it (by its label, or pass the element) and clicks the option; the list is only in the page while open.
 - **Google sign-in** is replaced by a stub button (`vi.mock('@react-oauth/google')`).
 - Local storage is cleared before each test.
 - **Testing a failure that changes nothing** (for example "must not say Salvo!"):

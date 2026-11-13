@@ -71,7 +71,7 @@ describe('filtersFromLink', () => {
   })
 
   it('ignores what is not a day or a type, and anything else in the link', () => {
-    expect(filtersFromLink('?from=ontem&to=2026-13-45&type=pix&counting=maybe&category=abc&min=<b>&other=1')).toEqual(EMPTY_FILTERS)
+    expect(filtersFromLink('?from=ontem&to=2026-13-45&type=pix&counting=maybe&category=a%20b%3Cc%3E&person=%27%3B&merchant=x/y&min=<b>&other=1')).toEqual(EMPTY_FILTERS)
     expect(filtersFromLink('?from=2026-3-1&to=2026-03-31')).toEqual({ ...EMPTY_FILTERS, to: '2026-03-31' })
   })
 
@@ -83,6 +83,12 @@ describe('filtersFromLink', () => {
     expect(filtersFromLink(params.toString())).toEqual(filters)
     expect(params.get('page')).toBe('2') // what is not a filter is kept
     expect(writeFilters(params, EMPTY_FILTERS).toString()).toBe('page=2') // empty filters leave no trace
+  })
+
+  it('keeps ids that are UUIDs, as the real server sends them', () => {
+    const id = '7c1f5f0e-52a4-4d8c-9b7e-0a6c1d2f3e44'
+
+    expect(filtersFromLink(`?category=${id}&person=${id}&merchant=${id}`)).toMatchObject({ category: id, person: id, merchant: id })
   })
 
   it('reads back what the dashboard link asks for', () => {

@@ -3,6 +3,7 @@ import { EMPTY_FILTERS, hasActiveFilters } from "../lib/transactionFilters";
 import { maskAmount } from "../lib/money";
 import { useLocale } from "../lib/locale";
 import AmountInput from "./AmountInput";
+import CategoryPicker from "./CategoryPicker";
 
 // The filter bar above the table. `filters` is controlled by the page.
 export default function TransactionFilters({ filters, onChange, categories, members = [], merchants = [] }) {
@@ -23,15 +24,14 @@ export default function TransactionFilters({ filters, onChange, categories, memb
 
             <Field.Root width="full">
                 <Field.Label>Categoria</Field.Label>
-                <NativeSelect.Root size="sm">
-                    <NativeSelect.Field value={filters.category} onChange={(e) => set("category")(e.target.value)}>
-                        <option value="">Todas</option>
-                        {categories.map((category) => (
-                            <option key={category.id} value={category.id}>{category.name}</option>
-                        ))}
-                    </NativeSelect.Field>
-                    <NativeSelect.Indicator />
-                </NativeSelect.Root>
+                <CategoryPicker
+                    size="sm"
+                    categories={categories}
+                    value={filters.category}
+                    onChange={set("category")}
+                    emptyLabel="Todas"
+                    aria-label="Categoria"
+                />
             </Field.Root>
 
             {merchants.length > 0 && (

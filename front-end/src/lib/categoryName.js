@@ -27,8 +27,33 @@ export const compareNames = (a, b) => plainName(a).localeCompare(plainName(b), "
 /** For sort() on category objects. */
 export const compareCategories = (a, b) => compareNames(a.name, b.name)
 
+/** The words of a name as a search sees them: no emoji, no accents, no capitals ("☕ Café" -> "cafe"). */
+export const searchKey = (text) => plainName(text).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()
+
+/** Does the category match what was typed? An empty search matches everything. */
+export const matchesSearch = (category, typed) => searchKey(category.name).includes(searchKey(typed).trim())
+
+/**
+ * The categories under their groups, as every list shows them: groups in their own order (group_position), categories
+ * A-Z inside a group. Categories that carry no group at all (older data) come as one group with no name.
+ * -> [{ id, name, categories }]
+ */
+export function groupCategories(categories) {
+  const groups = new Map()
+  for (const category of categories) {
+    const key = category.group_id ?? category.group_name ?? ""
+    if (!groups.has(key)) {
+      groups.set(key, { id: key, name: category.group_name ?? "", position: category.group_position ?? Infinity, categories: [] })
+    }
+    groups.get(key).categories.push(category)
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.position - b.position || compareNames(a.name, b.name))
+    .map((group) => ({ id: group.id, name: group.name, categories: [...group.categories].sort(compareCategories) }))
+}
+
 // The emojis offered when adding or editing a category, by theme.
-export const EMOJI_CHOICES = [
+const EMOJI_LIST = [
   // money
   "💰", "💵", "💳", "🏦", "📈", "📉", "🧾", "💸", "🪙", "💼",
   // home
@@ -41,6 +66,23 @@ export const EMOJI_CHOICES = [
   "💊", "🩺", "🦷", "🏋️", "🧴", "💆", "🧘", "🏥",
   // leisure
   "🎬", "🎮", "🎵", "🎨", "📺", "🎉", "🎁", "🏖️", "⚽", "📚",
-  // everything else
-  "🐾", "🐶", "🐱", "🌱", "👶", "🎓", "🛍️", "👕", "💄", "✂️", "🛡️", "🚨", "📦", "➕", "🔄", "🏧", "❤️", "⭐", "🔔",
+  // more food and drink
+  "🍞", "🥩", "🍗", "🍝", "🍣", "🌮", "🥪", "🍜", "🍰", "🍫", "🍦", "🍩", "🍪", "🥛", "🧃", "🍷", "🍹", "🍾", "🥕", "🍌", "🍇", "🥑", "🧀", "🥚",
+  // more home and utilities
+  "🛏️", "🪑", "🚪", "🪟", "🔑", "🧯", "🧽", "🧼", "🪣", "🔥", "💧", "🌡️", "📡", "🖥️", "💻", "🖨️", "🔋", "🪴",
+  // more transport and travel
+  "🚓", "🚑", "🚐", "🚚", "🚜", "🏍️", "🚇", "🚢", "⛵", "🛶", "🧳", "🗺️", "🏨", "🏕️", "🎒", "🛂", "🚏", "🛞",
+  // more health, care and fitness
+  "💉", "🩹", "🧬", "👓", "🏃", "🚴", "🏊", "🥊", "🧖", "💅", "💇", "🪒", "🧻", "🩻",
+  // more leisure and culture
+  "🎭", "🎤", "🎧", "🎸", "🎹", "🎻", "🎲", "🧩", "🎯", "🎳", "🎟️", "📷", "🎥", "🎪", "🎡", "🏟️", "🏀", "🎾", "🏄", "⛷️", "🎣", "🏕️", "🪁",
+  // work, study and money
+  "💎", "🧮", "📊", "🗂️", "📁", "📝", "✏️", "📖", "🔬", "🔭", "🖊️", "🏢", "🏭", "⚖️", "🤝", "📞", "✉️", "📬", "🪪", "🧾",
+  // family, pets and celebrations
+  "👨‍👩‍👧", "🧒", "🧓", "🍼", "🧸", "🎂", "🎈", "🎄", "🎃", "💐", "💍", "💒", "🐕", "🐈", "🐟", "🐦", "🐴", "🦮", "🪺",
+  // clothes and shopping
+  "👗", "👖", "👟", "👠", "👜", "🧥", "🧢", "⌚", "💍", "🕶️", "🎽", "🧦", "🏷️", "🛒",
+  // giving, taxes and everything else
+  "🐾", "🌱", "🎓", "🛍️", "💄", "✂️", "🛡️", "🚨", "📦", "➕", "🔄", "🏧", "❤️", "⭐", "🔔", "🙏", "🤲", "⛪", "🕌", "🕍", "🏛️", "⚠️", "❓", "🆘", "♻️", "🌍", "🌧️", "☀️", "🔒", "🧰", "🛠️", "🏦",
 ]
+export const EMOJI_CHOICES = [...new Set(EMOJI_LIST)] // an emoji that fits two themes is offered once

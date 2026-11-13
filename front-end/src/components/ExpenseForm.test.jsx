@@ -100,7 +100,7 @@ describe('expense form', () => {
 
     await userEvent.clear(categoryBox())
     expect(categoryBox()).toHaveValue('')
-    await openCategories()
+    if (screen.queryAllByRole('option').length === 0) await openCategories() // clearing may already have opened the list; the toggle would close it
     expect(await screen.findAllByRole('option')).toHaveLength(2) // the list is whole again
     expect(warn.mock.calls.flat().join(' ')).not.toMatch(/flushSync/) // React does not complain about the synchronous update
     warn.mockRestore()
@@ -115,7 +115,7 @@ describe('expense form', () => {
     await userEvent.click(submit())
 
     await waitFor(() => expect(amount()).toHaveValue(null))
-    expect(categoryBox()).toHaveValue('')
+    await waitFor(() => expect(categoryBox()).toHaveValue('')) // the box follows a moment after the form
   })
 
   it('saves a transaction in cents and confirms', async () => {

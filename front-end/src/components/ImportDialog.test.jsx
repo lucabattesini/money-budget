@@ -4,15 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
 import { setLocale } from '../lib/locale'
 import { followImport, queueImport } from '../lib/importJobs'
-import { jsonResponse, mockApi, renderApp, requestsMade } from '../test/helpers'
+import { jsonResponse, mockApi, renderApp, requestsMade, chooseCategory } from '../test/helpers'
 import ImportDialog from './ImportDialog'
 
 vi.mock('../lib/importJobs', () => ({ queueImport: vi.fn(), followImport: vi.fn() }))
 
 const CATEGORIES = {
   data: [
-    { id: 1, name: 'Aluguel', group_id: 10 },
-    { id: 2, name: '🛒 Supermercado', group_id: 11 },
+    { id: 1, name: 'Aluguel', group_id: 10, group_name: 'Casa', group_position: 1 },
+    { id: 2, name: '🛒 Supermercado', group_id: 11, group_name: 'Outros', group_position: 2 },
   ],
 }
 const GROUPS = {
@@ -730,8 +730,8 @@ describe('import dialog', () => {
     const TWO = [PETS, { name: 'Viagem', rows: 1 }]
     const UUID_CATEGORIES = {
       data: [
-        { id: UUID_A, name: 'Aluguel', group_id: 10 },
-        { id: UUID_B, name: '🛒 Supermercado', group_id: 11 },
+        { id: UUID_A, name: 'Aluguel', group_id: 10, group_name: 'Casa', group_position: 1 },
+        { id: UUID_B, name: '🛒 Supermercado', group_id: 11, group_name: 'Outros', group_position: 2 },
       ],
     }
 
@@ -753,9 +753,9 @@ describe('import dialog', () => {
       open()
       await check()
 
-      expect(await screen.findByLabelText('Categoria para "Aluguel"')).toHaveValue(UUID_A)
-      expect(screen.getByLabelText('Categoria para "Groceries"')).toHaveValue(UUID_B)
-      expect(screen.getByLabelText('Categoria para "Pets"')).toHaveValue('')
+      expect(await screen.findByRole('combobox', { name: 'Categoria para "Aluguel"' })).toHaveValue('Aluguel')
+      expect(screen.getByRole('combobox', { name: 'Categoria para "Groceries"' })).toHaveValue('🛒 Supermercado')
+      expect(screen.getByRole('combobox', { name: 'Categoria para "Pets"' })).toHaveValue('')
       expect(screen.getByText('Já existe com esse nome')).toBeInTheDocument()
       expect(screen.getByText('Reconhecida por um nome parecido: confira')).toBeInTheDocument()
       expect(screen.getByText('Falta escolher')).toBeInTheDocument()
@@ -782,7 +782,7 @@ describe('import dialog', () => {
       open()
       await check()
 
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Groceries"'), 'Aluguel')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Groceries"' }), 'Aluguel')
 
       expect(screen.queryByText('Reconhecida por um nome parecido: confira')).not.toBeInTheDocument()
       expect(screen.getByText('Sua escolha')).toBeInTheDocument()
@@ -807,11 +807,11 @@ describe('import dialog', () => {
       expect(await screen.findByText('0 de 2 categorias escolhidas. Faltam 2.')).toBeInTheDocument()
       expect(next()).toBeDisabled()
 
-      await userEvent.selectOptions(screen.getByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(screen.getByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
       expect(screen.getByText('1 de 2 categorias escolhidas. Falta 1.')).toBeInTheDocument()
       expect(next()).toBeDisabled()
 
-      await userEvent.selectOptions(screen.getByLabelText('Categoria para "Viagem"'), '🛒 Supermercado')
+      await chooseCategory(screen.getByRole('combobox', { name: 'Categoria para "Viagem"' }), '🛒 Supermercado')
       expect(screen.getByText('Tudo escolhido: 2 categorias.')).toBeInTheDocument()
       expect(next()).toBeEnabled()
       await userEvent.click(next())
@@ -826,7 +826,7 @@ describe('import dialog', () => {
       await check()
 
       expect(await screen.findAllByText('Falta escolher')).toHaveLength(2)
-      await userEvent.selectOptions(screen.getByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(screen.getByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
 
       expect(screen.getAllByText('Falta escolher')).toHaveLength(1)
     })
@@ -835,7 +835,7 @@ describe('import dialog', () => {
       mockApi(routes({ ...imports({ unknown_categories: [PETS] }), 'GET /categories': UUID_CATEGORIES }))
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Criar uma categoria nova')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Criar uma categoria nova')
 
       expect(screen.getByText('0 de 1 categoria escolhida. Falta 1.')).toBeInTheDocument()
       expect(screen.getByText(/clique em .Criar categoria./i)).toBeInTheDocument()
@@ -851,7 +851,7 @@ describe('import dialog', () => {
       )
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByText(/transações serão importadas/)
 
@@ -860,7 +860,7 @@ describe('import dialog', () => {
       expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Conferência')
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
 
-      expect(await screen.findByLabelText('Categoria para "Pets"')).toHaveValue('1') // still chosen
+      expect(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' })).toHaveValue('Aluguel') // still chosen
       expect(screen.getByRole('button', { name: 'Próximo' })).toBeEnabled()
     })
 
@@ -873,7 +873,7 @@ describe('import dialog', () => {
       )
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByText(/transações serão importadas/)
 
@@ -905,11 +905,13 @@ describe('import dialog', () => {
       open()
       await check()
 
-      const select = await screen.findByLabelText('Categoria para "Pets"')
+      await userEvent.click(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }))
 
-      expect(within(select).getByRole('group', { name: 'Casa' })).toContainElement(within(select).getByRole('option', { name: 'Aluguel' }))
-      expect(within(select).getByRole('option', { name: '🛒 Supermercado' })).toBeInTheDocument()
-      expect(within(select).getByRole('option', { name: 'Criar uma categoria nova' })).toBeInTheDocument()
+      const list = await screen.findByRole('listbox')
+      expect(within(list).getByText('Casa')).toBeInTheDocument() // the group headings
+      expect(within(list).getByRole('option', { name: 'Aluguel' })).toBeInTheDocument()
+      expect(within(list).getByRole('option', { name: '🛒 Supermercado' })).toBeInTheDocument()
+      expect(within(list).getByRole('option', { name: 'Criar uma categoria nova' })).toBeInTheDocument()
     })
 
     it('maps a category to an existing one and moves on to confirming', async () => {
@@ -919,7 +921,7 @@ describe('import dialog', () => {
       open()
       await check()
 
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
 
       expect(await screen.findByText('3 transações serão importadas')).toBeInTheDocument()
@@ -931,7 +933,7 @@ describe('import dialog', () => {
       let created = false // after the creation the family's list contains the new category
       const api = mockApi(
         routes({
-          'GET /categories': () => jsonResponse({ data: created ? [...CATEGORIES.data, { id: 99, name: 'Pets', group_id: 11 }] : CATEGORIES.data }),
+          'GET /categories': () => jsonResponse({ data: created ? [...CATEGORIES.data, { id: 99, name: 'Pets', group_id: 11, group_name: 'Outros', group_position: 2 }] : CATEGORIES.data }),
           'POST /categories': () => {
             created = true
             return jsonResponse({ data: { id: 99, name: 'Pets', group_id: 11 } }, 201)
@@ -941,13 +943,13 @@ describe('import dialog', () => {
       )
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Criar uma categoria nova')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Criar uma categoria nova')
       expect(screen.getByLabelText('Nome da nova categoria')).toHaveValue('Pets')
       expect(screen.getByLabelText('Grupo da nova categoria')).toHaveValue('11')
 
       await userEvent.click(screen.getByRole('button', { name: 'Criar categoria' }))
 
-      await waitFor(() => expect(screen.getByLabelText('Categoria para "Pets"')).toHaveValue('99'))
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Categoria para "Pets"' })).toHaveValue('Pets'))
       const post = api.mock.calls.find(([, o]) => o?.method === 'POST' && String(o.body).includes('group_id'))
       expect(JSON.parse(post[1].body)).toEqual({ name: 'Pets', group_id: '11' })
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
@@ -960,7 +962,7 @@ describe('import dialog', () => {
       const api = mockApi(routes({ 'POST /categories': [{ data: { id: 99 } }, 201], 'GET /categories': CATEGORIES, 'GET /categories/groups': GROUPS }))
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Criar uma categoria nova')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Criar uma categoria nova')
 
       await userEvent.clear(screen.getByLabelText('Nome da nova categoria'))
       await userEvent.type(screen.getByLabelText('Nome da nova categoria'), 'Animais')
@@ -976,7 +978,7 @@ describe('import dialog', () => {
       mockApi(routes({ 'POST /categories': [{ detail: 'Já existe uma categoria com esse nome.' }, 409] }))
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Criar uma categoria nova')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Criar uma categoria nova')
 
       await userEvent.click(screen.getByRole('button', { name: 'Criar categoria' }))
 
@@ -988,7 +990,7 @@ describe('import dialog', () => {
       const api = mockApi(routes())
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Criar uma categoria nova')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Criar uma categoria nova')
 
       await userEvent.clear(screen.getByLabelText('Nome da nova categoria'))
       await userEvent.click(screen.getByRole('button', { name: 'Criar categoria' }))
@@ -1001,7 +1003,7 @@ describe('import dialog', () => {
       mockApi(routes({ 'PUT /imports/5/categories': [{ detail: 'Essa categoria não existe.' }, 422] }))
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
 
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
 
@@ -1013,13 +1015,13 @@ describe('import dialog', () => {
       mockApi(routes({ 'PUT /imports/5/categories': { data: job() } }))
       open()
       await check()
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       await screen.findByText('3 transações serão importadas')
 
       await userEvent.click(screen.getByRole('button', { name: 'Voltar' }))
 
-      expect(screen.getByLabelText('Categoria para "Pets"')).toHaveValue('1')
+      expect(screen.getByRole('combobox', { name: 'Categoria para "Pets"' })).toHaveValue('Aluguel')
     })
   })
 
@@ -1164,7 +1166,7 @@ describe('import dialog', () => {
       open()
       await check()
 
-      await userEvent.selectOptions(await screen.findByLabelText('Categoria para "Pets"'), 'Aluguel')
+      await chooseCategory(await screen.findByRole('combobox', { name: 'Categoria para "Pets"' }), 'Aluguel')
       await userEvent.click(screen.getByRole('button', { name: 'Próximo' }))
       expect(await screen.findByText('Pessoas do arquivo')).toBeInTheDocument()
 

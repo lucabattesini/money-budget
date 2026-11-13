@@ -11,6 +11,7 @@ from api.repositories.categories_repo import (
     get_family_category,
     group_exists,
     group_name_of,
+    group_position_of,
     lock_family,
     name_is_taken,
     update_category,
@@ -23,7 +24,7 @@ from schemas.tables import Categories
 MAX_NAME_LENGTH = 100  # the size of the column
 
 
-def _out(category: Categories, group_name: str) -> dict:
+def _out(category: Categories, group_name: str, group_position: int) -> dict:
     return {
         "id": category.id,
         "family_id": category.family_id,
@@ -31,11 +32,15 @@ def _out(category: Categories, group_name: str) -> dict:
         "name": category.name,
         "group_id": category.group_id,
         "group_name": group_name,
+        "group_position": group_position,  # where the group comes in every list (1 is first)
     }
 
 
 def get_all_categories(db: Session, family_id: UUID):
-    return [_out(category, group_name) for category, group_name in get_all_categories_repo(db, family_id)]
+    return [
+        _out(category, group_name, group_position)
+        for category, group_name, group_position in get_all_categories_repo(db, family_id)
+    ]
 
 
 def get_all_groups(db: Session):
@@ -78,7 +83,7 @@ def create_family_category(db: Session, family_id: UUID, name: str, group_id: UU
         db.rollback()
         raise _duplicate()
     category = create_category(db, family_id, name, group_id)
-    return _out(category, group_name_of(db, category))
+    return _out(category, group_name_of(db, category), group_position_of(db, category))
 
 
 def update_family_category(
@@ -100,7 +105,7 @@ def update_family_category(
         db.rollback()
         raise _duplicate()
     category = update_category(db, category, cleaned, group_id)
-    return _out(category, group_name_of(db, category))
+    return _out(category, group_name_of(db, category), group_position_of(db, category))
 
 
 def _in_use(used: int) -> HTTPException:

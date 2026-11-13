@@ -189,6 +189,18 @@ describe('categories page: emoji', () => {
   const open = async (group = 'Outros') =>
     userEvent.click(await screen.findByRole('button', { name: `Adicionar em ${group}` }))
 
+  it('asks for the name first, then the group, then the emoji', async () => {
+    await renderPage()
+    await open()
+    const dialog = (await screen.findByRole('dialog')).closest('[role="dialog"]')
+
+    const fields = [...dialog.querySelectorAll('label')]
+      .map((element) => element.textContent.replace(/\s*\*$/, '').trim())
+      .filter((text) => ['Nome', 'Grupo', 'Emoji'].includes(text))
+
+    expect(fields).toEqual(['Nome', 'Grupo', 'Emoji'])
+  })
+
   it('puts the chosen emoji in front of the name', async () => {
     const api = await renderPage({ 'POST /categories': [{ data: category(20, '🌱 Plantas', 4, 7) }, 201] })
     await open()

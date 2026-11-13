@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
 import { setLocale } from '../lib/locale'
-import { jsonResponse, mockApi, renderApp } from '../test/helpers'
+import { jsonResponse, mockApi, renderApp, chooseCategory } from '../test/helpers'
 import TransactionDrawer from './TransactionDrawer'
 import customToaster from '../utils/customToaster'
 
@@ -14,7 +14,7 @@ const CATEGORIES = [{ id: 1, name: 'Alimentação' }, { id: 2, name: 'Transporte
 
 const amount = () => screen.getByLabelText('Valor')
 const description = () => screen.getByLabelText('Descrição')
-const category = () => screen.getByLabelText('Categoria')
+const category = () => screen.getByRole('combobox', { name: 'Categoria' })
 const save = () => screen.getByRole('button', { name: 'Salvar' })
 const created = (api) => {
   const call = api.mock.calls.find(([url]) => url.endsWith('/transactions/create'))
@@ -54,8 +54,22 @@ describe('transaction sidebar', () => {
     expect(screen.queryByText('campo obrigatório')).not.toBeInTheDocument()
   })
 
+  it('closes only the category list on Escape, not the whole panel', async () => {
+    const { onClose } = renderDrawer()
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Categoria' }))
+    await screen.findByRole('option', { name: 'Alimentação' })
+
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Alimentação' })).not.toBeInTheDocument())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Descrição')).toBeInTheDocument() // the panel is still there
+  })
+
   it('offers the categories to choose from', async () => {
     renderDrawer()
+
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Categoria' }))
 
     expect(await screen.findByRole('option', { name: 'Alimentação' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Transporte' })).toBeInTheDocument()
@@ -108,7 +122,7 @@ describe('transaction sidebar', () => {
     )
     await userEvent.type(amount(), '1000')
     await userEvent.type(description(), 'Pão')
-    await userEvent.selectOptions(category(), 'Alimentação')
+    await chooseCategory(category(), 'Alimentação')
 
     await userEvent.click(save())
 
@@ -121,7 +135,7 @@ describe('transaction sidebar', () => {
     const { api, onSaved, onClose } = renderDrawer()
     await userEvent.type(amount(), '2550')
     await userEvent.type(description(), '  Almoço ')
-    await userEvent.selectOptions(category(), 'Transporte')
+    await chooseCategory(category(), 'Transporte')
 
     await userEvent.click(save())
 
@@ -159,7 +173,7 @@ describe('transaction sidebar', () => {
       const api = open()
       await fill()
 
-      await userEvent.selectOptions(category(), '🛒 Supermercado')
+      await chooseCategory(category(), '🛒 Supermercado')
       expect(checkbox()).not.toBeChecked()
       await userEvent.click(save())
 
@@ -171,7 +185,7 @@ describe('transaction sidebar', () => {
       const api = open()
       await fill()
 
-      await userEvent.selectOptions(category(), '🔄 Transferência')
+      await chooseCategory(category(), '🔄 Transferência')
       expect(checkbox()).toBeChecked()
       await userEvent.click(checkbox())
       await userEvent.click(save())
@@ -183,19 +197,19 @@ describe('transaction sidebar', () => {
     it('does not change a choice the person made when they pick another category', async () => {
       open()
       await userEvent.click(checkbox()) // they leave it out themselves
-      await userEvent.selectOptions(category(), '🛒 Supermercado')
+      await chooseCategory(category(), '🛒 Supermercado')
       expect(checkbox()).toBeChecked()
 
-      await userEvent.selectOptions(category(), '🔄 Transferência')
+      await chooseCategory(category(), '🔄 Transferência')
       expect(checkbox()).toBeChecked()
     })
 
     it('follows the category until the person decides, then goes back when the category is not a transfer', async () => {
       open()
 
-      await userEvent.selectOptions(category(), '🔄 Transferência')
+      await chooseCategory(category(), '🔄 Transferência')
       expect(checkbox()).toBeChecked()
-      await userEvent.selectOptions(category(), '🧮 Ajustes de saldo') // a correction: it counts
+      await chooseCategory(category(), '🧮 Ajustes de saldo') // a correction: it counts
       expect(checkbox()).not.toBeChecked()
     })
 
@@ -222,7 +236,7 @@ describe('transaction sidebar', () => {
     const { api, onSaved } = renderDrawer()
     if (input.amount) await userEvent.type(amount(), input.amount)
     await userEvent.type(description(), input.text)
-    if (input.pick) await userEvent.selectOptions(category(), input.pick)
+    if (input.pick) await chooseCategory(category(), input.pick)
 
     await userEvent.click(save())
 
@@ -237,7 +251,7 @@ describe('transaction sidebar', () => {
     })
     await userEvent.type(amount(), '100')
     await userEvent.type(description(), 'x')
-    await userEvent.selectOptions(category(), 'Alimentação')
+    await chooseCategory(category(), 'Alimentação')
 
     await userEvent.click(save())
 
@@ -254,7 +268,7 @@ describe('transaction sidebar', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await userEvent.type(amount(), '100')
     await userEvent.type(description(), 'x')
-    await userEvent.selectOptions(category(), 'Alimentação')
+    await chooseCategory(category(), 'Alimentação')
 
     await userEvent.click(save())
 
@@ -268,7 +282,7 @@ describe('transaction sidebar', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Crédito' }))
     await userEvent.type(amount(), '150000')
     await userEvent.type(description(), 'Salário')
-    await userEvent.selectOptions(category(), 'Alimentação')
+    await chooseCategory(category(), 'Alimentação')
 
     await userEvent.click(save())
 
@@ -281,7 +295,7 @@ describe('transaction sidebar', () => {
     fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-03-01' } })
     await userEvent.type(amount(), '100')
     await userEvent.type(description(), 'x')
-    await userEvent.selectOptions(category(), 'Alimentação')
+    await chooseCategory(category(), 'Alimentação')
 
     await userEvent.click(save())
 
@@ -294,7 +308,7 @@ describe('transaction sidebar', () => {
     expect(screen.getByLabelText('Data')).toHaveValue('2026-03-31')
     await userEvent.type(amount(), '100')
     await userEvent.type(description(), 'x')
-    await userEvent.selectOptions(category(), 'Alimentação')
+    await chooseCategory(category(), 'Alimentação')
 
     await userEvent.click(save())
 
@@ -309,7 +323,7 @@ describe('transaction sidebar', () => {
     fireEvent.change(screen.getByLabelText('Data'), { target: { value } })
     await userEvent.type(amount(), '100')
     await userEvent.type(description(), 'x')
-    await userEvent.selectOptions(category(), 'Alimentação')
+    await chooseCategory(category(), 'Alimentação')
 
     await userEvent.click(save())
 

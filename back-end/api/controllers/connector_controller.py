@@ -43,7 +43,7 @@ class ConnectorError(Exception):
 def list_categories(db: Session, user: Users) -> list[dict]:
     return [
         {"name": category.name, "group": group_name}
-        for category, group_name in get_all_categories_repo(db, user.family_id)
+        for category, group_name, _position in get_all_categories_repo(db, user.family_id)
     ]
 
 
@@ -134,7 +134,9 @@ def _check(db: Session, user: Users, rows) -> tuple[list[dict], list[dict], list
         raise ConnectorError(f"at most {MAX_ROWS} rows at a time; send the rest in another call")
     today = family_today(get_family(db, user.family_id).timezone)
     lookup, _visible, _by_alias = _category_lookup(db, user.family_id)
-    names = {str(category.id): category.name for category, _group in get_all_categories_repo(db, user.family_id)}
+    names = {
+        str(category.id): category.name for category, _group, _position in get_all_categories_repo(db, user.family_id)
+    }
     checked: list[dict] = []
     shown: list[dict] = []
     problems: list[dict] = []

@@ -8,6 +8,7 @@ import { CURRENCIES, familyNow, useLocale } from "../lib/locale";
 import { leftOutByDefault } from "../lib/totals";
 import customToaster from "../utils/customToaster";
 import useBackClosesOverlay from "../lib/useBackClosesOverlay";
+import CategoryPicker from "./CategoryPicker";
 
 const MAX_LABEL = 25;
 const MAX_MERCHANT = 100; // the size of the database column
@@ -175,18 +176,14 @@ export default function TransactionDrawer({ open, onClose, categories, members =
 
                                 <Field.Root required invalid={!!errors.category}>
                                     <RequiredLabel>Categoria</RequiredLabel>
-                                    <NativeSelect.Root>
-                                        <NativeSelect.Field
-                                            value={categoryId}
-                                            onChange={(e) => chooseCategory(e.target.value)}
-                                        >
-                                            <option value="">Selecione</option>
-                                            {categories.map((category) => (
-                                                <option key={category.id} value={category.id}>{category.name}</option>
-                                            ))}
-                                        </NativeSelect.Field>
-                                        <NativeSelect.Indicator />
-                                    </NativeSelect.Root>
+                                    <CategoryPicker
+                                        categories={categories}
+                                        value={categoryId}
+                                        onChange={chooseCategory}
+                                        placeholder="Selecione"
+                                        aria-label="Categoria"
+                                        invalid={!!errors.category}
+                                    />
                                     <Field.ErrorText>{errors.category}</Field.ErrorText>
                                 </Field.Root>
 

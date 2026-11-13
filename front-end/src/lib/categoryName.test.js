@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMOJI_CHOICES, compareCategories, compareNames, joinName, plainName, splitName } from './categoryName'
+import { EMOJI_CHOICES, compareCategories, compareNames, groupCategories, joinName, matchesSearch, plainName, searchKey, splitName } from './categoryName'
 
 describe('splitting a category name', () => {
   it.each([
@@ -68,5 +68,49 @@ describe('the emojis offered', () => {
     for (const emoji of EMOJI_CHOICES) {
       expect(splitName(emoji)).toEqual({ emoji, text: '' })
     }
+  })
+})
+
+describe('searching categories', () => {
+  it('ignores capitals, accents and the emoji of the name', () => {
+    expect(searchKey('☕ Café')).toBe('cafe')
+    expect(matchesSearch({ name: '☕ Café' }, 'CAFE')).toBe(true)
+    expect(matchesSearch({ name: 'Água' }, 'agua')).toBe(true)
+    expect(matchesSearch({ name: 'Água' }, 'luz')).toBe(false)
+  })
+
+  it('matches everything when nothing is typed', () => {
+    expect(matchesSearch({ name: 'Qualquer' }, '')).toBe(true)
+    expect(matchesSearch({ name: 'Qualquer' }, '  ')).toBe(true)
+  })
+})
+
+describe('grouping categories', () => {
+  const list = [
+    { id: 1, name: 'Zebra', group_id: 'b', group_name: 'Moradia', group_position: 2 },
+    { id: 2, name: '🛒 Mercado', group_id: 'a', group_name: 'Alimentação', group_position: 1 },
+    { id: 3, name: 'Aluguel', group_id: 'b', group_name: 'Moradia', group_position: 2 },
+    { id: 4, name: 'Água', group_id: 'b', group_name: 'Moradia', group_position: 2 },
+  ]
+
+  it('puts the groups in their own order and the categories A-Z inside each', () => {
+    const groups = groupCategories(list)
+
+    expect(groups.map((group) => group.name)).toEqual(['Alimentação', 'Moradia'])
+    expect(groups[1].categories.map((category) => category.name)).toEqual(['Água', 'Aluguel', 'Zebra'])
+  })
+
+  it('does not change the list it is given', () => {
+    const before = list.map((category) => category.id)
+    groupCategories(list)
+    expect(list.map((category) => category.id)).toEqual(before)
+  })
+
+  it('keeps categories with no group data together, A-Z, in a group with no name', () => {
+    const groups = groupCategories([{ id: 1, name: 'B' }, { id: 2, name: 'A' }])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].name).toBe('')
+    expect(groups[0].categories.map((category) => category.name)).toEqual(['A', 'B'])
   })
 })

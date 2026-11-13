@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { flushSync } from "react-dom";
-import { Button, Input, Portal, Combobox, useFilter, useListCollection } from "@chakra-ui/react";
+import { Button, Input } from "@chakra-ui/react";
 import { getAllCategories, insertNewTransaction } from "../api/endpoints";
-import { compareCategories } from "../lib/categoryName";
 import { getToken } from "../lib/auth";
 import { MAX_CENTS } from "../lib/money";
 import customToaster from "../utils/customToaster";
+import CategoryPicker from "./CategoryPicker";
 import { SpinnerLoading } from "./spinnerLoading";
 
 export default function ExpenseForm() {
@@ -13,14 +12,7 @@ export default function ExpenseForm() {
     const [value, setvalue] = useState("");
     const [description, setDescription] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
-    // The list the box shows, and the narrowing of it by what is typed (ignoring capitals and accents)
-    const { contains } = useFilter({ sensitivity: "base" });
-    const { collection, filter, set: setItems } = useListCollection({
-        initialItems: [],
-        itemToString: (category) => category.name,
-        itemToValue: (category) => category.value,
-        filter: contains,
-    });
+    const [categories, setCategories] = useState([]);
 
     const fetchcategories = async () => {
         try {
@@ -28,16 +20,7 @@ export default function ExpenseForm() {
             const categoriesData = await getAllCategories(token)
 
             if (categoriesData && categoriesData.data) {
-                // Alphabetical, so categories are easy to find in every list
-                const organizedCategories = categoriesData.data
-                    .map((category) => ({
-                        id: category.id,
-                        name: category.name,
-                        value: String(category.id)
-                    }))
-                    .sort(compareCategories);
-
-                setItems(organizedCategories)
+                setCategories(categoriesData.data); // the picker sorts and groups them
             }
         } catch (error) {
             console.error("Error fetching categories", error)
@@ -89,29 +72,10 @@ export default function ExpenseForm() {
                     setvalue("");
                     setDescription("");
                     setSelectedCategory("");
-                    filter("");
                 } else {
                     customToaster("Error", "error", "Some error ocurred to report your transaction, please try again later")
                 }
             })
-    }
-
-    const handleCategorySelect = (categoryId) => {
-        setSelectedCategory(categoryId);
-    };
-
-    const resetSearchQueryAndcategory = () => {
-        setSelectedCategory("");
-        filter("");
-    }
-
-    // The text in the box belongs to the combobox alone: handing it back from our own state wrote an older text over a
-    // newer one when keys came in faster than a render. We only listen to it, to narrow the list.
-    const changeSearchText = (text) => {
-        filter(text.trim());
-        if (!text) {
-            setSelectedCategory("");
-        }
     }
 
     if (loading) {
@@ -130,49 +94,13 @@ export default function ExpenseForm() {
             value={description} onChange={(e) => setDescription(e.target.value)}
             />
         
-            <Combobox.Root
-            collection={collection}
-            onValueChange={({value}) => {
-                if (value.length > 0) {
-                    handleCategorySelect(value[0]);
-                } else {
-                    resetSearchQueryAndcategory()
-                }
-            }}
-            value={selectedCategory ? [selectedCategory] : []}
-            onInputValueChange={({ inputValue }) => flushSync(() => changeSearchText(inputValue))}
-            >
-                <Combobox.Label> Select Category </Combobox.Label>
-                <Combobox.Control>
-                    <Combobox.Input 
-                    placeholder="Select category"
-                    />
-                    <Combobox.IndicatorGroup>
-                        <Combobox.ClearTrigger
-                        onClick={() => {
-                            resetSearchQueryAndcategory()
-                        }}/>
-                        <Combobox.Trigger />
-                    </Combobox.IndicatorGroup>
-                </Combobox.Control>
-                <Portal>
-                    <Combobox.Positioner>
-                        <Combobox.Content>
-                            <Combobox.Empty>No items found</Combobox.Empty>
-                            {collection.items.map((category) => (
-                                <Combobox.Item 
-                                item={category} 
-                                key={category.id}
-                                value={category.value}
-                                >
-                                    {category.name}
-                                    <Combobox.Indicator />
-                                </Combobox.Item>
-                            ))}
-                        </Combobox.Content>
-                    </Combobox.Positioner>
-                </Portal>
-            </Combobox.Root>
+            <CategoryPicker
+                categories={categories}
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                label="Select Category"
+                placeholder="Select category"
+            />
 
             <Button onClick={handleSubmit}>
                 Submit
