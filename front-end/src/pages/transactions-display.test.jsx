@@ -848,11 +848,13 @@ describe('transactions page', () => {
       await screen.findByText('compra 041')
 
       await openFilters()
-      await userEvent.type(screen.getByLabelText('Buscar'), 'compra 0')
+      // Pasted, not typed key by key: every key redraws up to a hundred rows, which is slow enough on a CI machine to time out
+      await userEvent.click(screen.getByLabelText('Buscar'))
+      await userEvent.paste('compra 0')
 
-      expect(labels()).toHaveLength(40) // 99 match, the first batch again
+      await waitFor(() => expect(labels()).toHaveLength(40)) // 99 match, the first batch again
       expect(labels()[0]).toBe('compra 001')
-    })
+    }, 15000)
 
     it('shows the day above its rows on a phone, once per day', async () => {
       mockApi(routes(MANY))

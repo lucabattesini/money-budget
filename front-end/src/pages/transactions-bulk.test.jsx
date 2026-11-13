@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../lib/auth'
@@ -173,7 +173,8 @@ describe('transactions page: many at once', () => {
     api({ 'POST /transactions': many })
     renderApp(<TransactionsDisplay />)
     await screen.findByText('Compra 1')
-    while (screen.queryByRole('button', { name: 'Mostrar mais' })) await userEvent.click(screen.getByRole('button', { name: 'Mostrar mais' }))
+    // fireEvent, not userEvent: thirteen clicks each redraw every row so far, and userEvent's pointer simulation on top made this time out in CI
+    while (screen.queryByRole('button', { name: 'Mostrar mais' })) fireEvent.click(screen.getByRole('button', { name: 'Mostrar mais' }))
 
     await startSelecting()
     await userEvent.click(screen.getByRole('checkbox', { name: /selecionar todas as exibidas/i }))
