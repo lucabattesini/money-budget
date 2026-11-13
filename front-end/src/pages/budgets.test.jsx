@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toaster } from '../components/ui/toaster'
@@ -107,6 +107,69 @@ describe('budgets page: the month in the link', () => {
 
     expect(await screen.findByText('Orçado')).toBeInTheDocument()
     expect(requestsMade(api)).toEqual([`GET /budgets?month=${NOW}`])
+  })
+})
+
+describe('budgets page: the history of a category', () => {
+  const DETAIL = () => ({
+    data: {
+      category: { id: 10, name: '🍽️ Restaurantes e Bares', group_name: 'Alimentação' },
+      month: NOW,
+      transactions_month: NOW,
+      history: [
+        { month: PREV, budgeted: 50000, spent: 30000 },
+        { month: NOW, budgeted: 50000, spent: 20000 },
+      ],
+      transactions: [{ id: 't1', label: 'Pizza', value: 20000, transactioned_at: `${NOW}-03T20:00:00`, excluded: false, user_name: 'Clara Battesini' }],
+    },
+  })
+  const detailKey = `GET /budgets/categories/10?month=${NOW}&months=6&show=${NOW}`
+
+  it('opens the months and the transactions of a category when its name is tapped, and closes on back', async () => {
+    const api = mockApi({ [`GET /budgets?month=${NOW}`]: { data: month(NOW) }, [detailKey]: DETAIL() })
+    renderApp(<><Budgets /><GoBack /></>)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver o histórico de Restaurantes e Bares' }))
+
+    expect(await screen.findByText('Pizza')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Gasto de Restaurantes e Bares por mês' })).toBeInTheDocument()
+    expect(requestsMade(api)).toContain(detailKey)
+
+    fireEvent.click(screen.getByText('voltar')) // the back gesture: the panel blocks clicks on the page behind it
+
+    await waitFor(() => expect(screen.queryByText('Pizza')).not.toBeInTheDocument())
+    expect(screen.getByTestId('location')).toHaveTextContent('/')
+  })
+
+  it('plans the amount of a suggestion for the month on the page and shows it in the list', async () => {
+    const planned = month(NOW)
+    planned.groups[0].categories[0] = category(10, '🍽️ Restaurantes e Bares', 35500, 20000)
+    const api = mockApi({
+      [`GET /budgets?month=${NOW}`]: { data: month(NOW) },
+      [detailKey]: { data: { ...DETAIL().data, history: [{ month: PREV, budgeted: null, spent: 35000 }, { month: NOW, budgeted: 50000, spent: 20000 }] } },
+      'PUT /budgets': { data: planned },
+    })
+    renderApp(<Budgets />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver o histórico de Restaurantes e Bares' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: /^Mês passado:/ }))
+
+    await waitFor(() => expect(requestsMade(api)).toContain('PUT /budgets'))
+    const put = api.mock.calls.find(([, options]) => String(options?.method).toUpperCase() === 'PUT')
+    expect(JSON.parse(put[1].body)).toEqual({ category_id: 10, month: NOW, amount: 35000 })
+    expect(await screen.findByText('Orçamento de R$ 350 definido.')).toBeInTheDocument()
+  })
+
+  it('opens the history of the month the page is on', async () => {
+    const api = mockApi({
+      [`GET /budgets?month=${PREV}`]: { data: month(PREV) },
+      [`GET /budgets/categories/20?month=${PREV}&months=6&show=${PREV}`]: { data: { ...DETAIL().data, category: { id: 20, name: '🏠 Aluguel', group_name: 'Moradia' }, month: PREV, transactions_month: PREV } },
+    })
+    renderApp(<Budgets />, { route: `/budgets?month=${PREV}` })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver o histórico de Aluguel' }))
+
+    await waitFor(() => expect(requestsMade(api)).toContain(`GET /budgets/categories/20?month=${PREV}&months=6&show=${PREV}`))
   })
 })
 

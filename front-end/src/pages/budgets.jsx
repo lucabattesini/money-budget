@@ -11,6 +11,7 @@ import { currencySymbol, familyNow, useLocale } from "../lib/locale";
 import { budgetEditText, budgetFieldText, budgetTextToCents, formatBudgetCents, sanitizeBudgetText } from "../lib/money";
 import { Tooltip } from "../components/ui/tooltip";
 import customToaster from "../utils/customToaster";
+import CategoryHistoryDrawer from "../components/CategoryHistoryDrawer";
 
 const BAR_COLORS = { ok: "green", warn: "orange", limit: "blue", over: "red", none: "gray" };
 
@@ -59,6 +60,7 @@ export default function Budgets() {
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
     const [drafts, setDrafts] = useState({}); // what is being typed, by category id, until it is saved
+    const [detail, setDetail] = useState(null); // the category whose history is open
     const [opened, setOpened] = useState({}); // groups the person closed (or opened again) by hand, by group id
     const shown = useRef(month); // an answer for a month that is no longer on the page must be ignored
     shown.current = month;
@@ -115,6 +117,20 @@ export default function Budgets() {
 
     const [search, setSearch] = useState("");
     const searching = search.trim() !== "";
+    // A suggestion from the history of a category: plans that amount for the month on the page (from then on, like typing it)
+    const applyBudget = async (categoryId, cents) => {
+        const forMonth = month;
+        const mine = ++latest.current;
+        const result = await setBudget(categoryId, forMonth, cents, getToken());
+        if (!result.ok) {
+            customToaster("Erro", "error", result.detail || "Não foi possível salvar o orçamento. Tente novamente.");
+            return false;
+        }
+        customToaster("Salvo", "success", `Orçamento de ${formatBudgetCents(cents)} definido.`);
+        if (shown.current === forMonth && latest.current === mine) setData(result.data);
+        return true;
+    };
+
     const isOpen = (group) => searching || (opened[group.id] ?? true); // every group starts open; a search opens them all
     const fold = (text) => plainName(text).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(); // "Água" is found by "agua"
     const matches = (category) => fold(category.name).includes(fold(search));
@@ -217,7 +233,18 @@ export default function Budgets() {
                                                 <HStack justify="space-between" gap={3}>
                                                     <Stack flex="1" minW={0} gap={1}>
                                                         <HStack gap={1.5}>
-                                                            <Text>{category.name}</Text>
+                                                            {/* Tapping the name opens its history: the months, and the transactions of one */}
+                                                            <Text
+                                                                as="button"
+                                                                type="button"
+                                                                textAlign="left"
+                                                                cursor="pointer"
+                                                                _hover={{ textDecoration: "underline" }}
+                                                                aria-label={`Ver o histórico de ${name}`}
+                                                                onClick={() => setDetail({ id: category.id, name: category.name })}
+                                                            >
+                                                                {category.name}
+                                                            </Text>
                                                             {category.budgeted != null && category.since && category.since !== month && (
                                                                 <Tooltip content={`Repetido de ${monthLabel(category.since)}`} positioning={{ placement: "top" }}>
                                                                     <Box as="span" role="img" tabIndex={0} aria-label={`Repetido de ${monthLabel(category.since)}`} color="fg.muted" display="inline-flex">
@@ -266,6 +293,8 @@ export default function Budgets() {
                     ))}
                 </>
             )}
+
+            <CategoryHistoryDrawer category={detail} month={month} open={detail !== null} onClose={() => setDetail(null)} onUseBudget={(cents) => applyBudget(detail.id, cents)} />
         </Stack>
     );
 }
