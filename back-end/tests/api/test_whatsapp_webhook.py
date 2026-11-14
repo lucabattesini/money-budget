@@ -74,6 +74,26 @@ def test_message_from_a_known_number_goes_through_the_chatbot_and_the_reply_is_s
     assert sent_messages == [("5511999990000", "resposta do bot")]
 
 
+def test_the_request_session_holds_no_connection_while_the_chatbot_runs(db, make_user, monkeypatch):
+    """TKT-107: the chatbot's nodes open their own sessions, so the request's one must have given its connection back
+    before the (slow) model calls. Otherwise each message needs two connections at once and, with a small pool, two
+    messages at the same time wait for each other."""
+    make_user(whatsapp_phone="5511999990000")
+    events = []
+    real_rollback = db.rollback
+    monkeypatch.setattr(db, "rollback", lambda: (events.append("released"), real_rollback())[1])
+
+    def invoke(state):
+        events.append("chatbot")
+        return {"final_response": "ok"}
+
+    monkeypatch.setattr(whatsapp_controller, "app", SimpleNamespace(invoke=invoke))
+
+    whatsapp_controller.process_whatsapp_message(db, "5511999990000", "oi")
+
+    assert events == ["released", "chatbot"]
+
+
 def test_a_sender_number_written_with_a_plus_sign_is_still_matched(client, make_user, graph, sent_messages):
     user = make_user(whatsapp_phone="5511999990000")
 

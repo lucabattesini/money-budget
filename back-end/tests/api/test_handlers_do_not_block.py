@@ -44,25 +44,20 @@ def test_no_handler_is_async_unless_it_awaits():
     )
 
 
-def test_async_handlers_hand_blocking_work_to_the_threadpool():
-    """The few handlers that stay async (they read the request body) must not touch the database or the network
-    themselves: every call of the controllers goes through run_in_threadpool."""
-    direct = []
+def test_async_handlers_only_pass_the_session_to_the_threadpool():
+    """The few handlers that stay async (they read the request body) must not use the database session themselves: the
+    only place `db` may appear in their body is as an argument of `run_in_threadpool`."""
+    misuse = []
     for name, node in _async_handlers():
+        allowed = set()
         for call in (n for n in _own_nodes(node) if isinstance(n, ast.Call)):
-            if isinstance(call.func, ast.Name) and call.func.id in _BLOCKING:
-                direct.append(f"{name}:{call.lineno} {call.func.id}")
-    assert direct == [], "called on the event loop, use `await run_in_threadpool(...)`: " + ", ".join(direct)
-
-
-_BLOCKING = {
-    "stage_import",
-    "authenticate_access_token",
-    "get_user_by_id_ctrl",
-    "handle_message",
-    "register_client",
-    "exchange_token",
-    "revoke_token",
-    "process_whatsapp_message",
-    "send_whatsapp_message",
-}
+            if isinstance(call.func, ast.Name) and call.func.id == "run_in_threadpool":
+                allowed.update(id(a) for a in call.args)
+        misuse += [
+            f"{name}:{n.lineno}"
+            for n in _own_nodes(node)
+            if isinstance(n, ast.Name) and n.id == "db" and isinstance(n.ctx, ast.Load) and id(n) not in allowed
+        ]
+    assert misuse == [], (
+        "the session is used on the event loop, pass it to `await run_in_threadpool(...)`: " + ", ".join(misuse)
+    )
