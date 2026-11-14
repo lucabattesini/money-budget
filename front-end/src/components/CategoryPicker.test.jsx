@@ -79,6 +79,9 @@ describe('category picker', () => {
     expect(box()).toHaveValue('🏠 Aluguel')
 
     await userEvent.click(box())
+    // The list opens a moment after the click. Escape pressed before it is open would be ignored and the list would open
+    // after it (seen on slow CI machines), so wait until it is open.
+    await screen.findAllByRole('option')
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryAllByRole('option')).toHaveLength(0)) // the list closes
     expect(onChange).toHaveBeenCalledTimes(1)

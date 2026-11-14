@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -46,11 +47,18 @@ def _unauthorized(request: Request) -> Response:
     )
 
 
+def _authenticate(db: Session, scheme: str, token: str):
+    """The access grant and its user (None, None when the token is missing or wrong). Reads the database, so it runs in
+    a worker thread: a handler that blocks the event loop while it waits for a connection can deadlock the pool."""
+    grant = authenticate_access_token(db, token.strip()) if scheme.lower() == "bearer" else None
+    user = get_user_by_id_ctrl(db, grant.user_id) if grant else None
+    return grant, user
+
+
 @router.post("/mcp")
 async def mcp(request: Request, db: Session = Depends(get_db)):
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
-    grant = authenticate_access_token(db, token.strip()) if scheme.lower() == "bearer" else None
-    user = get_user_by_id_ctrl(db, grant.user_id) if grant else None
+    grant, user = await run_in_threadpool(_authenticate, db, scheme, token)
     if grant is None or user is None:
         return _unauthorized(request)
     if _too_many_calls(grant.id):
@@ -63,7 +71,7 @@ async def mcp(request: Request, db: Session = Depends(get_db)):
         message = await request.json()
     except ValueError:
         return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}})
-    answer = handle_message(db, user, message)
+    answer = await run_in_threadpool(handle_message, db, user, message)
     if answer is None:
         return Response(status_code=202)
     return JSONResponse(answer)
@@ -71,6 +79,6 @@ async def mcp(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/mcp")
 @router.delete("/mcp")
-async def mcp_not_streaming():
+def mcp_not_streaming():
     """This server never opens a stream and keeps no session, so there is nothing to GET or end."""
     return Response(status_code=405, headers={"Allow": "POST"})

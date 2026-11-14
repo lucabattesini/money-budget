@@ -20,7 +20,7 @@ def _ok(data):
 # Both spellings, like /categories: the web app asks for "/budgets"
 @router.get("")
 @router.get("/")
-async def get_budget_router(
+def get_budget_router(
     month: str = Query(pattern=MONTH_PATTERN, description="YYYY-MM"),
     family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
@@ -30,7 +30,7 @@ async def get_budget_router(
 
 
 @router.put("")
-async def set_budget_router(
+def set_budget_router(
     params: BudgetSet, family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)
 ):
     """Plan an amount for a category from a month on, until a later month changes it (0: nothing from then on).
@@ -39,7 +39,7 @@ async def set_budget_router(
 
 
 @router.get("/categories/{category_id}")
-async def get_category_history_router(
+def get_category_history_router(
     category_id: UUID,
     month: str = Query(pattern=MONTH_PATTERN, description="YYYY-MM: the last month of the history"),
     months: int = Query(6, ge=1, le=24, description="How many months of history, ending at `month`"),

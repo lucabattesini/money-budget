@@ -183,5 +183,7 @@ describe('transactions page: many at once', () => {
     expect(screen.getByRole('button', { name: /excluir selecionadas/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /editar selecionadas/i })).toBeDisabled()
     vi.unstubAllGlobals()
-  }, 30000)
+    // Rendering 501 rows in 13 steps takes about 16 s here and about twice that on CI, so 30 s was not enough (TKT-109: the
+    // list redraws every row on each step; when that is fixed this can go back down)
+  }, 90000)
 })

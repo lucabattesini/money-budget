@@ -34,37 +34,37 @@ def _ok(data, code=status.HTTP_200_OK):
 
 
 @router.get("/me")
-async def get_my_family_router(user=Depends(_current_user), db: Session = Depends(get_db)):
+def get_my_family_router(user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(get_my_family(db, user))
 
 
 @router.patch("/me/settings")
-async def change_settings_router(settings: FamilySettings, user=Depends(_current_user), db: Session = Depends(get_db)):
+def change_settings_router(settings: FamilySettings, user=Depends(_current_user), db: Session = Depends(get_db)):
     """Change the family's currency and/or language. Any member may; a field left out keeps its value."""
     return _ok(change_family_settings(db, user, settings))
 
 
 @router.post("/invites")
-async def create_invite_router(user=Depends(_current_user), db: Session = Depends(get_db)):
+def create_invite_router(user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(create_family_invite(db, user), status.HTTP_201_CREATED)
 
 
 @router.get("/invites")
-async def list_invites_router(user=Depends(_current_user), db: Session = Depends(get_db)):
+def list_invites_router(user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(list_family_invites(db, user))
 
 
 @router.delete("/invites/{invite_id}")
-async def cancel_invite_router(invite_id: UUID, user=Depends(_current_user), db: Session = Depends(get_db)):
+def cancel_invite_router(invite_id: UUID, user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(cancel_family_invite(db, user, invite_id))
 
 
 @router.post("/join")
-async def join_family_router(params: JoinFamily, user=Depends(_current_user), db: Session = Depends(get_db)):
+def join_family_router(params: JoinFamily, user=Depends(_current_user), db: Session = Depends(get_db)):
     return _ok(join_with_code(db, user, params.code, params.bring_data))
 
 
 @router.post("/rollback")
-async def go_back_router(user=Depends(_current_user), db: Session = Depends(get_db)):
+def go_back_router(user=Depends(_current_user), db: Session = Depends(get_db)):
     """Go back to the family left behind when joining another one with "start empty" (kept for 30 days)."""
     return _ok(go_back_to_previous_family(db, user))

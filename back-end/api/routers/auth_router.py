@@ -19,7 +19,7 @@ class GoogleTokenRequest(BaseModel):
 
 
 @router.post("/google")
-async def auth_google(request: GoogleTokenRequest, db: Session = Depends(get_db)):
+def auth_google(request: GoogleTokenRequest, db: Session = Depends(get_db)):
     """
     Receive a Google ID token from the frontend,
     verify it, upsert the user, and return a JWT.
