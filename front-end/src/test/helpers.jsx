@@ -1,9 +1,9 @@
-import { vi } from 'vitest'
+import { expect, vi } from 'vitest'
 
 // Requests the test did not declare. setup.js fails the test in afterEach if any were made,
 // because the app swallows network errors and would otherwise carry on as if the server were down.
 export const strayRequests = []
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Provider } from '../components/ui/provider'
@@ -76,6 +76,10 @@ export function requestsMade(mock) {
  * the option. The list is only in the page while it is open.
  */
 export async function chooseCategory(label, optionName) {
-  await userEvent.click(typeof label === 'string' ? screen.getByRole('combobox', { name: label }) : label)
+  const box = typeof label === 'string' ? screen.getByRole('combobox', { name: label }) : label
+  // After an earlier choice the list is still closing and the page ignores clicks (pointer-events: none) until it has:
+  // clicking right away failed on slow machines
+  await waitFor(() => expect(getComputedStyle(box).pointerEvents).not.toBe('none'))
+  await userEvent.click(box)
   await userEvent.click(await screen.findByRole('option', { name: optionName }))
 }
