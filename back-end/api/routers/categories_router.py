@@ -23,20 +23,20 @@ router = APIRouter(prefix="/categories", tags=["categories"], responses={404: {"
 # redirected to "/categories/" and a GET on it would answer 405.
 @router.get("")
 @router.get("/")
-async def get_all_categories_router(family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)):
+def get_all_categories_router(family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)):
     categories = get_all_categories(db, family_id)
     json_result = jsonable_encoder(categories)
     return JSONResponse(content={"data": json_result}, status_code=status.HTTP_200_OK)
 
 
 @router.get("/groups")
-async def get_all_groups_router(family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)):
+def get_all_groups_router(family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)):
     """The groups the categories are listed under: a fixed set, the same for every family."""
     return JSONResponse(content={"data": jsonable_encoder(get_all_groups(db))}, status_code=status.HTTP_200_OK)
 
 
 @router.post("")
-async def create_category_router(
+def create_category_router(
     params: CategoryCreate, family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)
 ):
     created = create_family_category(db, family_id, params.name, params.group_id)
@@ -44,7 +44,7 @@ async def create_category_router(
 
 
 @router.patch("/{category_id}")
-async def update_category_router(
+def update_category_router(
     category_id: UUID,
     params: CategoryUpdate,
     family_id: UUID = Depends(get_current_family_id),
@@ -55,7 +55,7 @@ async def update_category_router(
 
 
 @router.delete("/{category_id}")
-async def delete_category_router(
+def delete_category_router(
     category_id: UUID, family_id: UUID = Depends(get_current_family_id), db: Session = Depends(get_db)
 ):
     return JSONResponse(

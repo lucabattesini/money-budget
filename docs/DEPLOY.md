@@ -100,6 +100,12 @@ gcloud sql instances delete scratch-restore
 
 - The service is capped at 2 instances and the pool at 2 connections each, so it cannot use up the shared database's
   connections (the other apps' limit is the same instance). The migration job uses 1.
+- Route handlers that use the database are plain `def`, never `async def` (the database driver is synchronous). An
+  `async def` handler runs on the server's single event loop: while it waits for one of the 2 pool connections it freezes
+  every other request, and the requests holding the connections cannot finish. That stalled the app for 30 s or more
+  (TKT-107). Handlers that must `await` (reading an upload or request body) send the database work through
+  `run_in_threadpool`; `tests/api/test_handlers_do_not_block.py` guards this. The pool stays small on purpose: the shared
+  Cloud SQL instance is a `db-f1-micro`, which allows only about 25 connections for all the apps on it.
 - Imports and exports run after the response is sent, so the service keeps its CPU allocated (`--no-cpu-throttling`).
   With no traffic the service scales to zero, so the first visit after a quiet period takes a second or two.
 - Passwords and keys live only in Secret Manager. The image holds none (`.dockerignore` keeps `.env` out), and GitHub

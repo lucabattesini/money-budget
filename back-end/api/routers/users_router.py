@@ -14,7 +14,7 @@ router = APIRouter(prefix="/user", tags=["user"], responses={404: {"description"
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(user_id: UUID = Depends(get_current_user_id), db: Session = Depends(get_db)):
+def get_me(user_id: UUID = Depends(get_current_user_id), db: Session = Depends(get_db)):
     """Return the currently authenticated user based on the JWT."""
     user = get_user_by_id_ctrl(db, user_id)
 
@@ -25,7 +25,7 @@ async def get_me(user_id: UUID = Depends(get_current_user_id), db: Session = Dep
 
 
 @router.patch("/me/phone", response_model=UserResponse)
-async def update_phone(
+def update_phone(
     payload: UserUpdatePhone,
     user_id: UUID = Depends(get_current_user_id),
     db: Session = Depends(get_db),

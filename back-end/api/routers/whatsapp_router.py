@@ -1,6 +1,7 @@
 import os
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -14,7 +15,7 @@ VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 
 
 @router.get("/")
-async def verify_webhook(
+def verify_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
@@ -39,8 +40,9 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
         body = await request.json()
 
         msg = body["entry"][0]["changes"][0]["value"]["messages"][0]
-        result = process_whatsapp_message(db, msg["from"], msg["text"]["body"])
-        send_whatsapp_message(msg["from"], result["reply"])
+        # Blocking work (database, the model, the WhatsApp API): in a worker thread, not on the event loop
+        result = await run_in_threadpool(process_whatsapp_message, db, msg["from"], msg["text"]["body"])
+        await run_in_threadpool(send_whatsapp_message, msg["from"], result["reply"])
 
         return {"status": "success", "reply": result["reply"]}
 

@@ -18,7 +18,7 @@ def _out(job) -> dict:
 
 
 @router.post("")
-async def create_export_router(
+def create_export_router(
     params: ExportJobCreate,
     background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user_id),
@@ -32,7 +32,7 @@ async def create_export_router(
 
 
 @router.get("/{job_id}")
-async def get_export_router(
+def get_export_router(
     job_id: UUID,
     user_id: UUID = Depends(get_current_user_id),
     family_id: UUID = Depends(get_current_family_id),
@@ -44,7 +44,7 @@ async def get_export_router(
 
 
 @router.get("/{job_id}/file")
-async def get_export_file_router(
+def get_export_file_router(
     job_id: UUID,
     user_id: UUID = Depends(get_current_user_id),
     family_id: UUID = Depends(get_current_family_id),

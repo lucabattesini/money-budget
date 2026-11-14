@@ -9,6 +9,7 @@ from urllib.parse import parse_qsl, urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
@@ -51,12 +52,12 @@ def _protected_resource(request: Request) -> dict:
 
 @router.get("/.well-known/oauth-protected-resource")
 @router.get("/.well-known/oauth-protected-resource/mcp")
-async def protected_resource(request: Request):
+def protected_resource(request: Request):
     return _protected_resource(request)
 
 
 @router.get("/.well-known/oauth-authorization-server")
-async def authorization_server(request: Request):
+def authorization_server(request: Request):
     base = public_url(request)
     return {
         "issuer": base,
@@ -81,7 +82,9 @@ async def register(request: Request, db: Session = Depends(get_db)):
         return _oauth_error(OAuthError("invalid_client_metadata", "Send a JSON object."))
     try:
         return JSONResponse(
-            jsonable_encoder(register_client(db, body.get("client_name"), body.get("redirect_uris"))),
+            jsonable_encoder(
+                await run_in_threadpool(register_client, db, body.get("client_name"), body.get("redirect_uris"))
+            ),
             status_code=201,
             headers=NO_STORE,
         )
@@ -90,7 +93,7 @@ async def register(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/oauth/authorize")
-async def authorize(
+def authorize(
     client_id: str = "",
     redirect_uri: str = "",
     response_type: str = "",
@@ -131,9 +134,7 @@ class Decision(BaseModel):
 
 
 @router.post("/oauth/authorize")
-async def decide_authorization(
-    body: Decision, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
-):
+def decide_authorization(body: Decision, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
     """The person's answer, sent by the web app as the signed-in person. Returns where to send them next."""
     try:
         target = decide(
@@ -165,7 +166,7 @@ async def _urlencoded(request: Request) -> dict[str, str]:
 async def token(request: Request, db: Session = Depends(get_db)):
     form = await _urlencoded(request)
     try:
-        return JSONResponse(exchange_token(db, form), headers=NO_STORE)
+        return JSONResponse(await run_in_threadpool(exchange_token, db, form), headers=NO_STORE)
     except OAuthError as error:
         return _oauth_error(error)
 
@@ -173,17 +174,17 @@ async def token(request: Request, db: Session = Depends(get_db)):
 @router.post("/oauth/revoke")
 async def revoke(request: Request, db: Session = Depends(get_db)):
     form = await _urlencoded(request)
-    revoke_token(db, form.get("token") or "", form.get("client_id"))
+    await run_in_threadpool(revoke_token, db, form.get("token") or "", form.get("client_id"))
     return Response(status_code=200, headers=NO_STORE)
 
 
 @router.get("/connections")
-async def connections(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+def connections(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
     """The AI apps the person has connected, to show them and let them disconnect."""
     return {"data": jsonable_encoder(list_connections(db, user_id))}
 
 
 @router.delete("/connections/{grant_id}", status_code=204)
-async def disconnect_app(grant_id: UUID, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+def disconnect_app(grant_id: UUID, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
     if not disconnect(db, user_id, grant_id):
         raise HTTPException(status_code=404, detail="Conexão não encontrada.")

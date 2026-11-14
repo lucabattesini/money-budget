@@ -43,7 +43,8 @@ tests/
   test_jwt_secret.py       # login secret loading
   test_external_calls_blocked.py  # Gemini and network blocks
   api/                     # endpoints through TestClient: auth, users, categories,
-                           #   transactions, export jobs, WhatsApp webhook
+                           #   transactions, export jobs, WhatsApp webhook; also a guard that
+                           #   handlers never block the event loop (test_handlers_do_not_block)
   gateways/                # document gateway: CSV and Excel files, built in memory
   utils/                   # formatting helpers (amounts, dates, formula guard)
   repositories/            # transaction filters, ordering, pagination, aggregates

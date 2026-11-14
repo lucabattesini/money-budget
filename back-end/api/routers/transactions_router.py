@@ -33,7 +33,7 @@ router = APIRouter(prefix="/transactions", tags=["transactions"], responses={404
 # a missing slash is not redirected (see api/app.py)
 @router.post("")
 @router.post("/")
-async def get_transactions_router(
+def get_transactions_router(
     transactionsParams: GetTransactionsParams,
     family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
@@ -43,7 +43,7 @@ async def get_transactions_router(
 
 
 @router.post("/summed-by-category")
-async def get_summed_transactions_by_category_router(
+def get_summed_transactions_by_category_router(
     transactionsParams: GetTransactionsParams,
     family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
@@ -53,7 +53,7 @@ async def get_summed_transactions_by_category_router(
 
 
 @router.post("/create")
-async def create_transaction_router(
+def create_transaction_router(
     params: Transaction,
     user_id: UUID = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -64,7 +64,7 @@ async def create_transaction_router(
 
 
 @router.post("/bulk-update")
-async def bulk_update_transactions_router(
+def bulk_update_transactions_router(
     params: TransactionBulkUpdate,
     family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
@@ -74,7 +74,7 @@ async def bulk_update_transactions_router(
 
 
 @router.post("/bulk-delete")
-async def bulk_delete_transactions_router(
+def bulk_delete_transactions_router(
     params: TransactionBulkDelete,
     family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
@@ -84,7 +84,7 @@ async def bulk_delete_transactions_router(
 
 
 @router.post("/duplicates")
-async def duplicate_transactions_router(
+def duplicate_transactions_router(
     params: DuplicatesParams,
     family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
@@ -94,7 +94,7 @@ async def duplicate_transactions_router(
 
 
 @router.delete("/{id}")
-async def delete_transaction_router(
+def delete_transaction_router(
     id: UUID,
     family_id: UUID = Depends(get_current_family_id),
     db: Session = Depends(get_db),
@@ -104,7 +104,7 @@ async def delete_transaction_router(
 
 
 @router.put("/{id}")
-async def update_transaction_router(
+def update_transaction_router(
     id: UUID,
     params: TransactionUpdate,
     family_id: UUID = Depends(get_current_family_id),
